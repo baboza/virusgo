@@ -101,7 +101,7 @@ export default function LabDetective() {
   };
 
   const handleNext = () => {
-    if (currentCaseIndex < CASE_STUDIES.length - 1) {
+    if (currentCaseIndex < cases.length - 1) {
       setCurrentCaseIndex(prev => prev + 1);
       setSelectedAnswer(null);
       setIsCorrect(null);
@@ -125,7 +125,7 @@ export default function LabDetective() {
               นักสืบห้องแล็บ
             </h1>
             <p className="text-purple-400 font-mono text-sm uppercase tracking-widest mt-1">
-              Lab Detective • Case {currentCaseIndex + 1}/{CASE_STUDIES.length}
+              Lab Detective • Case {currentCaseIndex + 1}/{cases.length}
             </p>
           </div>
         </div>
