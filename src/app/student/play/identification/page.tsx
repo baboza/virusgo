@@ -56,9 +56,11 @@ const DEFAULT_QUESTIONS = [
   }
 ];
 
+const shuffle = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
+
 export default function IdentificationGame() {
   const { appUser } = useAuth();
-  const [questions, setQuestions] = useState<any[]>(DEFAULT_QUESTIONS);
+  const [questions, setQuestions] = useState<any[]>(() => shuffle(DEFAULT_QUESTIONS));
   const [currentQ, setCurrentQ] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
@@ -72,7 +74,7 @@ export default function IdentificationGame() {
     import('firebase/firestore').then(({ getDoc, doc }) => {
       getDoc(doc(db, 'game_content', 'identification')).then(docSnap => {
         if (docSnap.exists() && docSnap.data().data?.length > 0) {
-          setQuestions(docSnap.data().data);
+          setQuestions(shuffle(docSnap.data().data));
         }
       }).catch(console.error);
     });

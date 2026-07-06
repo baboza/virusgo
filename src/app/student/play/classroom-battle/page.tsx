@@ -80,6 +80,10 @@ export default function ClassroomBattle() {
         const data = docSnap.data();
         setRoomData(data);
         
+        if (data.roomQuestions) {
+          setQuestions(data.roomQuestions);
+        }
+        
         // Reset selected answer if moving to a new question
         if (data.status === 'question' && roomData?.status !== 'question') {
           setSelectedAns(null);
@@ -144,11 +148,18 @@ export default function ClassroomBattle() {
       await updateDoc(doc(db, 'rooms', roomCode), { status: 'finished' });
       return;
     }
-    await updateDoc(doc(db, 'rooms', roomCode), {
+    
+    let updates: any = {
       status: 'question',
       currentQuestionIndex: nextQ,
-      questionStartTime: Date.now() // Use client timestamp for simple sync
-    });
+      questionStartTime: Date.now()
+    };
+    
+    if (nextQ === 0) {
+      updates.roomQuestions = [...questions].sort(() => Math.random() - 0.5);
+    }
+    
+    await updateDoc(doc(db, 'rooms', roomCode), updates);
   };
 
   const handleShowLeaderboard = async () => {

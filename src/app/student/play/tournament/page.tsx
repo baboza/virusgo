@@ -139,7 +139,8 @@ export default function TournamentMultiplayer() {
       bracket,
       matchData,
       currentRound: 0,
-      questionIndex: 0
+      questionIndex: 0,
+      roomQuestions: [...QUESTIONS].sort(() => Math.random() - 0.5)
     });
   };
 
@@ -497,7 +498,8 @@ export default function TournamentMultiplayer() {
 
   // Player View - Playing Match
   if (roomData.status === 'playing' && myMatch && !myFinished) {
-    const q = QUESTIONS[roomData.currentRound % QUESTIONS.length];
+    const qList = roomData.roomQuestions || QUESTIONS;
+    const q = qList[roomData.currentRound % qList.length];
     
     return (
       <div className="max-w-3xl mx-auto mt-12 space-y-6">
