@@ -29,6 +29,30 @@ const DEFAULT_QUESTIONS = [
     answer: "Rabies Virus",
     explanation: "โรคพิษสุนัขบ้าเกิดจาก Rhabdovirus ซึ่งมีลักษณะเด่นคือรูปร่างคล้ายกระสุนปืนเมื่อดูผ่านกล้องจุลทรรศน์อิเล็กตรอน",
     virusType: 'rabies'
+  },
+  {
+    id: 3,
+    question: "สุกรในฟาร์มมีอาการไข้สูง ซึม และมีรอยโรคที่ผิวหนังเป็นรูปสี่เหลี่ยมขนมเปียกปูน (Diamond-shaped skin lesions) เชื้อก่อโรคนี้คืออะไร?",
+    choices: ["African Swine Fever Virus", "Classical Swine Fever Virus", "Swine Erysipelas (Bacteria)", "Porcine Circovirus"],
+    answer: "Swine Erysipelas (Bacteria)",
+    explanation: "แม้ชื่อเกมจะเป็นไวรัส แต่ Erysipelothrix rhusiopathiae เป็นแบคทีเรียที่ทำให้เกิดรอยโรคสี่เหลี่ยมขนมเปียกปูนที่จำเพาะมาก (Pathognomonic sign)",
+    virusType: 'bacteria'
+  },
+  {
+    id: 4,
+    question: "แมวอายุ 5 ปี มีอาการซึม เบื่ออาหาร เหงือกซีด และตรวจพบก้อนเนื้องอกที่ช่องอก (Mediastinal lymphoma) เชื้อไวรัสชนิดใดมีความสัมพันธ์กับอาการเหล่านี้มากที่สุด?",
+    choices: ["Feline Immunodeficiency Virus (FIV)", "Feline Infectious Peritonitis (FIP)", "Feline Leukemia Virus (FeLV)", "Feline Panleukopenia Virus (FPV)"],
+    answer: "Feline Leukemia Virus (FeLV)",
+    explanation: "FeLV เป็น Retrovirus ที่สามารถแทรกจีโนมเข้าไปในเซลล์โฮสต์และเหนี่ยวนำให้เกิดมะเร็ง เช่น Lymphoma ได้บ่อยในแมว",
+    virusType: 'felv'
+  },
+  {
+    id: 5,
+    question: "โรค 구제역 หรือ Foot and Mouth Disease (FMD) มักไม่พบการติดเชื้อในสัตว์ชนิดใดต่อไปนี้?",
+    choices: ["สุกร", "โค-กระบือ", "แพะ-แกะ", "ม้า"],
+    answer: "ม้า",
+    explanation: "FMD เป็นโรคที่ติดเฉพาะในสัตว์กีบคู่ (Artiodactyla) เท่านั้น ม้าเป็นสัตว์กีบเดี่ยวจึงไม่ติดโรคนี้",
+    virusType: 'fmd'
   }
 ];
 

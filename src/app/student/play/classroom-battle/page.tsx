@@ -22,8 +22,16 @@ import {
 import { useLiveTracking } from '@/hooks/useLiveTracking';
 
 const DEFAULT_QUESTIONS = [
-  { q: "สัตว์ชนิดใดไม่ติดเชื้อ FMD?", opts: ["โค", "สุกร", "ม้า", "แพะ"], ans: 2 },
   { q: "เชื้อ FMD เป็นเชื้อกลุ่มใด?", opts: ["DNA Virus", "RNA Virus", "Bacteria", "Fungi"], ans: 1 },
+  { q: "สัตว์ชนิดใดไม่ติดเชื้อ FMD?", opts: ["โค", "สุกร", "ม้า", "แพะ"], ans: 2 },
+  { q: "โรค PEDV ในสุกร ทำให้เกิดอาการใดเด่นชัดที่สุด?", opts: ["ไข้สูง", "ท้องเสียรุนแรง", "ไอเรื้อรัง", "แท้งลูก"], ans: 1 },
+  { q: "โรคพิษสุนัขบ้า (Rabies) ติดต่อทางใดเป็นหลัก?", opts: ["ทางอากาศ", "น้ำลายผ่านแผล", "กินอาหารปนเปื้อน", "ยุงกัด"], ans: 1 },
+  { q: "การส่งตรวจยืนยันเชื้อ Rabies นิยมใช้วิธีใด?", opts: ["FA Test จากสมอง", "Blood smear", "ELISA serum", "PCR อุจจาระ"], ans: 0 },
+  { q: "CPV (Canine Parvovirus) มักพบในสุนัขอายุเท่าใด?", opts: ["แรกเกิด", "1-6 เดือน", "3-5 ปี", "สุนัขแก่"], ans: 1 },
+  { q: "พาหะนำโรค PRRS คืออะไร?", opts: ["ยุง", "เห็บ", "สุกรป่วย", "นก"], ans: 2 },
+  { q: "เชื้อ ASF ในสุกร เป็นเชื้อชนิดใด?", opts: ["DNA Virus", "RNA Virus", "Prion", "Bacteria"], ans: 0 },
+  { q: "วัคซีน ASF ในปัจจุบันมีประสิทธิภาพระดับใด?", opts: ["ป้องกันได้ 100%", "ป้องกันได้ 80%", "ป้องกันได้เฉพาะบางสายพันธุ์", "ยังไม่มีวัคซีนที่สมบูรณ์"], ans: 3 },
+  { q: "Feline Leukemia Virus (FeLV) เป็นไวรัสกลุ่มใด?", opts: ["Retrovirus", "Parvovirus", "Coronavirus", "Herpesvirus"], ans: 0 }
 ];
 
 const TIME_PER_QUESTION_MS = 20000;

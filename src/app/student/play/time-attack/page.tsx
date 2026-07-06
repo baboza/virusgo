@@ -14,16 +14,21 @@ import { useLiveTracking } from '@/hooks/useLiveTracking';
 
 // ── Question Bank ─────────────────────────────────────────────────────────────
 const DEFAULT_QUESTIONS = [
-  {
-    q: "ไวรัสชนิดใดที่มีรูปร่างคล้ายกระสุนปืน (Bullet-shaped)?",
-    choices: ["Rabies Virus", "Influenza Virus", "Parvovirus", "Rotavirus"],
-    answer: "Rabies Virus",
-  },
-  {
-    q: "Negri bodies เป็นลักษณะเฉพาะของโรคใด?",
-    choices: ["Canine Distemper", "Rabies", "Feline Panleukopenia", "FIV"],
-    answer: "Rabies",
-  },
+  { q: "ไวรัสชนิดใดที่มีรูปร่างคล้ายกระสุนปืน (Bullet-shaped)?", choices: ["Rabies Virus", "Influenza Virus", "Parvovirus", "Rotavirus"], answer: "Rabies Virus" },
+  { q: "Negri bodies เป็นลักษณะเฉพาะของโรคใด?", choices: ["Canine Distemper", "Rabies", "Feline Panleukopenia", "FIV"], answer: "Rabies" },
+  { q: "เชื้อ FMD เป็นเชื้อกลุ่มใด?", choices: ["DNA Virus", "RNA Virus", "Bacteria", "Fungi"], answer: "RNA Virus" },
+  { q: "สัตว์ชนิดใดไม่ติดเชื้อ FMD (โรคปากและเท้าเปื่อย)?", choices: ["โค", "สุกร", "ม้า", "แพะ"], answer: "ม้า" },
+  { q: "โรค PEDV ในสุกร ทำให้เกิดอาการใดเด่นชัดที่สุด?", choices: ["ไข้สูง", "ท้องเสียรุนแรง", "ไอเรื้อรัง", "แท้งลูก"], answer: "ท้องเสียรุนแรง" },
+  { q: "การส่งตรวจยืนยันเชื้อ Rabies นิยมใช้วิธีใด?", choices: ["FA Test จากสมอง", "Blood smear", "ELISA serum", "PCR อุจจาระ"], answer: "FA Test จากสมอง" },
+  { q: "CPV (Canine Parvovirus) มักพบในสุนัขอายุเท่าใด?", choices: ["แรกเกิด", "1-6 เดือน", "3-5 ปี", "สุนัขแก่"], answer: "1-6 เดือน" },
+  { q: "พาหะนำโรค PRRS คืออะไร?", choices: ["ยุง", "เห็บ", "สุกรป่วย", "นก"], answer: "สุกรป่วย" },
+  { q: "วัคซีน ASF ในปัจจุบันมีประสิทธิภาพระดับใด?", choices: ["ป้องกันได้ 100%", "ป้องกันได้ 80%", "ป้องกันได้เฉพาะบางสายพันธุ์", "ยังไม่มีวัคซีนที่สมบูรณ์"], answer: "ยังไม่มีวัคซีนที่สมบูรณ์" },
+  { q: "ข้อใดคือลักษณะทางพยาธิวิทยาของโรคไข้หัดสุนัข (CDV)?", choices: ["Encephalitis", "Pneumonia", "Hyperkeratosis (Hardpad)", "ถูกทุกข้อ"], answer: "ถูกทุกข้อ" },
+  { q: "Feline Leukemia Virus (FeLV) เป็นไวรัสกลุ่มใด?", choices: ["Retrovirus", "Parvovirus", "Coronavirus", "Herpesvirus"], answer: "Retrovirus" },
+  { q: "การวินิจฉัย FIV ในคลินิก นิยมตรวจหาอะไร?", choices: ["Antigen", "Antibody", "DNA", "RNA"], answer: "Antibody" },
+  { q: "โรคใดในแมวที่มักเกิดจากเชื้อ Feline Coronavirus กลายพันธุ์?", choices: ["FIV", "FeLV", "FIP", "FPLV"], answer: "FIP" },
+  { q: "African Horse Sickness (AHS) มีพาหะนำโรคคือสัตว์ชนิดใด?", choices: ["ริ้น (Culicoides)", "ยุง (Aedes)", "แมลงวันคอก (Stomoxys)", "เห็บ (Ticks)"], answer: "ริ้น (Culicoides)" },
+  { q: "ไวรัสชนิดใดเป็นสาเหตุของโรค Orf (Contagious ecthyma) ในแกะ?", choices: ["Poxvirus", "Herpesvirus", "Papillomavirus", "Parvovirus"], answer: "Poxvirus" }
 ];
 
 const TOTAL_TIME = 60;

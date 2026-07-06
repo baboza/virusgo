@@ -233,12 +233,12 @@ export default function OutbreakSim() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className={`p-8 rounded-2xl border-2 text-center shadow-xl ${feedback.type === 'good' ? 'bg-secondary/10 border-secondary text-secondary' : 'bg-danger/10 border-danger text-danger'}`}
+            className={`p-8 rounded-2xl border-2 text-center shadow-xl ${feedback?.type === 'good' ? 'bg-secondary/10 border-secondary text-secondary' : 'bg-danger/10 border-danger text-danger'}`}
           >
             <h3 className="text-2xl font-black mb-4 uppercase tracking-widest">
-              {feedback.type === 'good' ? 'SYSTEM OPTIMAL' : 'CRITICAL ERROR'}
+              {feedback?.type === 'good' ? 'SYSTEM OPTIMAL' : 'CRITICAL ERROR'}
             </h3>
-            <p className="text-lg font-mono text-white/90">{feedback.text}</p>
+            <p className="text-lg font-mono text-white/90">{feedback?.text}</p>
           </motion.div>
         )}
       </AnimatePresence>
