@@ -204,7 +204,7 @@ export default function OutbreakSim() {
               <div className="scanlines" />
               <div className="relative z-10">
                 <h2 className="text-xl md:text-2xl font-medium text-white mb-8 leading-relaxed font-mono">
-                  {">"} {currentScenario.text}
+                  {">"} {currentScenario?.text}
                   <motion.span 
                     animate={{ opacity: [0, 1, 0] }} 
                     transition={{ repeat: Infinity, duration: 0.8 }}
@@ -212,7 +212,7 @@ export default function OutbreakSim() {
                 </h2>
 
                 <div className="space-y-4">
-                  {currentScenario.options.map((opt, idx) => (
+                  {currentScenario?.options?.map((opt, idx) => (
                     <Button
                       key={idx}
                       variant="ghost"
