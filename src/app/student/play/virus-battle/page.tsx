@@ -53,7 +53,7 @@ export default function VirusBattle() {
   const [currentQ, setCurrentQ] = useState(0);
 
   const myUid = appUser?.uid || user?.uid || '';
-  useLiveTracking('virus-battle', `ห้อง: ${roomData?.id || '-'} | สถานะ: ${roomData?.status || 'waiting'} | เลือดบอส: ${roomData?.bossHp ?? '-'}/${roomData?.maxBossHp ?? '-'}`);
+  useLiveTracking('virus-battle', `ห้อง: ${roomData?.roomId || '-'} | สถานะ: ${roomData?.status || 'waiting'} | เลือดบอส: ${roomData?.bossHp ?? '-'}/${roomData?.maxBossHp ?? '-'}`);
 
 
   useEffect(() => {
@@ -77,8 +77,8 @@ export default function VirusBattle() {
   const [myDamageText, setMyDamageText] = useState<{val: number, type: 'damage'|'heal'|'hit'} | null>(null);
   
   useEffect(() => {
-    // Shuffle questions once on mount
-    QUESTIONS.sort(() => Math.random() - 0.5);
+    // Shuffle defaults just in case
+    setQuestions(prev => [...prev].sort(() => Math.random() - 0.5));
   }, []);
 
   // Subscribe to Room
@@ -343,7 +343,7 @@ export default function VirusBattle() {
 
   // --- PLAYING ---
   const myPlayer = roomData.players[user.uid];
-  const question = QUESTIONS[currentQ % QUESTIONS.length];
+  const question = questions[currentQ % questions.length];
 
   return (
     <div className="pt-2 px-2 md:px-0 max-w-4xl mx-auto flex flex-col min-h-[85vh]">
