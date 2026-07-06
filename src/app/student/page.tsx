@@ -268,7 +268,7 @@ export default function PlayerHub() {
         className="grid grid-cols-1 md:grid-cols-3 gap-6"
       >
         {/* Missions */}
-        <motion.div variants={item} className="md:col-span-2">
+        <motion.div variants={item} className="md:col-span-1">
           <Link href="/student/play">
             <div className="glass p-6 rounded-3xl h-full border-secondary/30 hover:border-secondary transition-all group cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[180px]">
               <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 group-hover:bg-secondary/20 transition-all" />
@@ -307,6 +307,39 @@ export default function PlayerHub() {
               </div>
             </div>
           </Link>
+        </motion.div>
+
+        {/* Virus Pet */}
+        <motion.div variants={item}>
+          {currentExp >= 500 ? (
+            <Link href="/student/virus-pet">
+              <div className="glass p-6 rounded-3xl h-full border-purple-500/30 hover:border-purple-500 transition-all group cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[180px]">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 group-hover:bg-purple-500/20 transition-all" />
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Heart className="w-6 h-6 text-purple-400 group-hover:scale-110 transition-transform animate-pulse" />
+                    <h2 className="text-xl font-bold text-white tracking-wide">Virus Pet</h2>
+                  </div>
+                  <p className="text-slate-400 text-sm">ห้องเพาะเลี้ยงไวรัสส่วนตัวของคุณ</p>
+                </div>
+                <div className="mt-8 flex justify-end">
+                  <div className="text-purple-400 font-bold flex items-center gap-1 group-hover:translate-x-2 transition-transform text-sm">
+                    เยี่ยมชม <ChevronRight className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ) : (
+            <div className="glass p-6 rounded-3xl h-full border-slate-700/30 opacity-70 relative overflow-hidden flex flex-col justify-between min-h-[180px]">
+              <div>
+                <div className="flex items-center gap-3 mb-2 text-slate-500">
+                  <Lock className="w-6 h-6" />
+                  <h2 className="text-xl font-bold tracking-wide">Virus Pet</h2>
+                </div>
+                <p className="text-slate-500 text-sm">ต้องการยศ Virus Hunter (500 EXP) เพื่อปลดล็อกห้องทดลองลับ</p>
+              </div>
+            </div>
+          )}
         </motion.div>
       </motion.div>
 
