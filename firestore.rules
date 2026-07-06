@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isInstructor() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      // Anyone logged in can read public user data (e.g. for leaderboard), 
+      // but users can update their own data, and instructors/admins can manage users.
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isOwner(userId) || isInstructor() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Viruses Collection
+    match /viruses/{virusId} {
+      // All authenticated users can read virus data
+      allow read: if isAuthenticated();
+      // Only instructors and admins can manage virus database
+      allow write: if isInstructor() || isAdmin();
+    }
+
+    // Questions Collection
+    match /questions/{questionId} {
+      // Students can read questions
+      allow read: if isAuthenticated();
+      // Only instructors can manage questions
+      allow write: if isInstructor() || isAdmin();
+    }
+
+    // Case Studies
+    match /caseStudies/{caseId} {
+      allow read: if isAuthenticated();
+      allow write: if isInstructor() || isAdmin();
+    }
+
+    // Achievements Collection (Static data)
+    match /achievements/{achievementId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Multiplayer Rooms
+    match /rooms/{roomId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Leaderboard
+    match /leaderboard/{entryId} {
+      allow read: if isAuthenticated();
+      // Should ideally be updated via Cloud Functions, but for simplicity:
+      allow write: if isOwner(request.resource.data.uid) || isAdmin();
+    }
+  }
+}
