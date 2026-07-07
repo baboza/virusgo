@@ -14,34 +14,17 @@ import { db } from '@/lib/firebase/config';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { EmpireTile, User } from '@/types';
 
-// General Quiz Pool
-const QUIZ_POOL = [
-  {
-    q: "รูปร่างที่คลาสสิกที่สุดของไวรัสพิษสุนัขบ้า (Rabies) เมื่อดูผ่านกล้องจุลทรรศน์อิเล็กตรอนคืออะไร?",
-    choices: ["รูปร่างยี่สิบหน้า (Icosahedral)", "รูปร่างคล้ายกระสุนปืน (Bullet-shaped)", "รูปร่างทรงกลม (Spherical)", "รูปร่างคล้ายเส้นด้าย (Filamentous)"],
-    answer: "รูปร่างคล้ายกระสุนปืน (Bullet-shaped)"
-  },
-  {
-    q: "ข้อใดต่อไปนี้ ไม่ใช่ เส้นทางการแพร่กระจายโดยทั่วไปของโรคพิษสุนัขบ้า?",
-    choices: ["โดนสัตว์ที่ติดเชื้อกัด", "สูดดมละอองฝอยในถ้ำค้างคาว", "โดนยุงกัด", "การปลูกถ่ายอวัยวะ (หายากมาก)"],
-    answer: "โดนยุงกัด"
-  },
-  {
-    q: "PEDV จัดอยู่ในกลุ่มไวรัสชนิดใด?",
-    choices: ["Alphacoronavirus", "Betacoronavirus", "Gammacoronavirus", "Deltacoronavirus"],
-    answer: "Alphacoronavirus"
-  },
-  {
-    q: "อาการทางคลินิกที่สำคัญที่สุดของ PEDV ในลูกสุกรดูดนมคืออะไร?",
-    choices: ["ไอแห้งๆ", "ท้องร่วงอย่างรุนแรงเป็นน้ำ", "มีตุ่มหนองตามผิวหนัง", "แท้งลูก"],
-    answer: "ท้องร่วงอย่างรุนแรงเป็นน้ำ"
-  },
-  {
-    q: "Feline Panleukopenia Virus มีผลกระทบต่อเซลล์ชนิดใดในร่างกายแมวมากที่สุด?",
-    choices: ["เซลล์เยื่อบุผิวทางเดินหายใจ", "เซลล์ประสาทสมอง", "เซลล์ที่มีการแบ่งตัวอย่างรวดเร็ว (เช่น ไขกระดูก)", "เซลล์ตับ"],
-    answer: "เซลล์ที่มีการแบ่งตัวอย่างรวดเร็ว (เช่น ไขกระดูก)"
+// Helper: same as empire map
+const stringToColor = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
-];
+  const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+  return '#' + '00000'.substring(0, 6 - c.length) + c;
+};
+
+type QuizItem = { q: string; choices: string[]; answer: string };
 
 function BattleContent() {
   const { appUser } = useAuth();
@@ -51,16 +34,29 @@ function BattleContent() {
 
   const [loading, setLoading] = useState(true);
   const [tile, setTile] = useState<EmpireTile | null>(null);
-  
-  // Battle Stats
-  const [attackerStats, setAttackerStats] = useState({ hp: 100, maxHp: 100, atk: 20, agi: 1, dex: 1, name: 'You' });
-  const [defenderStats, setDefenderStats] = useState({ hp: 50, maxHp: 50, atk: 10, name: 'Unclaimed Cell', family: 'parvo' });
-  
-  // Game State
+  const [questionsBank, setQuestionsBank] = useState<QuizItem[]>([]);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
   const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing');
   const [showDamage, setShowDamage] = useState<{ target: 'attacker' | 'defender', amount: number, isCrit: boolean } | null>(null);
+
+  // Battle Stats
+  const [attackerStats, setAttackerStats] = useState({ hp: 100, maxHp: 100, atk: 20, agi: 1, dex: 1, name: 'You' });
+  const [defenderStats, setDefenderStats] = useState({ hp: 50, maxHp: 50, atk: 10, name: 'Unclaimed Cell', family: 'parvo' });
+
+  // Load questions from Firestore (same pool as Time Attack)
+  useEffect(() => {
+    getDoc(doc(db, 'game_content', 'quiz_general')).then((snap) => {
+      if (snap.exists() && snap.data().questions?.length > 0) {
+        const mapped: QuizItem[] = snap.data().questions.map((q: any) => ({
+          q: q.q,
+          choices: q.opts || [],
+          answer: q.opts ? q.opts[q.ans] : ''
+        }));
+        setQuestionsBank(mapped);
+      }
+    }).catch(console.error);
+  }, []);
 
   // Load Data
   useEffect(() => {
@@ -169,16 +165,19 @@ function BattleContent() {
   };
 
   const nextQuestion = () => {
+    const pool = questionsBank.length > 0 ? questionsBank : [{ q: '', choices: [], answer: '' }];
     setTimeout(() => {
       setShowDamage(null);
-      setCurrentQIndex(Math.floor(Math.random() * QUIZ_POOL.length));
+      setCurrentQIndex(Math.floor(Math.random() * pool.length));
       setTimeLeft(15 + (attackerStats.agi * 2));
     }, 1000);
   };
 
   const handleAnswer = (choice: string) => {
     if (gameState !== 'playing') return;
-    const isCorrect = choice === QUIZ_POOL[currentQIndex].answer;
+    const pool = questionsBank.length > 0 ? questionsBank : [];
+    const q = pool[currentQIndex % (pool.length || 1)];
+    const isCorrect = choice === q?.answer;
     if (isCorrect) {
       handleCorrectAnswer();
     } else {
@@ -196,7 +195,7 @@ function BattleContent() {
       ownerUid: appUser.uid,
       ownerName: appUser.fullname,
       ownerFamily: appUser.pet?.family || 'parvo',
-      color: '#' + Math.floor(Math.random()*16777215).toString(16), // Simplified color
+      color: stringToColor(appUser.uid), // consistent color per player
       lastAttacked: new Date().toISOString()
     };
     
@@ -216,7 +215,10 @@ function BattleContent() {
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-cyan-500"/></div>;
   if (!tileId) return <div>No tile selected</div>;
 
-  const currentQ = QUIZ_POOL[currentQIndex];
+  const pool = questionsBank.length > 0 ? questionsBank : [
+    { q: 'กำลังโหลดคำถาม...', choices: ['...'], answer: '...' }
+  ];
+  const currentQ = pool[currentQIndex % pool.length];
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">

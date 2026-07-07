@@ -204,12 +204,10 @@ export default function EmpireMap() {
                   const territoryBorders = getTerritoryBorders(tile, x, y, tiles);
 
                   return (
-                    <motion.div
+                    <div
                       key={id}
-                      whileHover={{ scale: 1.15, zIndex: 20 }}
-                      whileTap={{ scale: 0.88 }}
                       onClick={() => setSelectedTile({ x, y })}
-                      className="relative cursor-pointer rounded-sm overflow-hidden"
+                      className="relative cursor-pointer rounded-sm overflow-hidden transition-transform hover:scale-110 hover:z-10 active:scale-90"
                       style={{
                         width: 44,
                         height: 44,
@@ -256,18 +254,14 @@ export default function EmpireMap() {
 
                       {/* Player tile */}
                       {tile?.type === 'player' && tile.ownerFamily && (
-                        <motion.div
-                          className="w-full h-full p-1.5 flex items-center justify-center bg-black/20"
-                          animate={isMyTileOnMap ? { opacity: [0.8, 1, 0.8] } : {}}
-                          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                        >
+                        <div className="w-full h-full p-1.5 flex items-center justify-center bg-black/20">
                           <SVGVirus
                             type={tile.ownerFamily as any}
                             className="w-full h-full drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]"
                           />
-                        </motion.div>
+                        </div>
                       )}
-                    </motion.div>
+                    </div>
                   );
                 })}
               </div>
