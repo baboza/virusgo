@@ -60,6 +60,7 @@ export default function EmpireMap() {
     });
 
     return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appUser, router]);
 
   const spawnBosses = async (count: number, currentTiles: Record<string, EmpireTile>) => {

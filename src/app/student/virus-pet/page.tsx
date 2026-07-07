@@ -115,6 +115,7 @@ export default function VirusPet() {
     };
 
     loadPet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appUser]);
 
   const checkSick = (p: VirusPetData) => {

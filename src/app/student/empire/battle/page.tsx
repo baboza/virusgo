@@ -112,6 +112,7 @@ export default function EmpireBattle() {
     };
 
     initBattle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appUser, tileId]);
 
   // Timer
@@ -129,6 +130,7 @@ export default function EmpireBattle() {
     }, 1000);
 
     return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQIndex, gameState, loading, attackerStats.agi]);
 
   const handleWrongAnswer = () => {
