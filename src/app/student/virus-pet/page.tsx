@@ -13,17 +13,7 @@ import { db } from '@/lib/firebase/config';
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 import { sfx } from '@/utils/sound';
 
-interface VirusPetData {
-  virusID: string;
-  virusName: string;
-  family: string;
-  hunger: number; // 0-100
-  happiness: number; // 0-100
-  energy: number; // 0-100
-  stage: number; // 1: Egg, 2: Larva, 3: Mature
-  careCount: number;
-  lastUpdate: string;
-}
+import { VirusPetData } from '@/types';
 
 export default function VirusPet() {
   const { appUser } = useAuth();
@@ -62,13 +52,19 @@ export default function VirusPet() {
               energy: 100,
               stage: 1,
               careCount: 0,
-              lastUpdate: new Date().toISOString()
+              lastUpdate: new Date().toISOString(),
+              stats: { str: 1, vit: 1, agi: 1, dex: 1, spentPoints: 0 }
             };
             await updateDoc(petRef, { pet: petData });
           }
         }
 
         if (petData) {
+          // Initialize stats if missing (for existing players)
+          if (!petData.stats) {
+            petData.stats = { str: 1, vit: 1, agi: 1, dex: 1, spentPoints: 0 };
+          }
+          
           // Calculate time decay
           const lastDate = new Date(petData.lastUpdate);
           const now = new Date();
@@ -147,6 +143,25 @@ export default function VirusPet() {
     setTimeout(() => {
       setActionAnim(null);
     }, 1500);
+  };
+
+  const totalPoints = Math.floor((appUser?.exp || 0) / 100);
+  const spentPoints = pet?.stats?.spentPoints || 0;
+  const availablePoints = Math.max(0, totalPoints - spentPoints);
+
+  const handleUpgradeStat = async (stat: 'str' | 'vit' | 'agi' | 'dex') => {
+    if (!pet || !pet.stats || availablePoints <= 0 || !appUser) return;
+    sfx.click();
+    
+    const newStats = { ...pet.stats, [stat]: pet.stats[stat] + 1, spentPoints: pet.stats.spentPoints + 1 };
+    const newPet = { ...pet, stats: newStats };
+    setPet(newPet);
+    
+    try {
+      await updateDoc(doc(db, 'users', appUser.uid), { pet: newPet });
+    } catch (e) {
+      console.error("Failed to upgrade stat", e);
+    }
   };
 
   if (loading) {
@@ -281,6 +296,54 @@ export default function VirusPet() {
           <span className="text-[10px] font-black uppercase tracking-widest">Dormant</span>
         </Button>
       </div>
+
+      {/* RPG Stats Allocation */}
+      <Card className="mt-6 p-4 md:p-6 glass border-slate-700 backdrop-blur-md">
+        <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2">
+          <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+            <Star className="w-4 h-4 text-yellow-400" /> RPG Stats
+          </h3>
+          <div className="text-xs font-mono">
+            <span className="text-slate-400">Available Points:</span>{' '}
+            <span className={`font-black text-lg ${availablePoints > 0 ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'text-slate-500'}`}>
+              {availablePoints}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            { id: 'str', name: 'STR', color: 'text-red-400', border: 'border-red-900/50', bg: 'bg-red-900/20' },
+            { id: 'vit', name: 'VIT', color: 'text-green-400', border: 'border-green-900/50', bg: 'bg-green-900/20' },
+            { id: 'agi', name: 'AGI', color: 'text-blue-400', border: 'border-blue-900/50', bg: 'bg-blue-900/20' },
+            { id: 'dex', name: 'DEX', color: 'text-yellow-400', border: 'border-yellow-900/50', bg: 'bg-yellow-900/20' },
+          ].map(s => {
+            const statVal = pet?.stats?.[s.id as keyof typeof pet.stats] || 1;
+            return (
+              <div key={s.id} className={`p-3 rounded-xl border ${s.border} ${s.bg} flex items-center justify-between`}>
+                <div>
+                  <div className={`text-sm font-black uppercase ${s.color} tracking-widest`}>{s.name}</div>
+                  <div className="text-2xl font-black text-white mt-1 leading-none">{statVal}</div>
+                </div>
+                <button
+                  onClick={() => handleUpgradeStat(s.id as any)}
+                  disabled={availablePoints <= 0}
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-xl transition-all ${
+                    availablePoints > 0 
+                      ? 'bg-slate-800 text-white hover:bg-slate-700 hover:scale-105 active:scale-95 border border-slate-600' 
+                      : 'bg-slate-900 text-slate-700 border border-slate-800 cursor-not-allowed'
+                  }`}
+                >
+                  +
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <div className="text-center mt-4 text-[10px] text-slate-500 uppercase tracking-widest">
+          Earn points by playing mini-games (100 EXP = 1 Point)
+        </div>
+      </Card>
     </div>
   );
 }

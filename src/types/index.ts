@@ -1,5 +1,24 @@
 export type UserRole = 'student' | 'instructor' | 'admin';
 
+export interface VirusPetData {
+  virusID: string;
+  virusName: string;
+  family: string;
+  hunger: number;
+  happiness: number;
+  energy: number;
+  stage: number;
+  careCount: number;
+  lastUpdate: string;
+  stats?: {
+    str: number;
+    vit: number;
+    agi: number;
+    dex: number;
+    spentPoints: number;
+  };
+}
+
 export interface User {
   uid: string;
   studentID?: string;
@@ -12,10 +31,11 @@ export interface User {
   score: number;
   exp: number;
   level: number;
-  badges: string[]; // Array of badgeIDs
-  completedLessons: string[]; // Array of lesson/virus IDs
+  badges: string[];
+  completedLessons: string[];
   accuracy: number;
   createdAt: number;
+  pet?: VirusPetData;
 }
 
 export interface Virus {
@@ -49,6 +69,22 @@ export interface Question {
   difficulty: QuestionDifficulty;
   type: QuestionType;
   image?: string; // URL for identification questions
+}
+
+export type TileType = 'empty' | 'player' | 'boss';
+
+export interface EmpireTile {
+  id: string; // e.g., "5,10" for x=5, y=10
+  x: number;
+  y: number;
+  type: TileType;
+  ownerUid?: string;
+  ownerName?: string;
+  ownerFamily?: string; // To show pet icon
+  bossHp?: number;
+  maxBossHp?: number;
+  color?: string; // Player's assigned color
+  lastAttacked?: string;
 }
 
 export interface CaseStudy {

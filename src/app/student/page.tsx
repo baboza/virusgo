@@ -266,7 +266,7 @@ export default function PlayerHub() {
         variants={container}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
       >
         {/* Missions */}
         <motion.div variants={item} className="md:col-span-1">
@@ -276,7 +276,7 @@ export default function PlayerHub() {
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <Zap className="w-8 h-8 text-secondary group-hover:scale-110 transition-transform" />
-                  <h2 className="text-2xl font-bold text-white tracking-wide">เข้าสู่สนามรบ</h2>
+                  <h2 className="text-2xl font-bold text-white tracking-wide">Select Stage</h2>
                 </div>
                 <p className="text-slate-400 text-sm">ปฏิบัติภารกิจมินิเกมทั้ง 11 โหมด เพื่อเก็บคะแนนและอัปยศของคุณ</p>
               </div>
@@ -338,6 +338,39 @@ export default function PlayerHub() {
                   <h2 className="text-xl font-bold tracking-wide">Virus Pet</h2>
                 </div>
                 <p className="text-slate-500 text-sm">ต้องการ 1000 EXP เพื่อปลดล็อกห้องเพาะเลี้ยงไวรัส</p>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Virus Empire */}
+        <motion.div variants={item}>
+          {currentExp >= 1000 ? (
+            <Link href="/student/empire">
+              <div className="glass p-6 rounded-3xl h-full border-green-500/30 hover:border-green-500 transition-all group cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[180px]">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-green-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 group-hover:bg-green-500/20 transition-all" />
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Map className="w-6 h-6 text-green-400 group-hover:scale-110 transition-transform" />
+                    <h2 className="text-xl font-bold text-white tracking-wide">Virus Empire</h2>
+                  </div>
+                  <p className="text-slate-400 text-sm">ยึดครองโลกด้วยไวรัสของคุณ</p>
+                </div>
+                <div className="mt-8 flex justify-end">
+                  <div className="text-green-400 font-bold flex items-center gap-1 group-hover:translate-x-2 transition-transform text-sm">
+                    เข้าสู่แผนที่ <ChevronRight className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ) : (
+            <div className="glass p-6 rounded-3xl h-full border-slate-700/30 opacity-70 relative overflow-hidden flex flex-col justify-between min-h-[180px]">
+              <div>
+                <div className="flex items-center gap-3 mb-2 text-slate-500">
+                  <Lock className="w-6 h-6" />
+                  <h2 className="text-xl font-bold tracking-wide">Virus Empire</h2>
+                </div>
+                <p className="text-slate-500 text-sm">ต้องการ 1000 EXP เพื่อปลดล็อกโหมดสร้างอาณาจักร</p>
               </div>
             </div>
           )}
