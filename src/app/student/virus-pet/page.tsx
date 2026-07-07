@@ -83,12 +83,13 @@ export default function VirusPet() {
                 const penaltyTokens = Math.min(Math.floor(diffHours / 12), 2);
                 
                 if (penaltyTokens > 0) {
-                    const statKeys: (keyof typeof petData.stats)[] = ['str', 'vit', 'agi', 'dex'];
+                    const stats = petData.stats!;
+                    const statKeys: ('str' | 'vit' | 'agi' | 'dex')[] = ['str', 'vit', 'agi', 'dex'];
                     let lostStats: string[] = [];
                     for (let i = 0; i < penaltyTokens; i++) {
                         const randomStat = statKeys[Math.floor(Math.random() * 4)];
-                        if (petData.stats[randomStat] > 1) {
-                            petData.stats[randomStat]--;
+                        if (stats[randomStat] > 1) {
+                            stats[randomStat]--;
                             lostStats.push(randomStat.toUpperCase());
                         }
                     }
