@@ -15,14 +15,23 @@ import { useRouter } from 'next/navigation';
 
 const MAP_SIZE = 20;
 
-// Generate a color based on UID
-const stringToColor = (str: string) => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-  return '#' + '00000'.substring(0, 6 - c.length) + c;
+// Map virus family to a specific color
+export const familyToColor = (family: string) => {
+  const f = family.toLowerCase();
+  if (f.includes('rabies')) return '#ef4444'; // red
+  if (f.includes('parvo')) return '#3b82f6'; // blue
+  if (f.includes('corona')) return '#10b981'; // green
+  if (f.includes('retro')) return '#a855f7'; // purple
+  if (f.includes('paramyxo')) return '#f97316'; // orange
+  if (f.includes('arteri')) return '#ec4899'; // pink
+  if (f.includes('picorna')) return '#eab308'; // yellow
+  if (f.includes('asfar')) return '#6366f1'; // indigo
+  if (f.includes('flavi')) return '#84cc16'; // lime
+  if (f.includes('orthomyxo')) return '#14b8a6'; // teal
+  if (f.includes('birna')) return '#8b5cf6'; // violet
+  if (f.includes('herpes')) return '#d946ef'; // fuchsia
+  if (f.includes('reo')) return '#f43f5e'; // rose
+  return '#06b6d4'; // cyan default
 };
 
 // Terrain background for empty tiles based on position
@@ -46,7 +55,7 @@ const getTerritoryBorders = (
   tiles: Record<string, EmpireTile>
 ): React.CSSProperties => {
   if (!tile || tile.type !== 'player') return {};
-  const color = tile.color || stringToColor(tile.ownerUid || '');
+  const color = familyToColor(tile.ownerFamily || 'default');
   const bw = '3px';
   const sameOwner = (nx: number, ny: number) =>
     tiles[`${nx},${ny}`]?.ownerUid === tile.ownerUid;
@@ -200,7 +209,7 @@ export default function EmpireMap() {
                   const tile = tiles[id];
                   const isSelected = selectedTile?.x === x && selectedTile?.y === y;
                   const isMyTileOnMap = tile?.ownerUid === appUser?.uid;
-                  const tileColor = tile?.type === 'player' ? stringToColor(tile.ownerUid || '') : undefined;
+                  const tileColor = tile?.type === 'player' ? familyToColor(tile.ownerFamily || 'default') : undefined;
                   const territoryBorders = getTerritoryBorders(tile, x, y, tiles);
 
                   return (

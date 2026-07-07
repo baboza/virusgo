@@ -13,6 +13,7 @@ import { doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { EmpireTile, User } from '@/types';
+import { familyToColor } from '@/app/student/empire/page';
 
 // Helper: same as empire map
 const stringToColor = (str: string) => {
@@ -24,6 +25,12 @@ const stringToColor = (str: string) => {
   return '#' + '00000'.substring(0, 6 - c.length) + c;
 };
 
+const FALLBACK_QUIZ = [
+  { q: "PEDV จัดอยู่ในกลุ่มไวรัสชนิดใด?", choices: ["Alphacoronavirus", "Betacoronavirus", "Gammacoronavirus", "Deltacoronavirus"], answer: "Alphacoronavirus" },
+  { q: "อาการทางคลินิกที่สำคัญที่สุดของ PEDV ในลูกสุกรดูดนมคืออะไร?", choices: ["ไอแห้งๆ", "ท้องร่วงอย่างรุนแรงเป็นน้ำ", "มีตุ่มหนองตามผิวหนัง", "แท้งลูก"], answer: "ท้องร่วงอย่างรุนแรงเป็นน้ำ" },
+  { q: "Feline Panleukopenia Virus มีผลกระทบต่อเซลล์ชนิดใดในร่างกายแมวมากที่สุด?", choices: ["เซลล์เยื่อบุผิวทางเดินหายใจ", "เซลล์ประสาทสมอง", "เซลล์ที่มีการแบ่งตัวอย่างรวดเร็ว (เช่น ไขกระดูก)", "เซลล์ตับ"], answer: "เซลล์ที่มีการแบ่งตัวอย่างรวดเร็ว (เช่น ไขกระดูก)" }
+];
+
 type QuizItem = { q: string; choices: string[]; answer: string };
 
 function BattleContent() {
@@ -34,7 +41,7 @@ function BattleContent() {
 
   const [loading, setLoading] = useState(true);
   const [tile, setTile] = useState<EmpireTile | null>(null);
-  const [questionsBank, setQuestionsBank] = useState<QuizItem[]>([]);
+  const [questionsBank, setQuestionsBank] = useState<QuizItem[]>(FALLBACK_QUIZ);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
   const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing');
@@ -54,8 +61,13 @@ function BattleContent() {
           answer: q.opts ? q.opts[q.ans] : ''
         }));
         setQuestionsBank(mapped);
+      } else {
+        setQuestionsBank(FALLBACK_QUIZ);
       }
-    }).catch(console.error);
+    }).catch((e) => {
+      console.error(e);
+      setQuestionsBank(FALLBACK_QUIZ);
+    });
   }, []);
 
   // Load Data
@@ -168,7 +180,7 @@ function BattleContent() {
   };
 
   const nextQuestion = () => {
-    const pool = questionsBank.length > 0 ? questionsBank : [{ q: '', choices: [], answer: '' }];
+    const pool = questionsBank;
     setTimeout(() => {
       setShowDamage(null);
       setCurrentQIndex(Math.floor(Math.random() * pool.length));
@@ -178,8 +190,8 @@ function BattleContent() {
 
   const handleAnswer = (choice: string) => {
     if (gameState !== 'playing') return;
-    const pool = questionsBank.length > 0 ? questionsBank : [];
-    const q = pool[currentQIndex % (pool.length || 1)];
+    const pool = questionsBank;
+    const q = pool[currentQIndex % pool.length];
     const isCorrect = choice === q?.answer;
     if (isCorrect) {
       handleCorrectAnswer();
@@ -198,7 +210,7 @@ function BattleContent() {
       ownerUid: appUser.uid,
       ownerName: appUser.fullname,
       ownerFamily: appUser.pet?.family || 'parvo',
-      color: stringToColor(appUser.uid), // consistent color per player
+      color: familyToColor(appUser.pet?.family || 'default'),
       lastAttacked: new Date().toISOString()
     };
     
@@ -218,10 +230,7 @@ function BattleContent() {
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-cyan-500"/></div>;
   if (!tileId) return <div>No tile selected</div>;
 
-  const pool = questionsBank.length > 0 ? questionsBank : [
-    { q: 'กำลังโหลดคำถาม...', choices: ['...'], answer: '...' }
-  ];
-  const currentQ = pool[currentQIndex % pool.length];
+  const currentQ = questionsBank[currentQIndex % questionsBank.length];
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
