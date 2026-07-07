@@ -5,9 +5,10 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, setDoc, doc } from 'firebase/firestore';
 import { EmpireTile } from '@/types';
-import { Loader2, Crosshair, Map, Shield, Swords, Info, AlertTriangle } from 'lucide-react';
+import { SVGVirus } from '@/components/ui/SVGVirus';
+import { Loader2, Crosshair, Map, Shield, Swords, Info, AlertTriangle, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -43,18 +44,45 @@ export default function EmpireMap() {
     const q = query(collection(db, 'empire_tiles'));
     const unsub = onSnapshot(q, (snap) => {
       const newTiles: Record<string, EmpireTile> = {};
-      snap.forEach(doc => {
-        newTiles[doc.id] = doc.data() as EmpireTile;
+      let bossCount = 0;
+      snap.forEach(d => {
+        const t = d.data() as EmpireTile;
+        newTiles[d.id] = t;
+        if (t.type === 'boss') bossCount++;
       });
       setTiles(newTiles);
       setLoading(false);
+
+      // Auto-spawn bosses if needed
+      if (bossCount < 10) {
+        spawnBosses(10 - bossCount, newTiles);
+      }
     });
 
     return () => unsub();
   }, [appUser, router]);
 
+  const spawnBosses = async (count: number, currentTiles: Record<string, EmpireTile>) => {
+    const families = ['rabies', 'corona', 'parvo', 'herpes', 'pox'];
+    let spawned = 0;
+    for (let i = 0; i < 50; i++) {
+      if (spawned >= count) break;
+      const x = Math.floor(Math.random() * MAP_SIZE);
+      const y = Math.floor(Math.random() * MAP_SIZE);
+      const id = `${x},${y}`;
+      if (!currentTiles[id]) {
+        const family = families[Math.floor(Math.random() * families.length)];
+        const tileRef = doc(db, 'empire_tiles', id);
+        const newBoss: EmpireTile = { id, x, y, type: 'boss', ownerFamily: family };
+        setDoc(tileRef, newBoss);
+        currentTiles[id] = newBoss; // prevent dupes in same loop
+        spawned++;
+      }
+    }
+  };
+
   const handleInfect = () => {
-    if (!selectedTile) return;
+    if (!selectedTile || !canInfect) return;
     const tileId = `${selectedTile.x},${selectedTile.y}`;
     // Navigate to battle page with tileId
     router.push(`/student/empire/battle?tile=${tileId}`);
@@ -62,6 +90,17 @@ export default function EmpireMap() {
 
   const activeTileData = selectedTile ? tiles[`${selectedTile.x},${selectedTile.y}`] : null;
   const isMyTile = activeTileData?.ownerUid === appUser?.uid;
+
+  // Adjacency Check
+  const checkAdjacency = () => {
+    if (!selectedTile || !appUser) return false;
+    const myTiles = Object.values(tiles).filter(t => t.ownerUid === appUser.uid);
+    if (myTiles.length === 0) return true; // First tile can be anywhere
+    const { x, y } = selectedTile;
+    // 4-way adjacency
+    return myTiles.some(t => Math.abs(t.x - x) + Math.abs(t.y - y) === 1);
+  };
+  const canInfect = checkAdjacency();
 
   if (loading) {
     return (
@@ -122,7 +161,11 @@ export default function EmpireMap() {
                         backgroundImage: tile?.type === 'boss' ? 'linear-gradient(45deg, #ef4444 0%, #991b1b 100%)' : undefined
                       }}
                     >
-                      {tile?.type === 'boss' && <AlertTriangle className="w-full h-full p-2 text-white/50" />}
+                      {tile?.type === 'boss' && (
+                        <div className="w-full h-full p-1 flex items-center justify-center bg-black/40 rounded-md">
+                           <SVGVirus type={tile.ownerFamily as any} className="w-full h-full text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]" />
+                        </div>
+                      )}
                     </motion.div>
                   );
                 })}
@@ -159,9 +202,15 @@ export default function EmpireMap() {
                           <span>Est. Defense:</span>
                           <span className="text-white">Very Low</span>
                         </div>
+                        {!canInfect && (
+                          <div className="text-xs text-orange-400 bg-orange-900/20 p-2 rounded-lg flex items-center gap-2">
+                            <Lock className="w-4 h-4" /> You must own an adjacent tile to infect here.
+                          </div>
+                        )}
                         <Button 
                           onClick={handleInfect}
-                          className="w-full mt-4 bg-cyan-600 hover:bg-cyan-500 text-white font-black py-4 uppercase tracking-widest shadow-[0_0_20px_rgba(6,182,212,0.3)]"
+                          disabled={!canInfect}
+                          className={`w-full mt-4 font-black py-4 uppercase tracking-widest ${canInfect ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-slate-800 text-slate-500'}`}
                         >
                           <Crosshair className="w-5 h-5 mr-2" />
                           Infect Sector
@@ -183,13 +232,21 @@ export default function EmpireMap() {
                         </p>
                         
                         {!isMyTile && (
-                          <Button 
-                            onClick={handleInfect}
-                            className="w-full mt-4 bg-red-600 hover:bg-red-500 text-white font-black py-4 uppercase tracking-widest shadow-[0_0_20px_rgba(239,68,68,0.3)]"
-                          >
-                            <Swords className="w-5 h-5 mr-2" />
-                            Raid Sector
-                          </Button>
+                          <>
+                            {!canInfect && (
+                              <div className="text-xs text-orange-400 bg-orange-900/20 p-2 rounded-lg flex items-center gap-2">
+                                <Lock className="w-4 h-4" /> You must own an adjacent tile to raid here.
+                              </div>
+                            )}
+                            <Button 
+                              onClick={handleInfect}
+                              disabled={!canInfect}
+                              className={`w-full mt-4 font-black py-4 uppercase tracking-widest ${canInfect ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'bg-slate-800 text-slate-500'}`}
+                            >
+                              <Swords className="w-5 h-5 mr-2" />
+                              Raid Sector
+                            </Button>
+                          </>
                         )}
                       </div>
                     )}
@@ -207,9 +264,15 @@ export default function EmpireMap() {
                           <span>Est. Defense:</span>
                           <span className="text-red-400 font-bold">EXTREME</span>
                         </div>
+                        {!canInfect && (
+                          <div className="text-xs text-orange-400 bg-orange-900/20 p-2 rounded-lg flex items-center gap-2">
+                            <Lock className="w-4 h-4" /> You must own an adjacent tile to engage boss.
+                          </div>
+                        )}
                         <Button 
                           onClick={handleInfect}
-                          className="w-full mt-4 bg-orange-600 hover:bg-orange-500 text-white font-black py-4 uppercase tracking-widest shadow-[0_0_20px_rgba(249,115,22,0.3)]"
+                          disabled={!canInfect}
+                          className={`w-full mt-4 font-black py-4 uppercase tracking-widest ${canInfect ? 'bg-orange-600 hover:bg-orange-500 text-white shadow-[0_0_20px_rgba(249,115,22,0.3)]' : 'bg-slate-800 text-slate-500'}`}
                         >
                           <Swords className="w-5 h-5 mr-2" />
                           Engage Boss

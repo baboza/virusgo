@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { SVGVirus } from '@/components/ui/SVGVirus';
 import { sfx } from '@/utils/sound';
 import { useAuth } from '@/contexts/AuthContext';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { EmpireTile, User } from '@/types';
@@ -199,6 +199,16 @@ export default function EmpireBattle() {
     };
     
     await setDoc(tileRef, updatedTile);
+
+    // Give EXP reward
+    let expReward = 50;
+    if (tile.type === 'boss') expReward = 500;
+    else if (tile.type === 'player') expReward = 100;
+
+    const userRef = doc(db, 'users', appUser.uid);
+    await updateDoc(userRef, {
+      exp: increment(expReward)
+    });
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-cyan-500"/></div>;
@@ -306,6 +316,7 @@ export default function EmpireBattle() {
                 <Shield className="w-20 h-20 text-emerald-500 mb-4" />
                 <h2 className="text-4xl font-black text-emerald-400 uppercase tracking-widest text-glow mb-2">Sector Secured!</h2>
                 <p className="text-slate-400 mb-8">You have successfully infected this sector.</p>
+                <div className="text-xl font-bold text-yellow-400 mb-8">+ EXP Reward</div>
               </>
             ) : (
               <>

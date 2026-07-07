@@ -21,6 +21,7 @@ export default function VirusPet() {
   const [loading, setLoading] = useState(true);
   const [actionAnim, setActionAnim] = useState<string | null>(null);
   const [sick, setSick] = useState(false);
+  const [penaltyNotice, setPenaltyNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!appUser) return;
@@ -75,6 +76,28 @@ export default function VirusPet() {
             petData.hunger = Math.max(0, petData.hunger - decay);
             petData.happiness = Math.max(0, petData.happiness - decay);
             petData.energy = Math.max(0, petData.energy - Math.floor(decay / 2));
+
+            // Stat penalty for neglect
+            if (petData.hunger < 20 || petData.happiness < 20 || petData.energy < 10) {
+                // Determine how many 12-hour cycles they were gone for, capped at 2 points
+                const penaltyTokens = Math.min(Math.floor(diffHours / 12), 2);
+                
+                if (penaltyTokens > 0) {
+                    const statKeys: (keyof typeof petData.stats)[] = ['str', 'vit', 'agi', 'dex'];
+                    let lostStats: string[] = [];
+                    for (let i = 0; i < penaltyTokens; i++) {
+                        const randomStat = statKeys[Math.floor(Math.random() * 4)];
+                        if (petData.stats[randomStat] > 1) {
+                            petData.stats[randomStat]--;
+                            lostStats.push(randomStat.toUpperCase());
+                        }
+                    }
+                    if (lostStats.length > 0) {
+                        setPenaltyNotice(`สัตว์เลี้ยงขาดการดูแล! ค่า ${lostStats.join(', ')} ลดลงเนื่องจากถูกปล่อยทิ้งไว้นาน`);
+                    }
+                }
+            }
+
             petData.lastUpdate = now.toISOString();
             
             // Save updated decay
@@ -184,21 +207,42 @@ export default function VirusPet() {
     return 'scale-100';
   };
 
-  return (
-    <div className="max-w-md mx-auto space-y-6 pb-24 pt-4 px-2">
-      <div className="flex items-center justify-between">
-        <Link href="/student" onClick={() => sfx.click()}>
-          <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </Link>
-        <div className="font-bold text-purple-400 text-glow flex items-center gap-2">
-          <Heart className="w-5 h-5 animate-pulse" /> VIRUS PET
+  return <div className="max-w-4xl mx-auto space-y-6 z-10 relative">
+        <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+          <Link href="/student">
+            <Button variant="secondary" className="font-bold">
+              <ArrowLeft className="w-4 h-4 mr-2" /> กลับไปหน้าหลัก
+            </Button>
+          </Link>
+          <div className="text-right">
+            <h1 className="text-2xl font-black text-cyan-400 uppercase tracking-widest text-glow flex items-center gap-2">
+              <Star className="text-cyan-400" />
+              ห้องเพาะเลี้ยง
+            </h1>
+          </div>
         </div>
-        <div className="w-10"></div>
-      </div>
 
-      <Card className="p-6 glass-neon border-purple-500/40 relative overflow-hidden text-center min-h-[450px] flex flex-col items-center justify-between shadow-[0_0_40px_rgba(168,85,247,0.15)]">
+        <AnimatePresence>
+          {penaltyNotice && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-red-900/30 border border-red-500/50 p-4 rounded-xl flex items-center justify-between shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+            >
+              <div className="flex items-center gap-3 text-red-200">
+                <ShieldAlert className="w-6 h-6 text-red-400" />
+                <span className="font-bold">{penaltyNotice}</span>
+              </div>
+              <Button variant="secondary" onClick={() => setPenaltyNotice(null)} className="h-8 text-xs font-bold bg-slate-800 hover:bg-slate-700">
+                รับทราบ
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="p-6 glass-neon border-purple-500/40 relative overflow-hidden text-center min-h-[450px] flex flex-col items-center justify-between shadow-[0_0_40px_rgba(168,85,247,0.15)]">
         <div className="absolute inset-0 bg-gradient-to-b from-purple-900/10 to-black/60 pointer-events-none" />
         <div className="scanlines opacity-50" />
         
@@ -344,6 +388,7 @@ export default function VirusPet() {
           Earn points by playing mini-games (100 EXP = 1 Point)
         </div>
       </Card>
+      </div>
     </div>
   );
 }
