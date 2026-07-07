@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Crosshair, Target, Moon, ArrowLeft, Loader2, Star } from 'lucide-react';
+import { Zap, Crosshair, Target, Moon, ArrowLeft, Loader2, Star, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getViruses } from '@/lib/firebase/virusService';
@@ -21,6 +21,7 @@ export default function VirusPet() {
   const [loading, setLoading] = useState(true);
   const [actionAnim, setActionAnim] = useState<string | null>(null);
   const [sick, setSick] = useState(false);
+  const [penaltyNotice, setPenaltyNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!appUser) return;
@@ -75,6 +76,26 @@ export default function VirusPet() {
             petData.hunger = Math.max(0, petData.hunger - decay);
             petData.happiness = Math.max(0, petData.happiness - decay);
             petData.energy = Math.max(0, petData.energy - Math.floor(decay / 2));
+
+            // Stat penalty: only if critically neglected (>12h) AND stats are low
+            if (petData.hunger < 20 || petData.happiness < 20 || petData.energy < 10) {
+              const penaltyCount = Math.min(Math.floor(diffHours / 12), 2);
+              if (penaltyCount > 0 && petData.stats) {
+                type StatKey = 'str' | 'vit' | 'agi' | 'dex';
+                const keys: StatKey[] = ['str', 'vit', 'agi', 'dex'];
+                const lost: string[] = [];
+                for (let i = 0; i < penaltyCount; i++) {
+                  const k = keys[Math.floor(Math.random() * 4)];
+                  if (petData.stats[k] > 1) {
+                    petData.stats[k]--;
+                    lost.push(k.toUpperCase());
+                  }
+                }
+                if (lost.length > 0) {
+                  setPenaltyNotice(`⚠️ สัตว์เลี้ยงขาดการดูแล! ค่า ${lost.join(', ')} ลดลง`);
+                }
+              }
+            }
 
 
             petData.lastUpdate = now.toISOString();
@@ -187,7 +208,7 @@ export default function VirusPet() {
     return 'scale-100';
   };
 
-  return <div className="max-w-4xl mx-auto space-y-6 z-10 relative">
+  return (<div className="max-w-4xl mx-auto space-y-6 z-10 relative">
         <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
           <Link href="/student">
             <Button variant="secondary" className="font-bold">
@@ -201,6 +222,25 @@ export default function VirusPet() {
             </h1>
           </div>
         </div>
+
+        <AnimatePresence>
+          {penaltyNotice && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-red-900/30 border border-red-500/50 p-4 rounded-xl flex items-center justify-between shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+            >
+              <div className="flex items-center gap-3 text-red-200">
+                <ShieldAlert className="w-6 h-6 text-red-400 shrink-0" />
+                <span className="font-bold text-sm">{penaltyNotice}</span>
+              </div>
+              <Button variant="secondary" onClick={() => setPenaltyNotice(null)} className="h-8 text-xs font-bold bg-slate-800 hover:bg-slate-700 shrink-0 ml-4">
+                รับทราบ
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6 glass-neon border-purple-500/40 relative overflow-hidden text-center min-h-[450px] flex flex-col items-center justify-between shadow-[0_0_40px_rgba(168,85,247,0.15)]">
