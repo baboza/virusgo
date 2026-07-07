@@ -15,7 +15,8 @@ import {
   Star,
   Crown,
   Lock,
-  Heart
+  Heart,
+  Map
 } from 'lucide-react';
 import Link from 'next/link';
 import { collection, getDocs } from 'firebase/firestore';
