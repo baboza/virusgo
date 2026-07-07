@@ -26,7 +26,7 @@ const stringToColor = (str: string) => {
 };
 
 export default function EmpireMap() {
-  const { appUser, user } = useAuth();
+  const { appUser } = useAuth();
   const router = useRouter();
   const [tiles, setTiles] = useState<Record<string, EmpireTile>>({});
   const [loading, setLoading] = useState(true);

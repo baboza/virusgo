@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Zap, Crosshair, Target, Moon, ArrowLeft, Loader2, Star, ShieldAlert } from 'lucide-react';
+import { Zap, Crosshair, Target, Moon, ArrowLeft, Loader2, Star, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getViruses } from '@/lib/firebase/virusService';

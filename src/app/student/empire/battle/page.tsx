@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/Card';
+
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Sword, Heart, ArrowLeft, Swords, Loader2, Zap } from 'lucide-react';
+import { Shield, Heart, ArrowLeft, Swords, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { SVGVirus } from '@/components/ui/SVGVirus';
 import { sfx } from '@/utils/sound';
@@ -44,7 +44,7 @@ const QUIZ_POOL = [
 ];
 
 export default function EmpireBattle() {
-  const { appUser, user } = useAuth();
+  const { appUser } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const tileId = searchParams.get('tile');
