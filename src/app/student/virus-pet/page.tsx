@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Zap, Utensils, Dna, Moon, ArrowLeft, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { Heart, Zap, Crosshair, Target, Moon, ArrowLeft, Loader2, Star, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getViruses } from '@/lib/firebase/virusService';
@@ -35,8 +35,8 @@ export default function VirusPet() {
   useEffect(() => {
     if (!appUser) return;
     
-    // Check if user is Virus Hunter (EXP >= 500)
-    if ((appUser.exp || 0) < 500) {
+    // Check if user is Virus Hunter (EXP >= 1000)
+    if ((appUser.exp || 0) < 1000) {
       window.location.href = '/student';
       return;
     }
@@ -215,7 +215,7 @@ export default function VirusPet() {
             )}
             {sick && !actionAnim && (
               <motion.div animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute top-4 right-1/4 z-20">
-                <AlertCircle className="w-12 h-12 text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]" />
+                <ShieldAlert className="w-12 h-12 text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]" />
               </motion.div>
             )}
           </AnimatePresence>
@@ -248,8 +248,8 @@ export default function VirusPet() {
 
         {/* Stats */}
         <div className="w-full space-y-2 z-10 bg-slate-950/40 p-4 rounded-2xl backdrop-blur-sm border border-slate-800/50">
-          <StatBar icon={<Utensils className="w-4 h-4" />} label="Hunger" value={pet.hunger} bgClass="bg-orange-500" textClass="text-orange-500" />
-          <StatBar icon={<Sparkles className="w-4 h-4" />} label="Happiness" value={pet.happiness} bgClass="bg-pink-500" textClass="text-pink-500" />
+          <StatBar icon={<Crosshair className="w-4 h-4" />} label="Hunger" value={pet.hunger} bgClass="bg-orange-500" textClass="text-orange-500" />
+          <StatBar icon={<Star className="w-4 h-4" />} label="Happiness" value={pet.happiness} bgClass="bg-pink-500" textClass="text-pink-500" />
           <StatBar icon={<Zap className="w-4 h-4" />} label="Energy" value={pet.energy} bgClass="bg-blue-500" textClass="text-blue-500" />
         </div>
       </Card>
@@ -261,7 +261,7 @@ export default function VirusPet() {
           disabled={actionAnim !== null || pet.hunger >= 100}
           className="h-20 flex flex-col gap-2 bg-slate-800 hover:bg-orange-900/50 border border-slate-700 hover:border-orange-500 text-slate-400 hover:text-orange-400 transition-all"
         >
-          <Utensils className="w-6 h-6" />
+          <Crosshair className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-widest">Infect</span>
         </Button>
         <Button 
@@ -269,7 +269,7 @@ export default function VirusPet() {
           disabled={actionAnim !== null || pet.energy < 10 || pet.happiness >= 100}
           className="h-20 flex flex-col gap-2 bg-slate-800 hover:bg-pink-900/50 border border-slate-700 hover:border-pink-500 text-slate-400 hover:text-pink-400 transition-all"
         >
-          <Dna className="w-6 h-6" />
+          <Target className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-widest">Mutate</span>
         </Button>
         <Button 

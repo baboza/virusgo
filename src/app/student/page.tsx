@@ -14,7 +14,8 @@ import {
   Database,
   Star,
   Crown,
-  Lock
+  Lock,
+  Heart
 } from 'lucide-react';
 import Link from 'next/link';
 import { collection, getDocs } from 'firebase/firestore';
@@ -311,7 +312,7 @@ export default function PlayerHub() {
 
         {/* Virus Pet */}
         <motion.div variants={item}>
-          {currentExp >= 500 ? (
+          {currentExp >= 1000 ? (
             <Link href="/student/virus-pet">
               <div className="glass p-6 rounded-3xl h-full border-purple-500/30 hover:border-purple-500 transition-all group cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[180px]">
                 <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 group-hover:bg-purple-500/20 transition-all" />
@@ -336,7 +337,7 @@ export default function PlayerHub() {
                   <Lock className="w-6 h-6" />
                   <h2 className="text-xl font-bold tracking-wide">Virus Pet</h2>
                 </div>
-                <p className="text-slate-500 text-sm">ต้องการยศ Virus Hunter (500 EXP) เพื่อปลดล็อกห้องทดลองลับ</p>
+                <p className="text-slate-500 text-sm">ต้องการ 1000 EXP เพื่อปลดล็อกห้องเพาะเลี้ยงไวรัส</p>
               </div>
             </div>
           )}
