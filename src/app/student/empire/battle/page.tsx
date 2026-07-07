@@ -163,7 +163,7 @@ function BattleContent() {
   }, [currentQIndex, gameState, loading, attackerStats.agi]);
 
   const handleWrongAnswer = () => {
-    sfx.error();
+    sfx.wrong();
     const dmg = defenderStats.atk;
     setShowDamage({ target: 'attacker', amount: dmg, isCrit: false });
     
