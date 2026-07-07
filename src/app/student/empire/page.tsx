@@ -25,6 +25,39 @@ const stringToColor = (str: string) => {
   return '#' + '00000'.substring(0, 6 - c.length) + c;
 };
 
+// Terrain background for empty tiles based on position
+const getTerrainStyle = (x: number, y: number): React.CSSProperties => {
+  const seed = (x * 7 + y * 13) % 5;
+  const terrains: React.CSSProperties[] = [
+    { background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' },
+    { background: 'linear-gradient(135deg, #0c1a2e 0%, #162032 100%)' },
+    { background: 'linear-gradient(135deg, #111827 0%, #1f2937 100%)' },
+    { background: 'linear-gradient(135deg, #0a1628 0%, #152030 100%)' },
+    { background: 'linear-gradient(135deg, #0d1b2a 0%, #1a2540 100%)' },
+  ];
+  return terrains[seed];
+};
+
+// Calculate territory borders for player tiles
+const getTerritoryBorders = (
+  tile: EmpireTile | undefined,
+  x: number,
+  y: number,
+  tiles: Record<string, EmpireTile>
+): React.CSSProperties => {
+  if (!tile || tile.type !== 'player') return {};
+  const color = tile.color || stringToColor(tile.ownerUid || '');
+  const bw = '3px';
+  const sameOwner = (nx: number, ny: number) =>
+    tiles[`${nx},${ny}`]?.ownerUid === tile.ownerUid;
+  return {
+    borderTop:    sameOwner(x, y - 1) ? '1px solid transparent' : `${bw} solid ${color}`,
+    borderBottom: sameOwner(x, y + 1) ? '1px solid transparent' : `${bw} solid ${color}`,
+    borderLeft:   sameOwner(x - 1, y) ? '1px solid transparent' : `${bw} solid ${color}`,
+    borderRight:  sameOwner(x + 1, y) ? '1px solid transparent' : `${bw} solid ${color}`,
+  };
+};
+
 export default function EmpireMap() {
   const { appUser } = useAuth();
   const router = useRouter();
@@ -118,13 +151,13 @@ export default function EmpireMap() {
           <div>
             <h1 className="text-3xl font-black text-cyan-400 uppercase tracking-widest text-glow flex items-center gap-3">
               <Map className="w-8 h-8" />
-              Infection Zone
+              เขตการติดเชื้อ
             </h1>
-            <p className="text-slate-400 font-mono mt-1">Conquer cells and expand your virus empire</p>
+            <p className="text-slate-400 font-mono mt-1">ยึดครองเซลล์และขยายอาณาจักรไวรัสของคุณ</p>
           </div>
           <Link href="/student">
             <Button variant="secondary" className="font-black uppercase tracking-widest">
-              Back to Hub
+              กลับหน้าหลัก
             </Button>
           </Link>
         </div>
@@ -132,40 +165,107 @@ export default function EmpireMap() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
           
           {/* Map Area */}
-          <div className="lg:col-span-2 glass rounded-3xl p-6 border-slate-700/50 relative overflow-hidden">
-            <div className="overflow-auto custom-scrollbar h-[600px] w-full rounded-2xl bg-slate-950/50 border border-slate-800">
-              <div 
-                className="relative grid gap-1 p-4 w-max"
-                style={{ gridTemplateColumns: `repeat(${MAP_SIZE}, minmax(0, 1fr))` }}
+          <div className="lg:col-span-2 glass rounded-3xl p-4 border-slate-700/50 relative overflow-hidden">
+            {/* Legend */}
+            <div className="flex items-center gap-4 mb-3 px-2 text-xs font-mono text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-sm bg-slate-800 border border-slate-700" />
+                <span>ว่าง</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-sm bg-purple-600/70 border border-purple-400" />
+                <span>ผู้เล่น</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-sm bg-red-700 border border-red-400 animate-pulse" />
+                <span>บอส ⚠️</span>
+              </div>
+              {appUser?.pet?.family && (
+                <div className="ml-auto flex items-center gap-1.5 text-cyan-400">
+                  <div className="w-3 h-3 rounded-sm border-2 border-cyan-400" />
+                  <span>อาณาเขตของคุณ</span>
+                </div>
+              )}
+            </div>
+
+            <div className="overflow-auto custom-scrollbar h-[580px] w-full rounded-2xl bg-slate-950 border border-slate-800/80 shadow-inner">
+              <div
+                className="relative p-3 w-max"
+                style={{ display: 'grid', gridTemplateColumns: `repeat(${MAP_SIZE}, 1fr)`, gap: '2px' }}
               >
                 {Array.from({ length: MAP_SIZE * MAP_SIZE }).map((_, i) => {
                   const x = i % MAP_SIZE;
                   const y = Math.floor(i / MAP_SIZE);
                   const id = `${x},${y}`;
                   const tile = tiles[id];
-                  
                   const isSelected = selectedTile?.x === x && selectedTile?.y === y;
+                  const isMyTileOnMap = tile?.ownerUid === appUser?.uid;
                   const tileColor = tile?.type === 'player' ? (tile.color || stringToColor(tile.ownerUid!)) : undefined;
+                  const territoryBorders = getTerritoryBorders(tile, x, y, tiles);
 
                   return (
                     <motion.div
                       key={id}
-                      whileHover={{ scale: 1.1, zIndex: 10 }}
-                      whileTap={{ scale: 0.9 }}
+                      whileHover={{ scale: 1.15, zIndex: 20 }}
+                      whileTap={{ scale: 0.88 }}
                       onClick={() => setSelectedTile({ x, y })}
-                      className={`w-10 h-10 md:w-12 md:h-12 rounded-md cursor-pointer transition-colors border ${
-                        isSelected ? 'border-white shadow-[0_0_15px_rgba(255,255,255,0.5)] z-20' : 'border-slate-800/50'
-                      } ${!tile ? 'bg-slate-900 hover:bg-slate-800' : ''}`}
+                      className="relative cursor-pointer rounded-sm overflow-hidden"
                       style={{
-                        backgroundColor: tileColor,
-                        boxShadow: tileColor ? `0 0 10px ${tileColor}40` : undefined,
-                        backgroundImage: tile?.type === 'boss' ? 'linear-gradient(45deg, #ef4444 0%, #991b1b 100%)' : undefined
+                        width: 44,
+                        height: 44,
+                        ...(!tile ? getTerrainStyle(x, y) : {}),
+                        ...(tileColor ? {
+                          backgroundColor: tileColor,
+                          boxShadow: isMyTileOnMap
+                            ? `0 0 12px ${tileColor}, 0 0 4px ${tileColor}`
+                            : `0 0 6px ${tileColor}60`,
+                        } : {}),
+                        ...(tile?.type === 'boss' ? {
+                          background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #b91c1c 100%)',
+                          boxShadow: '0 0 14px rgba(239,68,68,0.7), 0 0 4px rgba(239,68,68,0.4)',
+                        } : {}),
+                        ...(isSelected ? {
+                          outline: '2px solid white',
+                          outlineOffset: '1px',
+                          zIndex: 30,
+                          boxShadow: '0 0 20px rgba(255,255,255,0.6)',
+                        } : {}),
+                        ...territoryBorders,
                       }}
                     >
-                      {tile?.type === 'boss' && (
-                        <div className="w-full h-full p-1 flex items-center justify-center bg-black/40 rounded-md">
-                           <SVGVirus type={tile.ownerFamily as any} className="w-full h-full text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]" />
+                      {/* Empty tile subtle grid dot */}
+                      {!tile && (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                          <div className="w-1 h-1 rounded-full bg-slate-600" />
                         </div>
+                      )}
+
+                      {/* Boss tile */}
+                      {tile?.type === 'boss' && (
+                        <motion.div
+                          className="w-full h-full p-1.5 flex items-center justify-center"
+                          animate={{ opacity: [0.7, 1, 0.7], scale: [0.92, 1, 0.92] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                        >
+                          <SVGVirus
+                            type={tile.ownerFamily as any}
+                            className="w-full h-full text-white drop-shadow-[0_0_8px_rgba(255,100,100,1)]"
+                          />
+                        </motion.div>
+                      )}
+
+                      {/* Player tile */}
+                      {tile?.type === 'player' && tile.ownerFamily && (
+                        <motion.div
+                          className="w-full h-full p-1.5 flex items-center justify-center bg-black/20"
+                          animate={isMyTileOnMap ? { opacity: [0.8, 1, 0.8] } : {}}
+                          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                        >
+                          <SVGVirus
+                            type={tile.ownerFamily as any}
+                            className="w-full h-full drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]"
+                          />
+                        </motion.div>
                       )}
                     </motion.div>
                   );
@@ -186,26 +286,26 @@ export default function EmpireMap() {
                 >
                   <Card className="glass p-6 border-slate-700/50 backdrop-blur-md sticky top-24">
                     <h3 className="text-xl font-black text-white uppercase tracking-widest border-b border-slate-700 pb-4 mb-4 flex items-center justify-between">
-                      Sector [{selectedTile.x}, {selectedTile.y}]
-                      {isMyTile && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-md">YOURS</span>}
+                      เซกเตอร์ [{selectedTile.x}, {selectedTile.y}]
+                      {isMyTile && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-md">ของคุณ</span>}
                     </h3>
                     
                     {!activeTileData && (
                       <div className="space-y-4">
                         <div className="flex items-center gap-3 text-slate-300">
                           <Info className="text-cyan-400" />
-                          <span>Unclaimed Host Cell</span>
+                          <span>เซลล์ว่างเปล่า (ยังไม่มีเจ้าของ)</span>
                         </div>
                         <p className="text-sm text-slate-400">
-                          A weak cell ready to be infected. Conquer this sector to increase your biomass production.
+                          เซลล์อ่อนแอที่พร้อมถูกบุกรุก ยึดครองเซกเตอร์นี้เพื่อขยายอาณาจักร
                         </p>
                         <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-sm font-mono text-slate-400 flex justify-between">
-                          <span>Est. Defense:</span>
-                          <span className="text-white">Very Low</span>
+                          <span>ความแข็งแกร่งการป้องกัน:</span>
+                          <span className="text-white">ต่ำมาก</span>
                         </div>
                         {!canInfect && (
                           <div className="text-xs text-orange-400 bg-orange-900/20 p-2 rounded-lg flex items-center gap-2">
-                            <Lock className="w-4 h-4" /> You must own an adjacent tile to infect here.
+                            <Lock className="w-4 h-4" /> ต้องครองเซกเตอร์ที่ติดกันก่อนถึงจะรุกรานที่นี่ได้
                           </div>
                         )}
                         <Button 
@@ -214,7 +314,7 @@ export default function EmpireMap() {
                           className={`w-full mt-4 font-black py-4 uppercase tracking-widest ${canInfect ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-slate-800 text-slate-500'}`}
                         >
                           <Crosshair className="w-5 h-5 mr-2" />
-                          Infect Sector
+                          บุกรุกเซกเตอร์
                         </Button>
                       </div>
                     )}
@@ -223,20 +323,20 @@ export default function EmpireMap() {
                       <div className="space-y-4">
                         <div className="flex items-center gap-3 text-slate-300">
                           <Shield className="text-purple-400" />
-                          <span>Controlled by:</span>
+                          <span>ครอบครองโดย:</span>
                         </div>
                         <div className="text-2xl font-black text-white" style={{ color: activeTileData.color || stringToColor(activeTileData.ownerUid!) }}>
                           {activeTileData.ownerName}
                         </div>
                         <p className="text-sm text-slate-400">
-                          Protected by {activeTileData.ownerFamily} virus.
+                          ป้องกันโดยไวรัส {activeTileData.ownerFamily}
                         </p>
                         
                         {!isMyTile && (
                           <>
                             {!canInfect && (
                               <div className="text-xs text-orange-400 bg-orange-900/20 p-2 rounded-lg flex items-center gap-2">
-                                <Lock className="w-4 h-4" /> You must own an adjacent tile to raid here.
+                                <Lock className="w-4 h-4" /> ต้องครองเซกเตอร์ที่ติดกันก่อนถึงจะโจมตีได้
                               </div>
                             )}
                             <Button 
@@ -245,7 +345,7 @@ export default function EmpireMap() {
                               className={`w-full mt-4 font-black py-4 uppercase tracking-widest ${canInfect ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'bg-slate-800 text-slate-500'}`}
                             >
                               <Swords className="w-5 h-5 mr-2" />
-                              Raid Sector
+                              โจมตีเซกเตอร์
                             </Button>
                           </>
                         )}
@@ -256,18 +356,18 @@ export default function EmpireMap() {
                       <div className="space-y-4">
                         <div className="flex items-center gap-3 text-red-400">
                           <AlertTriangle className="text-red-500" />
-                          <span className="font-black uppercase">Immune System Boss</span>
+                          <span className="font-black uppercase">บอส — ระบบภูมิคุ้มกัน</span>
                         </div>
                         <p className="text-sm text-slate-400">
-                          High value target. Contains massive EXP rewards and unique resources.
+                          เป้าหมายมูลค่าสูง มี EXP รางวัลมหาศาล ตีชนะแล้วได้รับ +500 EXP!
                         </p>
                         <div className="bg-red-900/20 p-3 rounded-xl border border-red-900/50 text-sm font-mono text-slate-400 flex justify-between">
-                          <span>Est. Defense:</span>
-                          <span className="text-red-400 font-bold">EXTREME</span>
+                          <span>ความแข็งแกร่งการป้องกัน:</span>
+                          <span className="text-red-400 font-bold">สุดขีด ⚠️</span>
                         </div>
                         {!canInfect && (
                           <div className="text-xs text-orange-400 bg-orange-900/20 p-2 rounded-lg flex items-center gap-2">
-                            <Lock className="w-4 h-4" /> You must own an adjacent tile to engage boss.
+                            <Lock className="w-4 h-4" /> ต้องครองเซกเตอร์ที่ติดกันก่อนถึงจะสู้บอสได้
                           </div>
                         )}
                         <Button 
@@ -276,7 +376,7 @@ export default function EmpireMap() {
                           className={`w-full mt-4 font-black py-4 uppercase tracking-widest ${canInfect ? 'bg-orange-600 hover:bg-orange-500 text-white shadow-[0_0_20px_rgba(249,115,22,0.3)]' : 'bg-slate-800 text-slate-500'}`}
                         >
                           <Swords className="w-5 h-5 mr-2" />
-                          Engage Boss
+                          สู้กับบอส
                         </Button>
                       </div>
                     )}
@@ -290,7 +390,7 @@ export default function EmpireMap() {
                   exit={{ opacity: 0 }}
                   className="h-full flex items-center justify-center p-6 text-center text-slate-500 font-mono"
                 >
-                  <p>Select a sector on the map to view details or launch an infection.</p>
+                  <p>กดเลือกเซกเตอร์บนแผนที่เพื่อดูรายละเอียด หรือเริ่มการบุกรุก</p>
                 </motion.div>
               )}
             </AnimatePresence>
