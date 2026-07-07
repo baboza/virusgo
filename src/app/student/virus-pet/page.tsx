@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Crosshair, Target, Moon, ArrowLeft, Loader2, Star, ShieldAlert } from 'lucide-react';
+import { Zap, Crosshair, Target, Moon, ArrowLeft, Loader2, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getViruses } from '@/lib/firebase/virusService';
@@ -21,7 +21,6 @@ export default function VirusPet() {
   const [loading, setLoading] = useState(true);
   const [actionAnim, setActionAnim] = useState<string | null>(null);
   const [sick, setSick] = useState(false);
-  const [penaltyNotice, setPenaltyNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!appUser) return;
@@ -72,32 +71,11 @@ export default function VirusPet() {
           const diffHours = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
 
           if (diffHours > 0.5) { // Decrease every 30 mins roughly
-            const decay = Math.floor(diffHours * 5); // 10 points per hour
+            const decay = Math.floor(diffHours * 5); // 5 points per hour
             petData.hunger = Math.max(0, petData.hunger - decay);
             petData.happiness = Math.max(0, petData.happiness - decay);
             petData.energy = Math.max(0, petData.energy - Math.floor(decay / 2));
 
-            // Stat penalty for neglect
-            if (petData.hunger < 20 || petData.happiness < 20 || petData.energy < 10) {
-                // Determine how many 12-hour cycles they were gone for, capped at 2 points
-                const penaltyTokens = Math.min(Math.floor(diffHours / 12), 2);
-                
-                if (penaltyTokens > 0) {
-                    const stats = petData.stats!;
-                    const statKeys: ('str' | 'vit' | 'agi' | 'dex')[] = ['str', 'vit', 'agi', 'dex'];
-                    let lostStats: string[] = [];
-                    for (let i = 0; i < penaltyTokens; i++) {
-                        const randomStat = statKeys[Math.floor(Math.random() * 4)];
-                        if (stats[randomStat] > 1) {
-                            stats[randomStat]--;
-                            lostStats.push(randomStat.toUpperCase());
-                        }
-                    }
-                    if (lostStats.length > 0) {
-                        setPenaltyNotice(`สัตว์เลี้ยงขาดการดูแล! ค่า ${lostStats.join(', ')} ลดลงเนื่องจากถูกปล่อยทิ้งไว้นาน`);
-                    }
-                }
-            }
 
             petData.lastUpdate = now.toISOString();
             
@@ -224,25 +202,6 @@ export default function VirusPet() {
           </div>
         </div>
 
-        <AnimatePresence>
-          {penaltyNotice && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-red-900/30 border border-red-500/50 p-4 rounded-xl flex items-center justify-between shadow-[0_0_15px_rgba(239,68,68,0.2)]"
-            >
-              <div className="flex items-center gap-3 text-red-200">
-                <ShieldAlert className="w-6 h-6 text-red-400" />
-                <span className="font-bold">{penaltyNotice}</span>
-              </div>
-              <Button variant="secondary" onClick={() => setPenaltyNotice(null)} className="h-8 text-xs font-bold bg-slate-800 hover:bg-slate-700">
-                รับทราบ
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6 glass-neon border-purple-500/40 relative overflow-hidden text-center min-h-[450px] flex flex-col items-center justify-between shadow-[0_0_40px_rgba(168,85,247,0.15)]">
         <div className="absolute inset-0 bg-gradient-to-b from-purple-900/10 to-black/60 pointer-events-none" />
@@ -275,8 +234,8 @@ export default function VirusPet() {
               <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 20, opacity: 1, y: -20 }} exit={{ opacity: 0 }} className="absolute -top-4 right-1/4 text-4xl z-20 drop-shadow-lg">💤</motion.div>
             )}
             {sick && !actionAnim && (
-              <motion.div animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute top-4 right-1/4 z-20">
-                <ShieldAlert className="w-12 h-12 text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]" />
+              <motion.div animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute top-4 right-1/4 z-20 text-4xl">
+                ⚠️
               </motion.div>
             )}
           </AnimatePresence>
