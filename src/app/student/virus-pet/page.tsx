@@ -364,7 +364,7 @@ export default function VirusPet() {
             { id: 'agi', name: 'AGI', color: 'text-blue-400', border: 'border-blue-900/50', bg: 'bg-blue-900/20' },
             { id: 'dex', name: 'DEX', color: 'text-yellow-400', border: 'border-yellow-900/50', bg: 'bg-yellow-900/20' },
           ].map(s => {
-            const statVal = pet?.stats?.[s.id as keyof typeof pet.stats] || 1;
+            const statVal = pet?.stats?.[s.id as 'str' | 'vit' | 'agi' | 'dex'] || 1;
             return (
               <div key={s.id} className={`p-3 rounded-xl border ${s.border} ${s.bg} flex items-center justify-between`}>
                 <div>
