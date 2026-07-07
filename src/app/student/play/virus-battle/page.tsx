@@ -161,6 +161,12 @@ export default function VirusBattle() {
     
     if (snap.exists()) {
       const data = snap.data() as Room;
+      
+      if (data.players[user.uid]) {
+        setRoomId(code);
+        return;
+      }
+
       if (data.status !== 'waiting') {
         setError('Game has already started or finished.');
         return;

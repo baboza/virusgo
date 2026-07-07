@@ -181,8 +181,16 @@ export default function ClassroomBattle() {
       
       const data = roomSnap.data();
       if (data.gameType !== 'classroom-battle') throw new Error('Invalid game type');
+      
+      // Allow reconnect
+      if (data.players.find((p:any) => p.uid === myUid)) {
+        setRoomCode(code);
+        setIsHostMode(data.hostId === myUid);
+        setLoading(false);
+        return;
+      }
+
       if (data.status !== 'lobby') throw new Error('Game already started');
-      if (data.players.find((p:any) => p.uid === myUid)) throw new Error('Already in room');
 
       await updateDoc(roomRef, {
         players: arrayUnion({ uid: myUid, displayName: myName }),

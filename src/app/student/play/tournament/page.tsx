@@ -255,9 +255,16 @@ export default function TournamentMultiplayer() {
       
       const data = roomSnap.data();
       if (data.gameType !== 'tournament') throw new Error('Invalid game type');
+      
+      if (data.players.find((p:any) => p.uid === myUid)) {
+        setRoomCode(code);
+        setIsHostMode(data.hostId === myUid);
+        setLoading(false);
+        return;
+      }
+
       if (data.status !== 'waiting') throw new Error('Tournament already started');
       if (data.players.length >= data.maxSize) throw new Error('Room is full');
-      if (data.players.find((p:any) => p.uid === myUid)) throw new Error('Already in room');
 
       await updateDoc(roomRef, {
         players: arrayUnion({ uid: myUid, displayName: myName, isBot: false })

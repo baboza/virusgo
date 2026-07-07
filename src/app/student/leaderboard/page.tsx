@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, ShieldAlert, Zap, User as UserIcon, Users as UsersIcon, Globe } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 
 export default function Leaderboard() {
   const { appUser } = useAuth();
@@ -203,13 +204,28 @@ export default function Leaderboard() {
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <div className="flex items-center gap-1 text-accent font-black text-xl md:text-2xl text-glow-accent justify-end">
-                        {displayExp} <Zap className="w-5 h-5 hidden md:block" />
+                    <div className="flex items-center gap-4 md:gap-8">
+                      {leader.pet && (
+                        <div className="flex flex-col items-center justify-center bg-purple-900/20 px-2 py-1 md:px-3 md:py-1.5 rounded-xl border border-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.1)]">
+                          <SVGVirus 
+                            type={familyToVirusType(leader.pet.family)} 
+                            className={`w-6 h-6 md:w-8 md:h-8 text-purple-400 ${leader.pet.stage === 1 ? 'opacity-80 scale-75 blur-[1px]' : ''}`} 
+                            glowColor="rgba(168,85,247,0.5)" 
+                          />
+                          <span className="text-[7px] md:text-[9px] text-purple-300 font-bold mt-0.5 uppercase tracking-widest truncate max-w-[60px] md:max-w-[80px]">
+                            {leader.pet.virusName}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="text-right shrink-0">
+                        <div className="flex items-center gap-1 text-accent font-black text-xl md:text-2xl text-glow-accent justify-end">
+                          {displayExp} <Zap className="w-5 h-5 hidden md:block" />
+                        </div>
+                        <p className="text-[10px] md:text-xs text-slate-500 font-mono tracking-widest uppercase mt-1">
+                          EXP ({activeTab})
+                        </p>
                       </div>
-                      <p className="text-[10px] md:text-xs text-slate-500 font-mono tracking-widest uppercase mt-1">
-                        EXP ({activeTab})
-                      </p>
                     </div>
                   </Card>
                 </motion.div>

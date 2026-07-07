@@ -182,8 +182,16 @@ export default function DiagnosisDuel() {
       
       const data = roomSnap.data();
       if (data.gameType !== 'diagnosis-duel') throw new Error('Invalid game type');
+      
+      const pUid = appUser.uid || user.uid;
+      if (data.players.find((p:any) => p.uid === pUid)) {
+        setRoomCode(code);
+        setLoading(false);
+        return;
+      }
+
       if (data.status !== 'waiting') throw new Error('Game already started');
-      if (data.players.length >= 2 && !data.players.find((p:any) => p.uid === (appUser.uid || user.uid))) throw new Error('Room is full');
+      if (data.players.length >= 2) throw new Error('Room is full');
 
       await updateDoc(roomRef, {
         players: arrayUnion({ uid: appUser.uid || user.uid, displayName: appUser.displayName || 'Doctor 2' })
@@ -212,7 +220,7 @@ export default function DiagnosisDuel() {
     setMyAnswers(prev => ({ ...prev, [category]: val }));
   };
 
-  const calculateScore = (ans: typeof myAnswers, caseData: typeof CASES[0]) => {
+  const calculateScore = (ans: typeof myAnswers, caseData: typeof DEFAULT_CASES[0]) => {
     let score = 0;
     if (ans.diag === caseData.correct.diag) score += 25;
     if (ans.lab === caseData.correct.lab) score += 25;
@@ -225,7 +233,7 @@ export default function DiagnosisDuel() {
     if (!roomData || !roomCode) return;
     sfx.correct();
     
-    const caseData = CASES.find(c => c.id === roomData.caseId)!;
+    const caseData = cases.find(c => c.id === roomData.caseId)!;
     const score = calculateScore(myAnswers, caseData);
     const myUid = appUser?.uid || user?.uid || '';
 

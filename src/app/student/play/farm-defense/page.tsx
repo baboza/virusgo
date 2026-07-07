@@ -146,8 +146,15 @@ export default function FarmDefense() {
       
       const data = roomSnap.data();
       if (data.gameType !== 'farm-defense') throw new Error('Invalid game type');
+      
+      if (data.players.find((p:any) => p.uid === myUid)) {
+        setRoomCode(code);
+        setLoading(false);
+        return;
+      }
+
       if (data.status !== 'waiting') throw new Error('Game already started');
-      if (data.players.length >= 2 && !data.players.find((p:any) => p.uid === myUid)) throw new Error('Room is full');
+      if (data.players.length >= 2) throw new Error('Room is full');
 
       await updateDoc(roomRef, {
         players: arrayUnion({ uid: myUid, displayName: appUser?.displayName || 'Farmer 2' })
