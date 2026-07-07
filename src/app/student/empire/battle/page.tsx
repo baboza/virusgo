@@ -63,48 +63,51 @@ function BattleContent() {
     if (!appUser || !tileId) return;
 
     const initBattle = async () => {
-      // 1. Calculate Attacker Stats
-      const aStats = appUser.pet?.stats || { str: 1, vit: 1, agi: 1, dex: 1, spentPoints: 0 };
-      const aMaxHp = 100 + (aStats.vit * 20);
-      const aAtk = 20 + (aStats.str * 10);
-      setAttackerStats({ hp: aMaxHp, maxHp: aMaxHp, atk: aAtk, agi: aStats.agi, dex: aStats.dex, name: appUser.fullname });
+      try {
+        // 1. Calculate Attacker Stats
+        const aStats = appUser.pet?.stats || { str: 1, vit: 1, agi: 1, dex: 1, spentPoints: 0 };
+        const aMaxHp = 100 + (aStats.vit * 20);
+        const aAtk = 20 + (aStats.str * 10);
+        setAttackerStats({ hp: aMaxHp, maxHp: aMaxHp, atk: aAtk, agi: aStats.agi, dex: aStats.dex, name: appUser.fullname });
 
-      // 2. Fetch Tile & Defender Stats
-      const tileRef = doc(db, 'empire_tiles', tileId);
-      const tileSnap = await getDoc(tileRef);
-      
-      let currentTile: EmpireTile;
-      if (tileSnap.exists()) {
-        currentTile = tileSnap.data() as EmpireTile;
-      } else {
-        const [x, y] = tileId.split(',').map(Number);
-        currentTile = { id: tileId, x, y, type: 'empty' };
-      }
-      setTile(currentTile);
+        // 2. Fetch Tile & Defender Stats
+        const tileRef = doc(db, 'empire_tiles', tileId);
+        const tileSnap = await getDoc(tileRef);
 
-      if (currentTile.type === 'empty') {
-        setDefenderStats({ hp: 50, maxHp: 50, atk: 10, name: 'Weak Host Cell', family: 'corona' });
-      } else if (currentTile.type === 'boss') {
-        setDefenderStats({ hp: 300, maxHp: 300, atk: 40, name: 'Immune Boss', family: 'rabies' });
-      } else if (currentTile.type === 'player' && currentTile.ownerUid) {
-        // Fetch defender's user doc
-        const defDoc = await getDoc(doc(db, 'users', currentTile.ownerUid));
-        if (defDoc.exists()) {
-          const defData = defDoc.data() as User;
-          const dStats = defData.pet?.stats || { str: 1, vit: 1, agi: 1, dex: 1, spentPoints: 0 };
-          const dMaxHp = 100 + (dStats.vit * 20);
-          const dAtk = 15 + (dStats.str * 5); // AI defends with slightly less attack multiplier
-          setDefenderStats({ 
-            hp: dMaxHp, 
-            maxHp: dMaxHp, 
-            atk: dAtk, 
-            name: defData.fullname || 'Defender', 
-            family: defData.pet?.family || 'parvo' 
-          });
+        let currentTile: EmpireTile;
+        if (tileSnap.exists()) {
+          currentTile = tileSnap.data() as EmpireTile;
+        } else {
+          const [x, y] = tileId.split(',').map(Number);
+          currentTile = { id: tileId, x, y, type: 'empty' };
         }
-      }
+        setTile(currentTile);
 
-      setLoading(false);
+        if (currentTile.type === 'empty') {
+          setDefenderStats({ hp: 50, maxHp: 50, atk: 10, name: 'เซลล์ร่างกายอ่อนแอ', family: 'corona' });
+        } else if (currentTile.type === 'boss') {
+          setDefenderStats({ hp: 300, maxHp: 300, atk: 40, name: 'ระบบภูมิคุ้มกัน', family: currentTile.ownerFamily || 'rabies' });
+        } else if (currentTile.type === 'player' && currentTile.ownerUid) {
+          const defDoc = await getDoc(doc(db, 'users', currentTile.ownerUid));
+          if (defDoc.exists()) {
+            const defData = defDoc.data() as User;
+            const dStats = defData.pet?.stats || { str: 1, vit: 1, agi: 1, dex: 1, spentPoints: 0 };
+            const dMaxHp = 100 + (dStats.vit * 20);
+            const dAtk = 15 + (dStats.str * 5);
+            setDefenderStats({
+              hp: dMaxHp,
+              maxHp: dMaxHp,
+              atk: dAtk,
+              name: defData.fullname || 'Defender',
+              family: defData.pet?.family || 'parvo'
+            });
+          }
+        }
+      } catch (e) {
+        console.error('initBattle error:', e);
+      } finally {
+        setLoading(false);
+      }
     };
 
     initBattle();

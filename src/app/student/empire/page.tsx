@@ -200,7 +200,7 @@ export default function EmpireMap() {
                   const tile = tiles[id];
                   const isSelected = selectedTile?.x === x && selectedTile?.y === y;
                   const isMyTileOnMap = tile?.ownerUid === appUser?.uid;
-                  const tileColor = tile?.type === 'player' ? (tile.color || stringToColor(tile.ownerUid!)) : undefined;
+                  const tileColor = tile?.type === 'player' ? stringToColor(tile.ownerUid || '') : undefined;
                   const territoryBorders = getTerritoryBorders(tile, x, y, tiles);
 
                   return (

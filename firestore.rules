@@ -69,5 +69,17 @@ service cloud.firestore {
       // Should ideally be updated via Cloud Functions, but for simplicity:
       allow write: if isOwner(request.resource.data.uid) || isAdmin();
     }
+
+    // Game Content (quiz pools, etc.) - read only for students
+    match /game_content/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isInstructor() || isAdmin();
+    }
+
+    // Empire Map Tiles
+    match /empire_tiles/{tileId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
   }
 }
