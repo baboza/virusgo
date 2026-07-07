@@ -63,6 +63,7 @@ function BattleContent() {
   const [timeLeft, setTimeLeft] = useState(15);
   const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing');
   const [showDamage, setShowDamage] = useState<{ target: 'attacker' | 'defender', amount: number, isCrit: boolean } | null>(null);
+  const [isHit, setIsHit] = useState(false); // Screen flash for attacker damage
 
   // Battle Stats
   const [attackerStats, setAttackerStats] = useState({ hp: 100, maxHp: 100, atk: 20, agi: 1, dex: 1, name: 'You' });
@@ -113,9 +114,9 @@ function BattleContent() {
         setTile(currentTile);
 
         if (currentTile.type === 'empty') {
-          setDefenderStats({ hp: 50, maxHp: 50, atk: 10, name: 'เซลล์ร่างกายอ่อนแอ', family: 'corona' });
+          setDefenderStats({ hp: 50, maxHp: 50, atk: 15, name: 'เซลล์ร่างกายอ่อนแอ', family: 'corona' });
         } else if (currentTile.type === 'boss') {
-          setDefenderStats({ hp: 300, maxHp: 300, atk: 40, name: 'ระบบภูมิคุ้มกัน', family: currentTile.ownerFamily || 'rabies' });
+          setDefenderStats({ hp: 300, maxHp: 300, atk: 50, name: 'ระบบภูมิคุ้มกัน', family: currentTile.ownerFamily || 'rabies' });
         } else if (currentTile.type === 'player' && currentTile.ownerUid) {
           const defDoc = await getDoc(doc(db, 'users', currentTile.ownerUid));
           if (defDoc.exists()) {
@@ -165,6 +166,10 @@ function BattleContent() {
     sfx.error();
     const dmg = defenderStats.atk;
     setShowDamage({ target: 'attacker', amount: dmg, isCrit: false });
+    
+    // Screen flash
+    setIsHit(true);
+    setTimeout(() => setIsHit(false), 300);
     
     setAttackerStats(prev => {
       const newHp = Math.max(0, prev.hp - dmg);
@@ -250,7 +255,8 @@ function BattleContent() {
   const currentQ = questionsBank[currentQIndex % questionsBank.length];
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
+    <div className={`min-h-screen bg-slate-950 flex flex-col relative overflow-hidden transition-colors duration-100 ${isHit ? 'bg-red-950/80' : ''}`}>
+      {isHit && <div className="absolute inset-0 bg-red-500/20 z-50 pointer-events-none mix-blend-overlay" />}
       {/* Header */}
       <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-slate-900 to-transparent z-10 flex justify-between items-center px-8">
         <Link href="/student/empire">
@@ -267,13 +273,17 @@ function BattleContent() {
       <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-8 md:gap-20 p-8 pt-24 z-10">
         
         {/* Attacker */}
-        <div className="flex flex-col items-center">
+        <motion.div 
+          className="flex flex-col items-center"
+          animate={isHit ? { x: [-10, 10, -10, 10, 0] } : {}}
+          transition={{ duration: 0.4 }}
+        >
           <div className="text-xl font-black text-cyan-400 mb-4 tracking-widest">{attackerStats.name}</div>
           <div className="relative">
-            <SVGVirus type="parvo" className="w-32 h-32 md:w-48 md:h-48 text-cyan-500 drop-shadow-[0_0_15px_rgba(6,182,212,0.5)]" />
+            <SVGVirus type={appUser.pet?.family as any || 'parvo'} className={`w-32 h-32 md:w-48 md:h-48 drop-shadow-[0_0_15px_rgba(6,182,212,0.5)] ${isHit ? 'text-red-500' : 'text-cyan-500'}`} />
             <AnimatePresence>
               {showDamage?.target === 'attacker' && (
-                <motion.div initial={{ opacity: 0, y: 0, scale: 0.5 }} animate={{ opacity: 1, y: -50, scale: 1.5 }} exit={{ opacity: 0 }} className="absolute -top-10 left-1/2 -translate-x-1/2 text-4xl font-black text-red-500 drop-shadow-lg z-50">
+                <motion.div initial={{ opacity: 0, y: 0, scale: 0.5 }} animate={{ opacity: 1, y: -50, scale: 1.5 }} exit={{ opacity: 0 }} className="absolute -top-10 left-1/2 -translate-x-1/2 text-5xl font-black text-red-500 drop-shadow-[0_0_10px_rgba(255,0,0,0.8)] z-50">
                   -{showDamage.amount}
                 </motion.div>
               )}
@@ -282,13 +292,17 @@ function BattleContent() {
           <div className="mt-6 w-48 md:w-64">
             <div className="flex justify-between text-xs font-bold text-slate-400 mb-1">
               <span>HP</span>
-              <span>{attackerStats.hp} / {attackerStats.maxHp}</span>
+              <motion.span 
+                animate={isHit ? { color: ['#ef4444', '#94a3b8'] } : {}}
+              >
+                {attackerStats.hp} / {attackerStats.maxHp}
+              </motion.span>
             </div>
             <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-              <motion.div className="h-full bg-cyan-500" animate={{ width: `${(attackerStats.hp / attackerStats.maxHp) * 100}%` }} transition={{ duration: 0.3 }} />
+              <motion.div className="h-full bg-cyan-500" animate={{ width: `${(attackerStats.hp / attackerStats.maxHp) * 100}%`, backgroundColor: isHit ? '#ef4444' : '#06b6d4' }} transition={{ duration: 0.3 }} />
             </div>
           </div>
-        </div>
+        </motion.div>
 
         <div className="text-4xl font-black text-slate-700 italic">VS</div>
 
