@@ -32,9 +32,9 @@ function normalizeGameExp(gameId: string, rawExp: number): number {
 
   // 2. Empire sector / tile captures
   if (gid.includes('empire') || gid.includes('tile') || gid.includes('sector')) {
-    if (rawExp >= 300) return 60; // Boss sector
+    if (rawExp >= 300) return 35; // Boss sector (balanced 35 EXP)
     if (rawExp > 60) return 30;   // Player sector
-    return Math.min(rawExp, 60);
+    return Math.min(rawExp, 35);
   }
 
   // 3. Raid Boss Battle (beating 5 bosses max)

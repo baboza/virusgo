@@ -54,6 +54,12 @@ export interface Guild {
   membersCount: number;
   totalTiles: number;
   createdAt: string;
+  citadelCoord?: string; // Legacy single coord e.g. "20,15"
+  citadelCoords?: string[]; // 4-tile block e.g. ["20,15", "21,15", "20,16", "21,16"]
+  citadelLevel?: number; // 1, 2, 3...
+  citadelExp?: number;   // accumulated donated EXP for research upgrades
+  citadelHp?: number;
+  maxCitadelHp?: number;
 }
 
 export interface Virus {
@@ -109,6 +115,10 @@ export interface EmpireTile {
   isOutpost?: boolean;
   dailyExp?: number;
   lastClaimedDate?: string;
+  shieldUntil?: string; // Beginner Shield expiration (ISO string)
+  lastActive?: string;  // Last time owner was active / upkeep timestamp (ISO string)
+  isCapital?: boolean;  // Mark player's primary / first city base
+  isCitadel?: boolean;  // Mark guild citadel / capital fortress
 }
 
 export interface CaseStudy {

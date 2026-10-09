@@ -18,6 +18,7 @@ import { db } from '@/lib/firebase/config';
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 import { sfx } from '@/utils/sound';
 import { VirusPetData, Virus } from '@/types';
+import { getEffectivePetStats, MAX_PET_STAT_POINTS, MAX_PER_STAT } from '@/lib/petBalance';
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
   ssr: false,
@@ -264,28 +265,41 @@ export default function VirusPet() {
     }
   };
 
-  // Stat Calculations
-  const str = pet?.stats?.str || 1;
-  const vit = pet?.stats?.vit || 1;
-  const agi = pet?.stats?.agi || 1;
-  const dex = pet?.stats?.dex || 1;
-
-  const maxHp = 100 + (vit * 20);
-  const atkDmg = 20 + (str * 10);
-  const quizTime = 15 + (agi * 2);
-  const critRate = Math.min(75, dex * 5);
-  const combatPower = Math.floor((maxHp * 1.2) + (atkDmg * 2.5) + (critRate * 10) + (quizTime * 5));
-
-  const totalPoints = Math.floor((appUser?.exp || 0) / 100);
-  const spentPoints = pet?.stats?.spentPoints || 0;
-  const availablePoints = Math.max(0, totalPoints - spentPoints);
+  // Stat Calculations with Hard Cap & Balance System (Approach 1)
+  const combatStats = getEffectivePetStats(pet?.stats, appUser?.exp || 0);
+  const str = combatStats.str;
+  const vit = combatStats.vit;
+  const agi = combatStats.agi;
+  const dex = combatStats.dex;
+  const maxHp = combatStats.maxHp;
+  const atkDmg = combatStats.atk;
+  const quizTime = combatStats.quizTime;
+  const critRate = combatStats.critRate;
+  const combatPower = combatStats.combatPower;
+  const availablePoints = combatStats.availablePoints;
 
   const handleUpgradeStat = async (stat: 'str' | 'vit' | 'agi' | 'dex') => {
-    if (!pet || !pet.stats || availablePoints <= 0 || !appUser) return;
+    if (!pet || !pet.stats || !appUser) return;
+    if (combatStats.availablePoints <= 0) return;
+    if (combatStats.isMaxed) {
+      alert(`⚠️ สัตว์เลี้ยงสะสมแต้มสเตตัสครบเพดานสูงสุดแล้ว (${MAX_PET_STAT_POINTS} แต้ม) EXP ส่วนเกินจะเพิ่มยศเกียรติยศแทน!`);
+      return;
+    }
+    const currentVal = pet.stats[stat] || 1;
+    if (currentVal >= MAX_PER_STAT) {
+      alert(`⚠️ ค่า ${stat.toUpperCase()} ถึงขีดจำกัดสูงสุดแล้ว (${MAX_PER_STAT}) ไม่สามารถอัปเพิ่มได้ กรุณาเลือกอัปค่าอื่น`);
+      return;
+    }
+
     sfx.click();
     
-    const newStats = { ...pet.stats, [stat]: pet.stats[stat] + 1, spentPoints: pet.stats.spentPoints + 1 };
-    const newMaxHp = 100 + (newStats.vit * 20);
+    const newStats = { 
+      ...pet.stats, 
+      [stat]: currentVal + 1, 
+      spentPoints: (pet.stats.spentPoints || 0) + 1 
+    };
+    const newEffective = getEffectivePetStats(newStats, appUser?.exp || 0);
+    const newMaxHp = newEffective.maxHp;
     const newPet = { 
       ...pet, 
       stats: newStats, 
@@ -503,6 +517,16 @@ export default function VirusPet() {
               <p className="text-[10px] md:text-xs text-purple-300 font-mono tracking-widest uppercase">
                 {pet.virusName} ({pet.family})
               </p>
+              <div 
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border mt-1 shadow-sm"
+                style={{ 
+                  borderColor: `${combatStats.rankBadgeColor}60`, 
+                  backgroundColor: `${combatStats.rankBadgeColor}15`, 
+                  color: combatStats.rankBadgeColor 
+                }}
+              >
+                <span>{combatStats.rankTitle}</span>
+              </div>
             </div>
             
             <div className="text-right">
@@ -689,7 +713,7 @@ export default function VirusPet() {
             {/* Quick Action to Empire */}
             <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
               <span className="text-[11px] text-slate-400">
-                นำค่าพลังไปใช้ยึดป้อมฟาร์มและชิงสมบัติใน Empire
+                นำค่าพลังไปใช้ยึดป้อมฟาร์มและสู้รบใน Empire
               </span>
               <Link href="/student/empire">
                 <Button size="sm" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs">
@@ -752,17 +776,28 @@ export default function VirusPet() {
         {/* Tab 1: RPG Stats Allocation */}
         {activeTab === 'stats' && (
           <Card className="p-4 md:p-6 glass border-slate-700 backdrop-blur-md">
-            <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                <Star className="w-4 h-4 text-yellow-400" /> จัดสรรแต้มสถานะ (Stat Allocation)
-              </h3>
-              <div className="text-xs font-mono">
-                <span className="text-slate-400">Available Points:</span>{' '}
-                <span className={`font-black text-lg ${availablePoints > 0 ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'text-slate-500'}`}>
-                  {availablePoints}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-slate-700/50 pb-2">
+              <div>
+                <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                  <Star className="w-4 h-4 text-yellow-400" /> จัดสรรแต้มสถานะ (Stat Allocation)
+                </h3>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  เพดานพลังสูงสุด: {combatStats.spentPoints}/{MAX_PET_STAT_POINTS} แต้ม (จำกัดค่าละ {MAX_PER_STAT})
+                </span>
+              </div>
+              <div className="text-xs font-mono flex items-center gap-2">
+                <span className="text-slate-400">Available:</span>{' '}
+                <span className={`font-black text-lg ${combatStats.availablePoints > 0 ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'text-slate-500'}`}>
+                  {combatStats.availablePoints}
                 </span>
               </div>
             </div>
+
+            {combatStats.isMaxed && (
+              <div className="mb-4 p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs font-bold flex items-center gap-2">
+                <span>🌟 สัตว์เลี้ยงของคุณอัปสเตตัสเต็มพิกัดแล้ว ({MAX_PET_STAT_POINTS}/{MAX_PET_STAT_POINTS} แต้ม) EXP ส่วนเกินจะเพิ่มยศและอันดับเกียรติยศแทน!</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               {[
@@ -772,30 +807,38 @@ export default function VirusPet() {
                 { id: 'dex', name: 'DEX', desc: '+5% คริติคอล', color: 'text-yellow-400', border: 'border-yellow-900/50', bg: 'bg-yellow-900/20' },
               ].map(s => {
                 const statVal = pet?.stats?.[s.id as 'str' | 'vit' | 'agi' | 'dex'] || 1;
+                const isStatMax = statVal >= MAX_PER_STAT;
+                const canUpgrade = combatStats.availablePoints > 0 && !isStatMax && !combatStats.isMaxed;
                 return (
                   <div key={s.id} className={`p-3 rounded-xl border ${s.border} ${s.bg} flex items-center justify-between`}>
                     <div>
                       <div className={`text-sm font-black uppercase ${s.color} tracking-widest`}>{s.name}</div>
-                      <div className="text-2xl font-black text-white mt-0.5 leading-none">{statVal}</div>
+                      <div className="text-2xl font-black text-white mt-0.5 leading-none">
+                        {statVal}
+                        {isStatMax && <span className="text-[9px] text-amber-400 ml-1 font-mono font-bold">MAX</span>}
+                      </div>
                       <div className="text-[10px] text-slate-400 mt-1 font-mono">{s.desc}</div>
                     </div>
                     <button
                       onClick={() => handleUpgradeStat(s.id as any)}
-                      disabled={availablePoints <= 0}
-                      className={`w-9 h-9 rounded-lg flex items-center justify-center font-black text-lg transition-all ${
-                        availablePoints > 0 
+                      disabled={!canUpgrade}
+                      title={isStatMax ? `เต็มขีดจำกัดแล้ว (${MAX_PER_STAT})` : canUpgrade ? 'อัปเกรด (+1)' : 'ไม่มีแต้ม'}
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center font-black text-sm transition-all ${
+                        isStatMax
+                          ? 'bg-amber-950/60 text-amber-400/60 border border-amber-900/50 cursor-not-allowed'
+                          : canUpgrade
                           ? 'bg-slate-800 text-white hover:bg-slate-700 hover:scale-105 active:scale-95 border border-slate-600' 
                           : 'bg-slate-900 text-slate-700 border border-slate-800 cursor-not-allowed'
                       }`}
                     >
-                      +
+                      {isStatMax ? 'MAX' : '+'}
                     </button>
                   </div>
                 );
               })}
             </div>
             <div className="text-center mt-4 text-[10px] text-slate-500 uppercase tracking-widest">
-              ได้แต้มจากการสะสม EXP ในมินิเกมและอาณาจักร (ทุกๆ 100 EXP = 1 Stat Point)
+              ได้แต้มจากสะสม EXP (ทุกๆ 100 EXP = 1 แต้ม, สูงสุด {MAX_PET_STAT_POINTS} แต้ม) เพื่อความเท่าเทียมในห้องเรียน
             </div>
           </Card>
         )}

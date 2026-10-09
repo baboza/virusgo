@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Heart, ArrowLeft, Swords, Loader2, Box, Gift } from 'lucide-react';
+import { Shield, Heart, ArrowLeft, Swords, Loader2, Box } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
@@ -14,7 +14,9 @@ import { doc, getDoc, setDoc, updateDoc, increment, collection, query, where, ge
 import { db } from '@/lib/firebase/config';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { EmpireTile, User } from '@/types';
-import { familyToColor } from '@/app/student/empire/page';
+import { familyToColor, isDecayedTile, isShieldedTile, isCentralVaultZone } from '@/app/student/empire/page';
+import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT } from '@/lib/dailyExpCap';
+import { getEffectivePetStats } from '@/lib/petBalance';
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
   ssr: false,
@@ -71,8 +73,8 @@ function BattleContent() {
   const [showDamage, setShowDamage] = useState<{ target: 'attacker' | 'defender', amount: number, isCrit: boolean } | null>(null);
   const [isHit, setIsHit] = useState(false); // Screen flash for attacker damage
   const [is3DMode, setIs3DMode] = useState(true);
-  const [chestGuildReward, setChestGuildReward] = useState<{ totalExp: number; membersCount: number; expPerMember: number } | null>(null);
   const [awardedExp, setAwardedExp] = useState<number>(15);
+  const [isFirstBaseClaimed, setIsFirstBaseClaimed] = useState(false);
 
   // Battle Stats
   const [attackerStats, setAttackerStats] = useState({ hp: 100, maxHp: 100, atk: 20, agi: 1, dex: 1, name: 'You' });
@@ -103,11 +105,29 @@ function BattleContent() {
 
     const initBattle = async () => {
       try {
-        // 1. Calculate Attacker Stats
+        // 1. Calculate Attacker Stats with Hard Cap
         const aStats = appUser.pet?.stats || { str: 1, vit: 1, agi: 1, dex: 1, spentPoints: 0 };
-        const aMaxHp = 100 + (aStats.vit * 20);
-        const aAtk = 20 + (aStats.str * 10);
-        setAttackerStats({ hp: aMaxHp, maxHp: aMaxHp, atk: aAtk, agi: aStats.agi, dex: aStats.dex, name: appUser.fullname });
+        const aCombat = getEffectivePetStats(aStats, appUser.exp || 0);
+        setAttackerStats({ 
+          hp: aCombat.maxHp, 
+          maxHp: aCombat.maxHp, 
+          atk: aCombat.atk, 
+          agi: aCombat.agi, 
+          dex: aCombat.dex, 
+          name: appUser.fullname 
+        });
+
+        // Check if user currently has any bases (exempt first base Drop Pod placement from daily limit)
+        const myTilesSnap = await getDocs(query(collection(db, 'empire_tiles'), where('ownerUid', '==', appUser.uid)));
+        const hasExistingBase = !myTilesSnap.empty;
+
+        // Daily Attack Limit Check
+        const empireDaily = getDailyEmpireInfo(appUser);
+        if (hasExistingBase && !empireDaily.canAttack) {
+          alert(`⛔ คุณใช้โควตาการบุกรุกครบ ${DAILY_EMPIRE_ATTACK_LIMIT} ครั้งสำหรับวันนี้แล้ว! (รีเซ็ตทุกเที่ยงคืน)`);
+          router.push('/student/empire');
+          return;
+        }
 
         // 2. Fetch Tile & Defender Stats
         const tileRef = doc(db, 'empire_tiles', tileId);
@@ -122,26 +142,69 @@ function BattleContent() {
         }
         setTile(currentTile);
 
+        // Security check: Drop Pod (first base) cannot land on outposts or central vault
+        if (!hasExistingBase) {
+          const [tx, ty] = (currentTile.id || tileId).split(',').map(Number);
+          const isVault = isCentralVaultZone(tx, ty) || currentTile.ownerName?.includes('ผู้พิทักษ์');
+          if (currentTile.isOutpost || currentTile.type === 'outpost' || isVault) {
+            alert('⛔ ไม่สามารถใช้สิทธิ Drop Pod สถาปนาฐานแรกในจุดฟาร์มวิจัย (Outpost) หรือเขตห้องนิรภัยใจกลางเมือง (Vault) ได้!');
+            router.push('/student/empire');
+            return;
+          }
+        }
+
+        // Security check: cannot attack shielded tiles
+        if (isShieldedTile(currentTile)) {
+          alert('🛡️ เซกเตอร์นี้ได้รับการคุ้มครองด้วยบาเรียมือใหม่ ไม่สามารถโจมตีได้');
+          router.push('/student/empire');
+          return;
+        }
+
         if (currentTile.type === 'empty') {
           setDefenderStats({ hp: 50, maxHp: 50, atk: 15, name: 'เซลล์ร่างกายอ่อนแอ', family: 'corona' });
-        } else if (currentTile.type === 'chest') {
-          setDefenderStats({ hp: 150, maxHp: 150, atk: 25, name: 'หีบสมบัติไวรัสวิทยาโบราณ', family: 'retro' });
         } else if (currentTile.type === 'outpost' || currentTile.isOutpost) {
-          setDefenderStats({ hp: currentTile.bossHp || 180, maxHp: currentTile.maxBossHp || 180, atk: 30, name: currentTile.ownerName || 'ป้อมฟาร์มวิจัย (Bio-Farm Outpost)', family: 'corona' });
+          const outpHp = Math.max(currentTile.bossHp || 800, 800);
+          setDefenderStats({ hp: outpHp, maxHp: outpHp, atk: 35, name: currentTile.ownerName || 'ป้อมฟาร์มวิจัย (Bio-Farm Outpost)', family: 'corona' });
         } else if (currentTile.type === 'boss') {
-          setDefenderStats({ hp: currentTile.bossHp || 300, maxHp: currentTile.maxBossHp || 300, atk: 50, name: currentTile.ownerName || 'ระบบภูมิคุ้มกัน', family: currentTile.ownerFamily || 'rabies' });
+          // Guardian Boss: Increased HP and ATK challenge to prevent one-hit kills
+          const isInnerRing = currentTile.ownerName?.includes('ชั้นใน') || currentTile.ownerName?.includes('Elite');
+          const bossHp = Math.max(currentTile.bossHp || (isInnerRing ? 2000 : 1400), isInnerRing ? 2000 : 1400);
+          const bossAtk = isInnerRing ? 55 : 45;
+          setDefenderStats({ 
+            hp: bossHp, 
+            maxHp: bossHp, 
+            atk: bossAtk, 
+            name: currentTile.ownerName || 'ผู้พิทักษ์สมบัติ', 
+            family: currentTile.ownerFamily || 'rabies' 
+          });
         } else if (currentTile.type === 'player' && currentTile.ownerUid) {
           const defDoc = await getDoc(doc(db, 'users', currentTile.ownerUid));
           if (defDoc.exists()) {
             const defData = defDoc.data() as User;
-            const dStats = defData.pet?.stats || { str: 1, vit: 1, agi: 1, dex: 1, spentPoints: 0 };
-            const dMaxHp = 100 + (dStats.vit * 20);
-            const dAtk = 15 + (dStats.str * 5);
+            const dCombat = getEffectivePetStats(defData.pet?.stats, defData.exp || 0);
+            // Territory passive guard ATK is balanced with a cap (max 115 ATK) so new players are not one-shot killed
+            let dAtk = 15 + (dCombat.str * 5);
+            let dHp = dCombat.maxHp;
+
+            // Decay system: Inactive bases (>72h) have their defender HP and ATK reduced by 50%
+            const isDecayed = isDecayedTile(currentTile);
+            if (isDecayed) {
+              dHp = Math.max(25, Math.floor(dHp * 0.5));
+              dAtk = Math.max(10, Math.floor(dAtk * 0.5));
+            }
+
+            // Citadel Fortress bonus
+            if (currentTile.isCitadel) {
+              dHp = Math.max(dHp * 2, 2800);
+              dAtk = Math.max(dAtk + 15, 45);
+            }
+
+            const citadelPrefix = currentTile.isCitadel ? `🏛️ นครหลวงกิลด์ [${currentTile.guildName || 'CITADEL'}] - ` : '';
             setDefenderStats({
-              hp: dMaxHp,
-              maxHp: dMaxHp,
+              hp: dHp,
+              maxHp: dHp,
               atk: dAtk,
-              name: defData.fullname || 'Defender',
+              name: `${citadelPrefix}${defData.fullname || 'Defender'}${isDecayed ? ' ⚠️ (ฐานรกร้าง -50% HP)' : ''}`,
               family: defData.pet?.family || 'parvo'
             });
           }
@@ -250,6 +313,14 @@ function BattleContent() {
     
     const isOutpostTile = tile.type === 'outpost' || tile.isOutpost;
     const todayDate = new Date().toISOString().split('T')[0];
+    const nowIso = new Date().toISOString();
+
+    // Check if player had 0 bases before this claim (First Base / Drop Pod placement)
+    const myTilesSnap = await getDocs(query(collection(db, 'empire_tiles'), where('ownerUid', '==', appUser.uid)));
+    const isFirstBase = myTilesSnap.empty;
+    if (isFirstBase) {
+      setIsFirstBaseClaimed(true);
+    }
 
     const updatedTile: Record<string, any> = {
       ...tile,
@@ -258,16 +329,20 @@ function BattleContent() {
       ownerName: appUser.fullname,
       ownerFamily: appUser.pet?.family || 'parvo',
       color: familyToColor(appUser.pet?.family || 'default'),
-      lastAttacked: new Date().toISOString()
+      lastAttacked: nowIso,
+      lastActive: nowIso, // Upkeep tracking
     };
+
+    if (isFirstBase) {
+      updatedTile.isCapital = true;
+      // 48-Hour Beginner Shield protection
+      updatedTile.shieldUntil = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
+    }
 
     if (isOutpostTile) {
       updatedTile.isOutpost = true;
       updatedTile.dailyExp = 100;
       updatedTile.lastClaimedDate = todayDate;
-    }
-    if (tile.type === 'chest' || tile.bonusExp) {
-      updatedTile.bonusExp = tile.type === 'chest' ? 150 : tile.bonusExp;
     }
     if (appUser.guildId) {
       updatedTile.guildId = appUser.guildId;
@@ -286,69 +361,70 @@ function BattleContent() {
     await setDoc(tileRef, updatedTile);
 
     // Give balanced EXP reward
-    if (tile.type === 'chest') {
-      const TOTAL_CHEST_EXP = 1500;
-      if (appUser.guildId) {
+    const isToday = appUser.dailyEmpireBattles?.date === todayDate;
+    const currentAttackCount = isToday ? (Number(appUser.dailyEmpireBattles?.count) || 0) : 0;
+    const newAttackCount = currentAttackCount + 1;
+
+    let expReward = 15;
+    if (tile.isCitadel) {
+      expReward = 120; // Massive EXP reward for conquering an enemy Guild Citadel!
+      if (tile.guildId) {
         try {
-          // Fetch all guild members
-          const membersSnap = await getDocs(query(collection(db, 'users'), where('guildId', '==', appUser.guildId)));
-          const memberDocs = membersSnap.docs;
-          const membersCount = Math.max(1, memberDocs.length);
-          const expPerMember = Math.round(TOTAL_CHEST_EXP / membersCount);
-
-          // Distribute equal EXP to each member
-          const updates = memberDocs.map((mDoc) =>
-            updateDoc(mDoc.ref, {
-              exp: increment(expPerMember),
-              score: increment(expPerMember),
-            })
-          );
-          await Promise.all(updates);
-
-          setChestGuildReward({
-            totalExp: TOTAL_CHEST_EXP,
-            membersCount,
-            expPerMember,
+          const gDoc = await getDoc(doc(db, 'guilds', tile.guildId));
+          if (gDoc.exists()) {
+            const gData = gDoc.data() as Guild;
+            const cList = gData.citadelCoords || (gData.citadelCoord ? [gData.citadelCoord] : []);
+            // Clear isCitadel flag on all citadel tiles of this defeated guild
+            const clearPromises = cList.map((cid) =>
+              updateDoc(doc(db, 'empire_tiles', cid), { isCitadel: false }).catch(() => {})
+            );
+            await Promise.all(clearPromises);
+          }
+          await updateDoc(doc(db, 'guilds', tile.guildId), {
+            citadelCoord: null,
+            citadelCoords: null,
           });
-        } catch (err) {
-          console.error('Error distributing chest reward to guild members:', err);
-          // Fallback to current user if query fails
-          await updateDoc(doc(db, 'users', appUser.uid), {
-            exp: increment(TOTAL_CHEST_EXP),
-            score: increment(TOTAL_CHEST_EXP),
-          });
-          setChestGuildReward({
-            totalExp: TOTAL_CHEST_EXP,
-            membersCount: 1,
-            expPerMember: TOTAL_CHEST_EXP,
-          });
+        } catch (e) {
+          console.error('Error clearing defeated guild citadel:', e);
         }
-        setAwardedExp(TOTAL_CHEST_EXP);
-      } else {
-        // Solo player gets the full 1500 EXP!
-        await updateDoc(doc(db, 'users', appUser.uid), {
-          exp: increment(TOTAL_CHEST_EXP),
-          score: increment(TOTAL_CHEST_EXP),
-        });
-        setChestGuildReward({
-          totalExp: TOTAL_CHEST_EXP,
-          membersCount: 1,
-          expPerMember: TOTAL_CHEST_EXP,
-        });
-        setAwardedExp(TOTAL_CHEST_EXP);
       }
-    } else {
-      let expReward = 15;
-      if (isOutpostTile) expReward = 100; // Outpost captured bonus!
-      else if (tile.type === 'boss') expReward = 60;
-      else if (tile.type === 'player') expReward = 30;
+      updatedTile.isCitadel = false;
+    } else if (isOutpostTile) {
+      expReward = 100; // Outpost captured bonus!
+    } else if (tile.type === 'boss') {
+      expReward = 35; // บอสผู้พิทักษ์: 35 EXP
+    } else if (tile.type === 'player') {
+      expReward = 30;
+    }
 
-      setAwardedExp(expReward);
+    const finalEarnedExp = expReward;
+    setAwardedExp(expReward);
 
-      const userRef = doc(db, 'users', appUser.uid);
-      await updateDoc(userRef, {
-        exp: increment(expReward)
+    const userRef = doc(db, 'users', appUser.uid);
+    const userUpdates: Record<string, any> = {
+      exp: increment(expReward)
+    };
+    // First base placement is free and doesn't consume daily quota
+    if (!isFirstBase) {
+      userUpdates.dailyEmpireBattles = {
+        date: todayDate,
+        count: newAttackCount
+      };
+    }
+    await updateDoc(userRef, userUpdates);
+
+    // Log match history
+    try {
+      const { addDoc, collection: col } = await import('firebase/firestore');
+      await addDoc(col(db, 'users', appUser.uid, 'history'), {
+        gameId: 'empire-battle',
+        gameName: `Empire: ${tile.type === 'boss' ? 'บอสผู้พิทักษ์' : isOutpostTile ? 'ยึดป้อมวิจัย' : 'ยึดครองดินแดน'} (${tile.id})`,
+        score: finalEarnedExp,
+        expEarned: finalEarnedExp,
+        playedAt: new Date().toISOString()
       });
+    } catch (e) {
+      console.error('Failed to log empire battle history:', e);
     }
 
     // Update Guild totalTiles in real time
@@ -503,31 +579,7 @@ function BattleContent() {
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             {gameState === 'won' ? (
               <>
-                {tile?.type === 'chest' ? (
-                  <>
-                    <div className="w-20 h-20 rounded-3xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center mb-4 shadow-[0_0_25px_rgba(245,158,11,0.5)]">
-                      <Gift className="w-12 h-12 text-amber-400 animate-bounce" />
-                    </div>
-                    <h2 className="text-3xl sm:text-4xl font-black text-amber-400 uppercase tracking-widest text-glow mb-2">
-                      Treasure Secured!
-                    </h2>
-                    <p className="text-slate-300 mb-6 font-bold">
-                      คุณสามารถบุกฝ่าด่านองครักษ์และครอบครองหีบสมบัติโบราณได้สำเร็จ!
-                    </p>
-                    <div className="text-xl sm:text-2xl font-black text-yellow-300 mb-8 bg-amber-950/70 border border-amber-500/60 px-6 py-3 rounded-2xl shadow-[0_0_25px_rgba(245,158,11,0.4)] space-y-1">
-                      <div>🎉 ปลดล็อกมหาสมบัติโบราณสำเร็จ!</div>
-                      {chestGuildReward && chestGuildReward.membersCount > 1 ? (
-                        <div className="text-xs sm:text-sm font-normal text-amber-200">
-                          (แจกจ่าย EXP รางวัลมหาศาลหารเท่ากันทุกคนในกิลด์เรียบร้อยแล้ว!)
-                        </div>
-                      ) : (
-                        <div className="text-xs sm:text-sm font-normal text-amber-200">
-                          (คุณได้รับ EXP รางวัลมหาสมบัติเต็มจำนวนเรียบร้อยแล้ว!)
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (tile?.type === 'outpost' || tile?.isOutpost) ? (
+                {(tile?.type === 'outpost' || tile?.isOutpost) ? (
                   <>
                     <div className="w-20 h-20 rounded-3xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center mb-4 shadow-[0_0_25px_rgba(16,185,129,0.5)]">
                       <Shield className="w-12 h-12 text-emerald-400 animate-pulse" />
@@ -553,7 +605,12 @@ function BattleContent() {
                   </>
                 )}
 
-                {/* Victory Action Buttons */}
+                {isFirstBaseClaimed && (
+                  <div className="mb-4 bg-cyan-950/90 border border-cyan-400 text-cyan-200 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.4)] animate-in fade-in zoom-in-95">
+                    <Shield className="w-4 h-4 text-cyan-400 animate-pulse" />
+                    <span>🛡️ สถาปนาฐานแรกสำเร็จ! เปิดใช้งานบาเรียมือใหม่คุ้มครอง 48 ชม. ปลอดภัยจากการถูกตี</span>
+                  </div>
+                )}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md pt-2">
                   <Link href="/student/empire" className="w-full">
                     <Button className="w-full py-6 text-lg font-black bg-cyan-600 hover:bg-cyan-500 text-white uppercase tracking-widest shadow-[0_0_20px_rgba(6,182,212,0.4)]">

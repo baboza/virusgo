@@ -24,6 +24,7 @@ import {
 } from 'firebase/firestore';
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 import { ALL_15_CHAPTER_QUESTIONS } from '@/data/veterinaryVirologyContent';
+import { getEffectivePetStats } from '@/lib/petBalance';
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
   ssr: false,
@@ -108,13 +109,13 @@ export default function PvpDuel() {
   const [showDmgEffect, setShowDmgEffect] = useState<{ target: string; amount: number; isCrit: boolean } | null>(null);
   const rewardClaimedRef = useRef(false);
 
-  // Calculate my pet combat stats
+  // Calculate my pet combat stats with Hard Cap & Balance System (Approach 1)
   const pet = appUser?.pet;
-  const pStats = pet?.stats || { str: 1, vit: 1, agi: 1, dex: 1, spentPoints: 0 };
-  const myMaxHp = 100 + (pStats.vit * 20);
-  const myAtk = 20 + (pStats.str * 10);
-  const myAgi = pStats.agi;
-  const myDex = pStats.dex;
+  const combatStats = getEffectivePetStats(pet?.stats, appUser?.exp || 0);
+  const myMaxHp = combatStats.maxHp;
+  const myAtk = combatStats.atk;
+  const myAgi = combatStats.agi;
+  const myDex = combatStats.dex;
   const myFamily = pet?.family || 'corona';
   const myNickname = pet?.nickname || pet?.virusName || 'Virus Fighter';
 

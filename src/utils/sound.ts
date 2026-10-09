@@ -100,6 +100,25 @@ class SoundFX {
     osc.start();
     osc.stop(this.ctx.currentTime + 0.3);
   }
+
+  // Fanfare / Level up Sound
+  levelUp() {
+    this.init();
+    if (!this.ctx) return;
+    const notes = [440, 554, 659, 880];
+    notes.forEach((freq, idx) => {
+      setTimeout(() => this.playTone(freq, 'triangle', 0.18, 0.08), idx * 90);
+    });
+  }
+
+  victory() {
+    this.init();
+    if (!this.ctx) return;
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((freq, idx) => {
+      setTimeout(() => this.playTone(freq, 'triangle', 0.25, 0.1), idx * 120);
+    });
+  }
 }
 
 export const sfx = new SoundFX();

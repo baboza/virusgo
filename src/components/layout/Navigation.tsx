@@ -27,6 +27,9 @@ export function Navigation() {
 
   if (!appUser) return null;
 
+  // Hide global HUD/bar on full-screen Empire Map & Battle pages
+  if (pathname.startsWith('/student/empire')) return null;
+
   const handleLogout = async () => {
     sfx.click();
     await auth.signOut();

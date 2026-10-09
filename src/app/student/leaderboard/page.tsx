@@ -27,6 +27,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 import Link from 'next/link';
 import { Guild } from '@/types';
+import { getEffectivePetStats } from '@/lib/petBalance';
 
 export default function Leaderboard() {
   const { appUser } = useAuth();
@@ -369,9 +370,39 @@ export default function Leaderboard() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-6">
+              <div className="flex flex-wrap items-center justify-center sm:justify-end gap-4 sm:gap-6">
+                {myLeaderData.pet && (() => {
+                  const myPetCombat = getEffectivePetStats(myLeaderData.pet.stats, myLeaderData.globalExp || 0);
+                  return (
+                    <div className="flex items-center gap-2.5 bg-slate-950/70 border border-purple-500/40 px-3 py-1.5 rounded-xl shadow-inner">
+                      <div className="w-9 h-9 rounded-lg bg-purple-950/80 border border-purple-500/40 p-1 flex items-center justify-center shrink-0">
+                        <SVGVirus 
+                          type={familyToVirusType(myLeaderData.pet.family || 'corona')}
+                          className="w-full h-full text-purple-300"
+                          glowColor={myPetCombat.rankBadgeColor}
+                        />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-xs font-bold text-white truncate max-w-[120px]">
+                          {myLeaderData.pet.nickname || myLeaderData.pet.virusName}
+                        </div>
+                        <div 
+                          className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border inline-block mt-0.5"
+                          style={{ 
+                            borderColor: `${myPetCombat.rankBadgeColor}60`,
+                            backgroundColor: `${myPetCombat.rankBadgeColor}15`,
+                            color: myPetCombat.rankBadgeColor 
+                          }}
+                        >
+                          {myPetCombat.rankTitle.split(' (')[0]}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="text-center sm:text-right">
-                  <div className="text-xs text-slate-400 font-mono">ระดับยศปัจจุบัน</div>
+                  <div className="text-xs text-slate-400 font-mono">ยศนิสิต</div>
                   <div className="text-xs font-bold text-amber-300">
                     {getRankTitle(myLeaderData.globalExp).icon} {getRankTitle(myLeaderData.globalExp).title}
                   </div>
@@ -420,6 +451,35 @@ export default function Leaderboard() {
                     {activeTab === 'global' ? topThree[1].globalExp : activeTab === 'solo' ? topThree[1].soloExp : topThree[1].teamExp} EXP
                   </p>
 
+                  {/* 2nd Place Pet & Pet Rank */}
+                  {topThree[1].pet && (() => {
+                    const pCombat = getEffectivePetStats(topThree[1].pet.stats, topThree[1].globalExp || 0);
+                    return (
+                      <div className="mt-1 flex flex-col items-center">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-950/70 border border-purple-500/40 p-1 flex items-center justify-center shadow-inner relative">
+                          <SVGVirus 
+                            type={familyToVirusType(topThree[1].pet.family || 'corona')}
+                            className="w-full h-full text-purple-300"
+                            glowColor={pCombat.rankBadgeColor}
+                          />
+                        </div>
+                        <span className="text-[10px] text-white font-bold truncate max-w-[85px] mt-0.5">
+                          {topThree[1].pet.nickname || topThree[1].pet.virusName}
+                        </span>
+                        <span 
+                          className="text-[8px] font-mono font-black px-1.5 py-0.2 rounded border mt-0.5 text-center leading-tight shadow-sm"
+                          style={{ 
+                            borderColor: `${pCombat.rankBadgeColor}70`,
+                            backgroundColor: `${pCombat.rankBadgeColor}15`,
+                            color: pCombat.rankBadgeColor 
+                          }}
+                        >
+                          {pCombat.rankTitle.split(' (')[0]}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
                   {/* Pedestal Box */}
                   <div className="w-full h-24 sm:h-28 bg-gradient-to-t from-slate-900 to-slate-800/90 rounded-t-2xl border-t-2 border-x-2 border-slate-500/50 flex flex-col items-center justify-center mt-3 shadow-lg">
                     <span className="text-2xl sm:text-3xl font-black text-slate-300 font-mono">2</span>
@@ -454,6 +514,35 @@ export default function Leaderboard() {
                     {activeTab === 'global' ? topThree[0].globalExp : activeTab === 'solo' ? topThree[0].soloExp : topThree[0].teamExp} EXP
                   </p>
 
+                  {/* 1st Place Pet & Pet Rank */}
+                  {topThree[0].pet && (() => {
+                    const pCombat = getEffectivePetStats(topThree[0].pet.stats, topThree[0].globalExp || 0);
+                    return (
+                      <div className="mt-1 flex flex-col items-center">
+                        <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-yellow-950/70 border border-yellow-500/50 p-1 flex items-center justify-center shadow-inner relative">
+                          <SVGVirus 
+                            type={familyToVirusType(topThree[0].pet.family || 'corona')}
+                            className="w-full h-full text-yellow-300"
+                            glowColor={pCombat.rankBadgeColor}
+                          />
+                        </div>
+                        <span className="text-[10px] sm:text-xs text-white font-bold truncate max-w-[95px] mt-0.5">
+                          {topThree[0].pet.nickname || topThree[0].pet.virusName}
+                        </span>
+                        <span 
+                          className="text-[8px] sm:text-[9px] font-mono font-black px-1.5 py-0.2 rounded border mt-0.5 text-center leading-tight shadow-sm"
+                          style={{ 
+                            borderColor: `${pCombat.rankBadgeColor}70`,
+                            backgroundColor: `${pCombat.rankBadgeColor}15`,
+                            color: pCombat.rankBadgeColor 
+                          }}
+                        >
+                          {pCombat.rankTitle.split(' (')[0]}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
                   {/* Pedestal Box */}
                   <div className="w-full h-32 sm:h-36 bg-gradient-to-t from-yellow-950/60 via-slate-900 to-amber-900/60 rounded-t-2xl border-t-2 border-x-2 border-yellow-400 flex flex-col items-center justify-center mt-3 shadow-[0_0_30px_rgba(234,179,8,0.2)]">
                     <span className="text-3xl sm:text-4xl font-black text-yellow-400 font-mono">1</span>
@@ -487,6 +576,35 @@ export default function Leaderboard() {
                   <p className="text-[10px] sm:text-xs font-mono font-bold text-amber-500">
                     {activeTab === 'global' ? topThree[2].globalExp : activeTab === 'solo' ? topThree[2].soloExp : topThree[2].teamExp} EXP
                   </p>
+
+                  {/* 3rd Place Pet & Pet Rank */}
+                  {topThree[2].pet && (() => {
+                    const pCombat = getEffectivePetStats(topThree[2].pet.stats, topThree[2].globalExp || 0);
+                    return (
+                      <div className="mt-1 flex flex-col items-center">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-950/70 border border-purple-500/40 p-1 flex items-center justify-center shadow-inner relative">
+                          <SVGVirus 
+                            type={familyToVirusType(topThree[2].pet.family || 'corona')}
+                            className="w-full h-full text-purple-300"
+                            glowColor={pCombat.rankBadgeColor}
+                          />
+                        </div>
+                        <span className="text-[10px] text-white font-bold truncate max-w-[85px] mt-0.5">
+                          {topThree[2].pet.nickname || topThree[2].pet.virusName}
+                        </span>
+                        <span 
+                          className="text-[8px] font-mono font-black px-1.5 py-0.2 rounded border mt-0.5 text-center leading-tight shadow-sm"
+                          style={{ 
+                            borderColor: `${pCombat.rankBadgeColor}70`,
+                            backgroundColor: `${pCombat.rankBadgeColor}15`,
+                            color: pCombat.rankBadgeColor 
+                          }}
+                        >
+                          {pCombat.rankTitle.split(' (')[0]}
+                        </span>
+                      </div>
+                    );
+                  })()}
 
                   {/* Pedestal Box */}
                   <div className="w-full h-20 sm:h-24 bg-gradient-to-t from-slate-900 to-slate-800/90 rounded-t-2xl border-t-2 border-x-2 border-amber-700/60 flex flex-col items-center justify-center mt-3 shadow-lg">
@@ -583,19 +701,43 @@ export default function Leaderboard() {
                       </div>
 
                       {/* Pet & EXP Score */}
-                      <div className="flex items-center gap-3 sm:gap-6 shrink-0">
-                        {leader.pet && (
-                          <div className="hidden sm:flex flex-col items-center justify-center bg-purple-900/20 px-3 py-1.5 rounded-xl border border-purple-500/30 shadow-sm">
-                            <SVGVirus 
-                              type={familyToVirusType(leader.pet.family)} 
-                              className={`w-7 h-7 text-purple-400 ${leader.pet.stage === 1 ? 'opacity-80 scale-75' : ''}`} 
-                              glowColor="rgba(168,85,247,0.5)" 
-                            />
-                            <span className="text-[8px] text-purple-300 font-bold mt-0.5 uppercase tracking-widest truncate max-w-[70px]">
-                              {leader.pet.virusName}
-                            </span>
-                          </div>
-                        )}
+                      <div className="flex items-center gap-2.5 sm:gap-6 shrink-0">
+                        {leader.pet ? (
+                          (() => {
+                            const pCombat = getEffectivePetStats(leader.pet.stats, leader.globalExp || 0);
+                            return (
+                              <div className="flex items-center gap-2 bg-slate-950/70 px-2 sm:px-3 py-1.5 rounded-xl border border-purple-500/30 shadow-sm">
+                                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-purple-950/80 border border-purple-500/40 p-1 flex items-center justify-center shrink-0 relative">
+                                  <SVGVirus 
+                                    type={familyToVirusType(leader.pet.family || 'corona')} 
+                                    className="w-full h-full text-purple-300" 
+                                    glowColor={pCombat.rankBadgeColor} 
+                                  />
+                                  {leader.pet.stage >= 2 && (
+                                    <span className="absolute -bottom-1 -right-1 text-[7px] px-1 rounded-full bg-slate-900 border border-purple-400 font-mono text-purple-300">
+                                      S{leader.pet.stage}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="min-w-0 text-left hidden xs:block">
+                                  <div className="text-[10px] sm:text-xs font-bold text-white truncate max-w-[85px] sm:max-w-[130px]">
+                                    {leader.pet.nickname || leader.pet.virusName}
+                                  </div>
+                                  <div 
+                                    className="text-[8px] sm:text-[9px] font-mono font-black px-1.5 py-0.2 rounded border inline-flex items-center gap-1 mt-0.5 whitespace-nowrap shadow-sm"
+                                    style={{ 
+                                      borderColor: `${pCombat.rankBadgeColor}70`,
+                                      backgroundColor: `${pCombat.rankBadgeColor}15`,
+                                      color: pCombat.rankBadgeColor 
+                                    }}
+                                  >
+                                    <span>{pCombat.rankTitle.split(' (')[0]}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()
+                        ) : null}
 
                         <div className="text-right">
                           <div className="flex items-center gap-1 text-accent font-black text-lg sm:text-2xl text-glow-accent justify-end font-mono">

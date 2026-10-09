@@ -131,3 +131,29 @@ export const awardDailyCappedExp = async (
     return { awardedExp: 0, isCapped: false, remainingCap: cap };
   }
 };
+
+export const DAILY_EMPIRE_ATTACK_LIMIT = 10; // Max 10 territory / boss attacks per day
+
+export interface DailyEmpireInfo {
+  date: string;
+  attacksToday: number;
+  limit: number;
+  remainingAttacks: number;
+  canAttack: boolean;
+}
+
+export const getDailyEmpireInfo = (user: any): DailyEmpireInfo => {
+  const today = getTodayDateString();
+  const record = user?.dailyEmpireBattles;
+  const isToday = record && record.date === today;
+  const attacksToday = isToday ? (Number(record.count) || 0) : 0;
+  const remainingAttacks = Math.max(0, DAILY_EMPIRE_ATTACK_LIMIT - attacksToday);
+  return {
+    date: today,
+    attacksToday,
+    limit: DAILY_EMPIRE_ATTACK_LIMIT,
+    remainingAttacks,
+    canAttack: remainingAttacks > 0
+  };
+};
+
