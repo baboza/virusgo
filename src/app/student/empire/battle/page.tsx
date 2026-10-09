@@ -121,12 +121,29 @@ function BattleContent() {
         const myTilesSnap = await getDocs(query(collection(db, 'empire_tiles'), where('ownerUid', '==', appUser.uid)));
         const hasExistingBase = !myTilesSnap.empty;
 
-        // Daily Attack Limit Check
-        const empireDaily = getDailyEmpireInfo(appUser);
+        // Daily Attack Limit Check (Fetch fresh user doc from Firestore to prevent multi-tab abuse)
+        const userRef = doc(db, 'users', appUser.uid);
+        const userSnap = await getDoc(userRef);
+        const freshUserData = userSnap.exists() ? userSnap.data() : appUser;
+        const empireDaily = getDailyEmpireInfo(freshUserData);
+
         if (hasExistingBase && !empireDaily.canAttack) {
           alert(`⛔ คุณใช้โควตาการบุกรุกครบ ${DAILY_EMPIRE_ATTACK_LIMIT} ครั้งสำหรับวันนี้แล้ว! (รีเซ็ตทุกเที่ยงคืน)`);
           router.push('/student/empire');
           return;
+        }
+
+        // Consume 1 Attack Quota immediately upon entering the battlefield (exempt first base placement)
+        if (hasExistingBase) {
+          const todayDate = new Date().toISOString().split('T')[0];
+          const isTodayRecord = freshUserData?.dailyEmpireBattles?.date === todayDate;
+          const currentCount = isTodayRecord ? (Number(freshUserData?.dailyEmpireBattles?.count) || 0) : 0;
+          await updateDoc(userRef, {
+            dailyEmpireBattles: {
+              date: todayDate,
+              count: currentCount + 1,
+            }
+          });
         }
 
         // 2. Fetch Tile & Defender Stats
@@ -401,17 +418,9 @@ function BattleContent() {
     setAwardedExp(expReward);
 
     const userRef = doc(db, 'users', appUser.uid);
-    const userUpdates: Record<string, any> = {
+    await updateDoc(userRef, {
       exp: increment(expReward)
-    };
-    // First base placement is free and doesn't consume daily quota
-    if (!isFirstBase) {
-      userUpdates.dailyEmpireBattles = {
-        date: todayDate,
-        count: newAttackCount
-      };
-    }
-    await updateDoc(userRef, userUpdates);
+    });
 
     // Log match history
     try {
