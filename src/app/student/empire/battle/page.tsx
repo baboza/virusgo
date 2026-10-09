@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +15,7 @@ import { db } from '@/lib/firebase/config';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { EmpireTile, User } from '@/types';
 import { familyToColor, isDecayedTile, isShieldedTile, isCentralVaultZone } from '@/app/student/empire/page';
-import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT } from '@/lib/dailyExpCap';
+import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString } from '@/lib/dailyExpCap';
 import { getEffectivePetStats } from '@/lib/petBalance';
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
@@ -76,6 +76,8 @@ function BattleContent() {
   const [awardedExp, setAwardedExp] = useState<number>(15);
   const [isFirstBaseClaimed, setIsFirstBaseClaimed] = useState(false);
 
+  const hasInitializedRef = useRef(false);
+
   // Battle Stats
   const [attackerStats, setAttackerStats] = useState({ hp: 100, maxHp: 100, atk: 20, agi: 1, dex: 1, name: 'You' });
   const [defenderStats, setDefenderStats] = useState({ hp: 50, maxHp: 50, atk: 10, name: 'Unclaimed Cell', family: 'parvo' });
@@ -101,7 +103,9 @@ function BattleContent() {
 
   // Load Data
   useEffect(() => {
-    if (!appUser || !tileId) return;
+    if (!appUser?.uid || !tileId) return;
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
 
     const initBattle = async () => {
       try {
@@ -135,7 +139,7 @@ function BattleContent() {
 
         // Consume 1 Attack Quota immediately upon entering the battlefield (exempt first base placement)
         if (hasExistingBase) {
-          const todayDate = new Date().toISOString().split('T')[0];
+          const todayDate = getTodayDateString();
           const isTodayRecord = freshUserData?.dailyEmpireBattles?.date === todayDate;
           const currentCount = isTodayRecord ? (Number(freshUserData?.dailyEmpireBattles?.count) || 0) : 0;
           await updateDoc(userRef, {
@@ -235,7 +239,7 @@ function BattleContent() {
 
     initBattle();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appUser, tileId]);
+  }, [appUser?.uid, tileId]);
 
   // Timer
   useEffect(() => {
@@ -378,10 +382,6 @@ function BattleContent() {
     await setDoc(tileRef, updatedTile);
 
     // Give balanced EXP reward
-    const isToday = appUser.dailyEmpireBattles?.date === todayDate;
-    const currentAttackCount = isToday ? (Number(appUser.dailyEmpireBattles?.count) || 0) : 0;
-    const newAttackCount = currentAttackCount + 1;
-
     let expReward = 15;
     if (tile.isCitadel) {
       expReward = 120; // Massive EXP reward for conquering an enemy Guild Citadel!

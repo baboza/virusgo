@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { familyToVirusType } from '@/components/ui/SVGVirus';
-import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT } from '@/lib/dailyExpCap';
+import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString } from '@/lib/dailyExpCap';
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
   ssr: false,
@@ -835,6 +835,13 @@ export default function EmpireMap() {
       return;
     }
 
+    // Lock: Cannot relocate citadel (future feature will use City Relocation Scroll)
+    const hasExistingCitadel = Boolean(currentG.citadelCoord || (currentG.citadelCoords && currentG.citadelCoords.length > 0));
+    if (hasExistingCitadel) {
+      alert('🔒 นครหลวงกิลด์ (เมืองหลวง) ถูกสถาปนาแล้วและล็อคตำแหน่งไว้ ไม่สามารถย้ายเมืองหลวงได้ในขณะนี้\n\n(ระบบย้ายเมืองหลวงด้วย "ใบย้ายเมือง" จะเปิดให้ใช้งานในอนาคต)');
+      return;
+    }
+
     const [tx, ty] = tileId.split(',').map(Number);
     // Find a 2x2 square containing (tx, ty) where all 4 tiles belong to the guild
     const candidateOffsets = [
@@ -979,6 +986,24 @@ export default function EmpireMap() {
     }
   };
 
+  const handleResetMyQuota = async () => {
+    if (!appUser) return;
+    if (confirm('🔄 [สิทธิ์อาจารย์/ผู้ดูแล] ต้องการรีเซ็ตโควตาการบุกรุกของตนเองกลับเป็น 10/10 เพื่อทดสอบระบบหรือไม่?')) {
+      try {
+        const userRef = doc(db, 'users', appUser.uid);
+        await updateDoc(userRef, {
+          dailyEmpireBattles: {
+            date: getTodayDateString(),
+            count: 0
+          }
+        });
+        alert('✅ รีเซ็ตโควตาสำเร็จ! โควตากลับเป็น 10/10 แล้ว');
+      } catch (err) {
+        console.error('Failed to reset quota:', err);
+      }
+    }
+  };
+
   const handleAction = () => {
     if (!selectedTile || !canInfect) return;
 
@@ -1030,15 +1055,23 @@ export default function EmpireMap() {
           </div>
 
           {/* Daily Quota Badge */}
-          <div className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-xl text-[10px] sm:text-xs font-bold font-mono border flex items-center gap-1 shadow-sm shrink-0 ${
-            dailyEmpireInfo.canAttack 
-              ? 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300' 
-              : 'bg-red-950/80 border-red-500/50 text-red-300'
-          }`} title="โควตาการบุกรุกประจำวัน รีเซ็ตทุกเที่ยงคืน">
+          <button
+            type="button"
+            onClick={appUser?.role === 'instructor' ? handleResetMyQuota : undefined}
+            className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-xl text-[10px] sm:text-xs font-bold font-mono border flex items-center gap-1 shadow-sm shrink-0 transition-all ${
+              dailyEmpireInfo.canAttack 
+                ? 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300' 
+                : 'bg-red-950/80 border-red-500/50 text-red-300'
+            } ${appUser?.role === 'instructor' ? 'cursor-pointer hover:border-amber-400/80 active:scale-95' : 'cursor-default'}`}
+            title={appUser?.role === 'instructor' ? "คลิกเพื่อรีเซ็ตโควตาทดสอบ (สิทธิ์อาจารย์/ผู้ดูแล)" : "โควตาการบุกรุกประจำวัน รีเซ็ตทุกเที่ยงคืน"}
+          >
             <Swords className="w-3 h-3 text-cyan-400" />
             <span className="hidden sm:inline">โควตา:</span>
             <span>{dailyEmpireInfo.remainingAttacks}/{DAILY_EMPIRE_ATTACK_LIMIT}</span>
-          </div>
+            {appUser?.role === 'instructor' && (
+              <span className="text-[9px] text-amber-400/80 hover:text-amber-300 font-bold ml-0.5" title="รีเซ็ตโควตา">↺</span>
+            )}
+          </button>
         </div>
 
         {/* Right: Navigation (mobile), Quick Stats, Guild, and Rules */}
@@ -1742,9 +1775,11 @@ export default function EmpireMap() {
 
               {/* Action Button & Close Button */}
               <div className="shrink-0 flex items-center gap-1.5">
-                {/* Guild Leader: Establish Citadel Button (Checks guild territory or member base) */}
+                {/* Guild Leader: Establish Citadel Button (Only when guild has no citadel yet - Relocation locked) */}
                 {appUser?.guildId &&
                   guilds[appUser.guildId]?.leaderUid === appUser.uid &&
+                  !guilds[appUser.guildId]?.citadelCoord &&
+                  (!guilds[appUser.guildId]?.citadelCoords || guilds[appUser.guildId]?.citadelCoords?.length === 0) &&
                   (activeTileData?.guildId === appUser.guildId || activeTileData?.ownerUid === appUser.uid || isGuildTile) &&
                   !activeTileData?.isCitadel &&
                   !activeTileData?.isOutpost &&
@@ -2114,6 +2149,7 @@ export default function EmpireMap() {
                               <li>สร้างรัศมีคุ้มกันรอบตัว 2 ช่อง: <strong className="text-amber-200">ไม่มีวันรกร้าง (Decay-Immune)</strong></li>
                               <li>กำแพงป้องกันหนาแน่น 2 เท่า (HP {(currentG.citadelLevel || 1) * 1000 + 2500} หน่วย) ทุกช่องในกลุ่มนครหลวง</li>
                               <li>สมาชิกสามารถบริจาค EXP ส่วนตัวเพื่ออัปเกรดความรุ่งเรืองของนครหลวงได้</li>
+                              <li className="text-amber-300 font-medium">🔒 ตำแหน่งเมืองหลวงถูกล็อคถาวร (ระบบย้ายเมืองหลวงด้วย &quot;ใบย้ายเมือง&quot; จะเปิดให้ใช้งานในอนาคต)</li>
                             </ul>
                           </div>
 
@@ -2564,6 +2600,7 @@ export default function EmpireMap() {
                 </div>
                 <p className="text-slate-300 leading-relaxed text-xs">
                   • <span className="text-amber-300 font-bold">การสถาปนานครหลวง 4 ช่อง:</span> เฉพาะ <strong className="text-amber-300">หัวหน้ากิลด์ (👑)</strong> เท่านั้นที่มีอำนาจสถาปนา โดยกิลด์จะต้องยึดครองดินแดนติดต่อกันเป็น <span className="text-amber-300 font-bold">กลุ่มบล็อก 4 ช่อง (สี่เหลี่ยม 2×2 เซกเตอร์)</span> จึงจะสามารถสถาปนาเป็นนครหลวงกิลด์ได้<br/>
+                  • <span className="text-red-300 font-bold">🔒 ล็อคตำแหน่งเมืองหลวง:</span> เมื่อสถาปนานครหลวงแล้วจะไม่สามารถย้ายตำแหน่งได้ (ในอนาคตจะมีระบบไอเทม &quot;ใบย้ายเมือง&quot; สำหรับการย้ายพิกัดเมืองหลวง)<br/>
                   • <span className="text-amber-200 font-bold">รัศมีคุ้มกันไม่รกร้าง (Decay Immunity):</span> ดินแดนทุกช่องในระยะ 2 ช่องรอบกลุ่มนครหลวงทั้ง 4 ช่อง จะได้รับออร่าคุ้มครอง <span className="text-amber-300 font-bold">ไม่มีวันรกร้างหรือสลายตัว</span> แม้เจ้าของดินแดนจะไม่ได้เข้าเกมนานเกินกำหนด<br/>
                   • <span className="text-yellow-300 font-bold">ป้อมปราการป้องกันหนาแน่น:</span> ดินแดนทั้ง 4 ช่องของนครหลวงมีพลังป้องกันและเลือด HP สูงกว่าปกติ 2 เท่า (เริ่มต้น 3,500 HP ขึ้นไป) บอทป้องกันได้รับบัฟ ATK +15<br/>
                   • <span className="text-cyan-300 font-bold">การพัฒนาและบริจาค EXP:</span> สมาชิกกิลด์สามารถร่วมกันบริจาค EXP เพื่ออัปเกรดเลเวลของนครหลวง (สูงสุด LV.5) เพิ่มความทนทานและรัศมีพลังของกิลด์
