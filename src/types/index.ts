@@ -42,6 +42,15 @@ export interface User {
   pet?: VirusPetData;
   guildId?: string;
   guildName?: string;
+  dailyEmpireBattles?: {
+    date: string;
+    count: number;
+  };
+  dailyScoutDrones?: {
+    date: string;
+    count: number;
+  };
+  exploredTiles?: string[];
 }
 
 export interface Guild {

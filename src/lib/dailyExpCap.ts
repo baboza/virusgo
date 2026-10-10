@@ -157,3 +157,29 @@ export const getDailyEmpireInfo = (user: any): DailyEmpireInfo => {
   };
 };
 
+export const DAILY_SCOUT_DRONE_LIMIT = 5; // Max 5 Scout Drone missions per day
+
+export interface DailyScoutDroneInfo {
+  date: string;
+  scoutsToday: number;
+  limit: number;
+  remainingScouts: number;
+  canScout: boolean;
+}
+
+export const getDailyScoutDroneInfo = (user: any): DailyScoutDroneInfo => {
+  const today = getTodayDateString();
+  const record = user?.dailyScoutDrones;
+  const isToday = record && record.date === today;
+  const scoutsToday = isToday ? (Number(record.count) || 0) : 0;
+  const remainingScouts = Math.max(0, DAILY_SCOUT_DRONE_LIMIT - scoutsToday);
+  return {
+    date: today,
+    scoutsToday,
+    limit: DAILY_SCOUT_DRONE_LIMIT,
+    remainingScouts,
+    canScout: remainingScouts > 0
+  };
+};
+
+

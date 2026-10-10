@@ -17,6 +17,9 @@ export interface PetCombatStats {
   maxPerStatCap: number;
   maxHp: number;
   atk: number;
+  def: number;
+  attack: number;
+  defense: number;
   quizTime: number;
   critRate: number;
   combatPower: number;
@@ -51,9 +54,10 @@ export function getEffectivePetStats(
   // 2. Combat Formulas
   const maxHp = 100 + (vit * 20);
   const atk = 20 + (str * 10);
+  const def = Math.floor(vit * 5);
   const quizTime = 15 + (agi * 2);
   const critRate = Math.min(75, dex * 5);
-  const combatPower = Math.floor((maxHp * 1.2) + (atk * 2.5) + (critRate * 10) + (quizTime * 5));
+  const combatPower = Math.floor((maxHp * 1.2) + (atk * 2.5) + (def * 2) + (critRate * 10) + (quizTime * 5));
 
   // 3. Prestige Rank Titles based on user EXP (Honoring veteran dedication beyond stat cap)
   let rankTitle = 'ผู้พิทักษ์ฝึกหัด (Cadet)';
@@ -94,6 +98,9 @@ export function getEffectivePetStats(
     maxPerStatCap: MAX_PER_STAT,
     maxHp,
     atk,
+    def,
+    attack: atk,
+    defense: def,
     quizTime,
     critRate,
     combatPower,

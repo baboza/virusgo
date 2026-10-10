@@ -10,11 +10,12 @@ import {
   Users, Search, AlertCircle, Shield, MoreVertical, RefreshCcw, 
   Trash2, X, Gamepad2, Clock, Calendar, Target, Activity, Zap, 
   Download, Filter, ArrowUpDown, ChevronRight, Award, Heart, 
-  Sparkles, Edit3, CheckCircle2, ChevronDown, BookOpen
+  Sparkles, Edit3, CheckCircle2, ChevronDown, BookOpen, Swords, Rocket
 } from 'lucide-react';
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { User as AppUser } from '@/types';
+import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString, getDailyScoutDroneInfo, DAILY_SCOUT_DRONE_LIMIT } from '@/lib/dailyExpCap';
 import Link from 'next/link';
 
 function StudentProgressContent() {
@@ -28,7 +29,7 @@ function StudentProgressContent() {
   const [students, setStudents] = useState<AppUser[]>([]);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [levelFilter, setLevelFilter] = useState<'all' | 'novice' | 'advanced' | 'master'>('all');
-  const [sortBy, setSortBy] = useState<'exp_desc' | 'exp_asc' | 'name' | 'recent'>('exp_desc');
+  const [sortBy, setSortBy] = useState<'exp_desc' | 'exp_asc' | 'quota_asc' | 'quota_desc' | 'name' | 'recent'>('exp_desc');
   
   // Modal State
   const [selectedStudent, setSelectedStudent] = useState<AppUser | null>(null);
@@ -151,6 +152,74 @@ function StudentProgressContent() {
     }
   };
 
+  const handleResetEmpireQuota = async (studentUid: string) => {
+    if (!studentUid) return;
+    const target = students.find(s => s.uid === studentUid);
+    const targetName = target?.fullname || 'นิสิตคนนี้';
+    if (!window.confirm(`ยืนยันการรีเซ็ตโควตาการบุก Empire ของ ${targetName} กลับเป็น ${DAILY_EMPIRE_ATTACK_LIMIT}/${DAILY_EMPIRE_ATTACK_LIMIT} หรือไม่?`)) return;
+
+    setIsProcessing(true);
+    try {
+      const todayDate = getTodayDateString();
+      const userRef = doc(db, 'users', studentUid);
+      await updateDoc(userRef, {
+        dailyEmpireBattles: {
+          date: todayDate,
+          count: 0
+        }
+      });
+      alert(`✅ รีเซ็ตโควตาการบุกของ ${targetName} สำเร็จ! โควตากลับเป็น ${DAILY_EMPIRE_ATTACK_LIMIT}/${DAILY_EMPIRE_ATTACK_LIMIT} แล้ว`);
+
+      // Update local states
+      setSelectedStudent(prev => prev ? {
+        ...prev,
+        dailyEmpireBattles: { date: todayDate, count: 0 }
+      } : null);
+      setStudents(prev => prev.map(s => s.uid === studentUid ? {
+        ...s,
+        dailyEmpireBattles: { date: todayDate, count: 0 }
+      } : s));
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleResetScoutDroneQuota = async (studentUid: string) => {
+    if (!studentUid) return;
+    const target = students.find(s => s.uid === studentUid);
+    const targetName = target?.fullname || 'นิสิตคนนี้';
+    if (!window.confirm(`ยืนยันการรีเซ็ตโควตาโดรนสอดแนมของ ${targetName} กลับเป็น ${DAILY_SCOUT_DRONE_LIMIT}/${DAILY_SCOUT_DRONE_LIMIT} หรือไม่?`)) return;
+
+    setIsProcessing(true);
+    try {
+      const todayDate = getTodayDateString();
+      const userRef = doc(db, 'users', studentUid);
+      await updateDoc(userRef, {
+        dailyScoutDrones: {
+          date: todayDate,
+          count: 0
+        }
+      });
+      alert(`✅ รีเซ็ตโควตาโดรนสอดแนมของ ${targetName} สำเร็จ! โควตากลับเป็น ${DAILY_SCOUT_DRONE_LIMIT}/${DAILY_SCOUT_DRONE_LIMIT} แล้ว`);
+
+      // Update local states
+      setSelectedStudent(prev => prev ? {
+        ...prev,
+        dailyScoutDrones: { date: todayDate, count: 0 }
+      } : null);
+      setStudents(prev => prev.map(s => s.uid === studentUid ? {
+        ...s,
+        dailyScoutDrones: { date: todayDate, count: 0 }
+      } : s));
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleDeleteUser = async () => {
     if (!selectedStudent) return;
     if (!window.confirm(`⚠️ คำเตือน: ยืนยันการลบ ${selectedStudent.fullname} ออกจากระบบ? การกระทำนี้ไม่สามารถย้อนกลับได้`)) return;
@@ -176,16 +245,20 @@ function StudentProgressContent() {
       return;
     }
 
-    const headers = ["ลำดับ", "ชื่อ-นามสกุล", "อีเมล", "เลเวล", "EXP สะสม", "คะแนนรวม", "วันที่เข้าร่วม"];
-    const rows = filteredAndSortedStudents.map((s, idx) => [
-      idx + 1,
-      `"${s.fullname.replace(/"/g, '""')}"`,
-      `"${s.email}"`,
-      s.level || 1,
-      s.exp || 0,
-      s.score || 0,
-      s.createdAt ? `"${new Date(s.createdAt).toLocaleDateString('th-TH')}"` : '"N/A"'
-    ]);
+    const headers = ["ลำดับ", "ชื่อ-นามสกุล", "อีเมล", "เลเวล", "EXP สะสม", "คะแนนรวม", "โควตาบุก Empire คงเหลือวันนี้", "วันที่เข้าร่วม"];
+    const rows = filteredAndSortedStudents.map((s, idx) => {
+      const emp = getDailyEmpireInfo(s);
+      return [
+        idx + 1,
+        `"${s.fullname.replace(/"/g, '""')}"`,
+        `"${s.email}"`,
+        s.level || 1,
+        s.exp || 0,
+        s.score || 0,
+        `"${emp.remainingAttacks}/${emp.limit} (บุกไป ${emp.attacksToday} ครั้ง)"`,
+        s.createdAt ? `"${new Date(s.createdAt).toLocaleDateString('th-TH')}"` : '"N/A"'
+      ];
+    });
 
     const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -230,6 +303,18 @@ function StudentProgressContent() {
       });
     } else if (sortBy === 'exp_asc') {
       result.sort((a, b) => (a.exp || 0) - (b.exp || 0));
+    } else if (sortBy === 'quota_asc') {
+      result.sort((a, b) => {
+        const aRemaining = getDailyEmpireInfo(a).remainingAttacks;
+        const bRemaining = getDailyEmpireInfo(b).remainingAttacks;
+        return aRemaining - bRemaining;
+      });
+    } else if (sortBy === 'quota_desc') {
+      result.sort((a, b) => {
+        const aRemaining = getDailyEmpireInfo(a).remainingAttacks;
+        const bRemaining = getDailyEmpireInfo(b).remainingAttacks;
+        return bRemaining - aRemaining;
+      });
     } else if (sortBy === 'name') {
       result.sort((a, b) => a.fullname.localeCompare(b.fullname, 'th'));
     } else if (sortBy === 'recent') {
@@ -410,6 +495,8 @@ function StudentProgressContent() {
           >
             <option value="exp_desc">EXP สูงไปต่ำ</option>
             <option value="exp_asc">EXP ต่ำไปสูง</option>
+            <option value="quota_asc">โควตาบุกคงเหลือ (น้อยไปมาก)</option>
+            <option value="quota_desc">โควตาบุกคงเหลือ (มากไปน้อย)</option>
             <option value="name">ชื่อ ก-ฮ (A-Z)</option>
             <option value="recent">วันที่สมัครล่าสุด</option>
           </select>
@@ -428,6 +515,7 @@ function StudentProgressContent() {
                 <th className="px-5 py-3.5 text-center">ระดับ (Level)</th>
                 <th className="px-5 py-3.5">ความคืบหน้า EXP</th>
                 <th className="px-5 py-3.5">สัตว์เลี้ยงคู่หู (Pet)</th>
+                <th className="px-5 py-3.5 text-center">โควตาบุก Empire</th>
                 <th className="px-5 py-3.5">วันที่เข้าร่วม</th>
                 <th className="px-5 py-3.5 text-right">การจัดการ</th>
               </tr>
@@ -439,6 +527,9 @@ function StudentProgressContent() {
                   const exp = student.exp || 0;
                   const nextLevelExp = level * 100;
                   const progressPercentage = Math.min(100, Math.max(0, (exp / nextLevelExp) * 100));
+                  
+                  const empireInfo = getDailyEmpireInfo(student);
+                  const scoutInfo = getDailyScoutDroneInfo(student);
                   
                   return (
                     <motion.tr 
@@ -515,6 +606,39 @@ function StudentProgressContent() {
                         )}
                       </td>
 
+                      {/* Empire Attack Quota & Scout Drone Quota */}
+                      <td className="px-5 py-4 text-center">
+                        <div className="inline-flex flex-col items-center gap-1.5">
+                          {/* Attack Quota */}
+                          <span 
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold border shadow-sm ${
+                              empireInfo.remainingAttacks === 0
+                                ? 'bg-rose-950/60 border-rose-500/40 text-rose-300'
+                                : empireInfo.remainingAttacks <= 3
+                                ? 'bg-amber-950/60 border-amber-500/40 text-amber-300'
+                                : 'bg-cyan-950/60 border-cyan-500/40 text-cyan-300'
+                            }`}
+                            title={`โควตาบุก: เหลือ ${empireInfo.remainingAttacks}/${empireInfo.limit} ครั้ง`}
+                          >
+                            <Swords className="w-3 h-3 shrink-0" />
+                            <span>บุก {empireInfo.remainingAttacks}/{empireInfo.limit}</span>
+                          </span>
+
+                          {/* Scout Drone Quota */}
+                          <span 
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold border shadow-sm ${
+                              scoutInfo.remainingScouts === 0
+                                ? 'bg-rose-950/60 border-rose-500/40 text-rose-300'
+                                : 'bg-blue-950/60 border-blue-500/40 text-blue-300'
+                            }`}
+                            title={`โควตาโดรน: เหลือ ${scoutInfo.remainingScouts}/${scoutInfo.limit} ครั้ง`}
+                          >
+                            <Rocket className="w-3 h-3 shrink-0 text-cyan-400" />
+                            <span>โดรน {scoutInfo.remainingScouts}/{scoutInfo.limit}</span>
+                          </span>
+                        </div>
+                      </td>
+
                       {/* Join Date */}
                       <td className="px-5 py-4 text-slate-400 font-mono text-[11px]">
                         {student.createdAt ? new Date(student.createdAt).toLocaleDateString('th-TH') : 'N/A'}
@@ -539,7 +663,7 @@ function StudentProgressContent() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500 font-mono">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500 font-mono">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertCircle className="w-7 h-7 text-slate-600" />
                       <span>{searchQuery ? "ไม่พบรายชื่อนิสิตที่ตรงกับเงื่อนไข" : "ยังไม่มีนิสิตในระบบ"}</span>
@@ -590,13 +714,31 @@ function StudentProgressContent() {
                     )}
                   </div>
                   <p className="text-slate-400 text-xs font-mono mt-0.5">{selectedStudent.email}</p>
-                  <div className="flex items-center gap-3 mt-2">
+                  <div className="flex items-center gap-2 sm:gap-3 mt-2 flex-wrap">
                     <span className="px-2.5 py-0.5 rounded-lg bg-primary/20 text-primary font-mono text-xs font-bold border border-primary/30">
                       Level {selectedStudent.level || 1}
                     </span>
                     <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-400 font-mono text-xs font-bold border border-amber-500/30">
                       {selectedStudent.exp || 0} EXP
                     </span>
+                    {(() => {
+                      const emp = getDailyEmpireInfo(selectedStudent);
+                      return (
+                        <span 
+                          className={`px-2.5 py-0.5 rounded-lg font-mono text-xs font-bold border flex items-center gap-1.5 shadow-sm ${
+                            emp.remainingAttacks === 0
+                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                              : emp.remainingAttacks <= 3
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                          }`}
+                          title={`วันที่ ${emp.date}: โควตาเหลือ ${emp.remainingAttacks}/${emp.limit} ครั้ง (บุกไปแล้ว ${emp.attacksToday} ครั้ง)`}
+                        >
+                          <Swords className="w-3.5 h-3.5" />
+                          โควตาบุกวันนี้: {emp.remainingAttacks}/{emp.limit}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -784,6 +926,74 @@ function StudentProgressContent() {
                       className="w-full bg-primary hover:bg-primary/90 text-white text-xs font-bold"
                     >
                       {isProcessing ? 'กำลังบันทึก...' : 'บันทึกการปรับปรุงข้อมูล'}
+                    </Button>
+                  </div>
+
+                  {/* Empire Attack Quota Management */}
+                  <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono flex items-center gap-2">
+                        <Swords className="w-4 h-4 text-cyan-400" />
+                        โควตาการบุกรุก Empire ประจำวัน
+                      </h4>
+                      {(() => {
+                        const emp = getDailyEmpireInfo(selectedStudent);
+                        return (
+                          <span className={`px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold border ${
+                            emp.remainingAttacks === 0
+                              ? 'bg-rose-950/60 text-rose-300 border-rose-500/40'
+                              : 'bg-cyan-950/60 text-cyan-300 border-cyan-500/40'
+                          }`}>
+                            คงเหลือ {emp.remainingAttacks} / {emp.limit} ครั้ง ({emp.date})
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      นิสิตได้รับสิทธิ์บุกรุกดินแดน/บอสสูงสุด {DAILY_EMPIRE_ATTACK_LIMIT} ครั้งต่อวัน (รีเซ็ตทุกเที่ยงคืน) หากนิสิตติดปัญหาโควตาหมดหรือต้องการรอบทดสอบพิเศษ อาจารย์สามารถกดรีเซ็ตโควตากลับเป็น {DAILY_EMPIRE_ATTACK_LIMIT}/{DAILY_EMPIRE_ATTACK_LIMIT} ได้ทันที
+                    </p>
+                    <Button 
+                      onClick={() => handleResetEmpireQuota(selectedStudent.uid)}
+                      disabled={isProcessing}
+                      variant="outline"
+                      className="border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 text-xs flex items-center gap-2"
+                    >
+                      <RefreshCcw className="w-3.5 h-3.5" />
+                      รีเซ็ตโควตาบุก Empire เป็น {DAILY_EMPIRE_ATTACK_LIMIT}/10
+                    </Button>
+                  </div>
+
+                  {/* Scout Drone Quota Management */}
+                  <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider font-mono flex items-center gap-2">
+                        <Rocket className="w-4 h-4 text-cyan-400" />
+                        โควตาโดรนสอดแนมหมอกสงคราม (Bio-Radar)
+                      </h4>
+                      {(() => {
+                        const sct = getDailyScoutDroneInfo(selectedStudent);
+                        return (
+                          <span className={`px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold border ${
+                            sct.remainingScouts === 0
+                              ? 'bg-rose-950/60 text-rose-300 border-rose-500/40'
+                              : 'bg-blue-950/60 text-blue-300 border-blue-500/40'
+                          }`}>
+                            คงเหลือ {sct.remainingScouts} / {sct.limit} ครั้ง ({sct.date})
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      นิสิตได้รับแบตเตอรี่โดรนสอดแนมสูงสุด {DAILY_SCOUT_DRONE_LIMIT} ครั้งต่อวัน (เปิดพื้นที่ 5×5 ถาวรและรับ +25 EXP) หากนิสิตใช้โควตาหมด อาจารย์สามารถกดรีเซ็ตกลับเป็น {DAILY_SCOUT_DRONE_LIMIT}/{DAILY_SCOUT_DRONE_LIMIT} ได้ทันที
+                    </p>
+                    <Button 
+                      onClick={() => handleResetScoutDroneQuota(selectedStudent.uid)}
+                      disabled={isProcessing}
+                      variant="outline"
+                      className="border-blue-500/40 text-blue-300 hover:bg-blue-500/10 text-xs flex items-center gap-2"
+                    >
+                      <RefreshCcw className="w-3.5 h-3.5" />
+                      รีเซ็ตโควตาโดรนสอดแนมเป็น {DAILY_SCOUT_DRONE_LIMIT}/5
                     </Button>
                   </div>
 

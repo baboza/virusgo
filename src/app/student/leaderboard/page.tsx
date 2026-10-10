@@ -21,13 +21,25 @@ import {
   ChevronRight,
   Shield,
   Activity,
-  Award
+  Award,
+  Compass,
+  MapPin,
+  Globe2,
+  Eye,
+  X
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 import Link from 'next/link';
 import { Guild } from '@/types';
 import { getEffectivePetStats } from '@/lib/petBalance';
+import { ACHIEVEMENTS } from '@/app/student/profile/page';
+import dynamic from 'next/dynamic';
+
+const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
+  ssr: false,
+  loading: () => <div className="w-full h-full flex items-center justify-center text-slate-500 font-mono text-[9px]">3D...</div>
+});
 
 export default function Leaderboard() {
   const { appUser } = useAuth();
@@ -35,6 +47,7 @@ export default function Leaderboard() {
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'global' | 'solo' | 'team' | 'guild'>('global');
+  const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
 
   const TEAM_GAMES = ['virus-battle', 'classroom-battle', 'diagnosis-duel', 'farm-defense', 'tournament', 'empire'];
 
@@ -429,10 +442,12 @@ export default function Leaderboard() {
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="flex flex-col items-center"
+                  onClick={() => setSelectedProfile(topThree[1])}
+                  className="flex flex-col items-center cursor-pointer group hover:scale-[1.03] transition-transform"
+                  title={`คลิกเพื่อดูโปรไฟล์และเหรียญตราของ ${topThree[1].fullname}`}
                 >
                   <div className="relative mb-3">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-900 border-2 border-slate-400 overflow-hidden shadow-[0_0_20px_rgba(148,163,184,0.4)]">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-900 border-2 border-slate-400 overflow-hidden shadow-[0_0_20px_rgba(148,163,184,0.4)] group-hover:border-cyan-400 transition-colors">
                       {topThree[1].photoURL ? (
                         <img src={topThree[1].photoURL} alt={topThree[1].fullname} className="w-full h-full object-cover" />
                       ) : (
@@ -491,11 +506,13 @@ export default function Leaderboard() {
                 <motion.div 
                   initial={{ opacity: 0, y: 40 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex flex-col items-center relative z-10"
+                  onClick={() => setSelectedProfile(topThree[0])}
+                  className="flex flex-col items-center relative z-10 cursor-pointer group hover:scale-[1.03] transition-transform"
+                  title={`คลิกเพื่อดูโปรไฟล์และเหรียญตราของ ${topThree[0].fullname}`}
                 >
                   <div className="relative mb-3">
                     <Crown className="w-8 h-8 text-yellow-400 absolute -top-8 left-1/2 -translate-x-1/2 animate-bounce drop-shadow-[0_0_10px_rgba(234,179,8,0.8)]" />
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-slate-900 border-2 border-yellow-400 overflow-hidden shadow-[0_0_30px_rgba(234,179,8,0.5)]">
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-slate-900 border-2 border-yellow-400 overflow-hidden shadow-[0_0_30px_rgba(234,179,8,0.5)] group-hover:border-white transition-colors">
                       {topThree[0].photoURL ? (
                         <img src={topThree[0].photoURL} alt={topThree[0].fullname} className="w-full h-full object-cover" />
                       ) : (
@@ -555,10 +572,12 @@ export default function Leaderboard() {
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
-                  className="flex flex-col items-center"
+                  onClick={() => setSelectedProfile(topThree[2])}
+                  className="flex flex-col items-center cursor-pointer group hover:scale-[1.03] transition-transform"
+                  title={`คลิกเพื่อดูโปรไฟล์และเหรียญตราของ ${topThree[2].fullname}`}
                 >
                   <div className="relative mb-3">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-900 border-2 border-amber-700 overflow-hidden shadow-[0_0_20px_rgba(180,83,9,0.4)]">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-900 border-2 border-amber-700 overflow-hidden shadow-[0_0_20px_rgba(180,83,9,0.4)] group-hover:border-amber-400 transition-colors">
                       {topThree[2].photoURL ? (
                         <img src={topThree[2].photoURL} alt={topThree[2].fullname} className="w-full h-full object-cover" />
                       ) : (
@@ -653,7 +672,11 @@ export default function Leaderboard() {
 
                 return (
                   <motion.div variants={item} key={leader.id}>
-                    <Card className={`p-3.5 sm:p-5 flex items-center justify-between transition-all duration-300 hover:scale-[1.01] ${CardBg}`}>
+                    <Card 
+                      onClick={() => setSelectedProfile(leader)}
+                      className={`p-3.5 sm:p-5 flex items-center justify-between transition-all duration-300 hover:scale-[1.01] cursor-pointer group hover:border-cyan-400/60 ${CardBg}`}
+                      title={`คลิกเพื่อดูโปรไฟล์และเหรียญตราของ ${leader.fullname}`}
+                    >
                       
                       <div className="flex items-center gap-3 sm:gap-5 min-w-0">
                         {/* Rank Position */}
@@ -763,6 +786,260 @@ export default function Leaderboard() {
           </AnimatePresence>
         </div>
       )}
+
+      {/* ── PEER PROFILE & BADGES MODAL ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {selectedProfile && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-2xl w-full p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-5 max-h-[90vh] overflow-y-auto custom-scrollbar relative"
+            >
+              {/* Header with Close Button */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                    <Medal className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                      <span>แฟ้มประวัตินิสิต (Cadet Dossier)</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      ข้อมูลโปรไฟล์ สัตว์เลี้ยงคู่หู และเหรียญตราเกียรติยศที่ปลดล็อค
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedProfile(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  title="ปิด"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Profile Card Header */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-cyan-600 to-blue-900 border-2 border-cyan-500/40 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-lg">
+                  {selectedProfile.photoURL ? (
+                    <img src={selectedProfile.photoURL} alt={selectedProfile.fullname} className="w-full h-full object-cover rounded-xl" />
+                  ) : (
+                    <ShieldAlert className="w-10 h-10 text-cyan-300" />
+                  )}
+                </div>
+
+                <div className="flex-1 text-center sm:text-left min-w-0">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <h4 className="text-lg sm:text-xl font-black text-white truncate">
+                      {selectedProfile.fullname}
+                    </h4>
+                    {selectedProfile.guildName && (
+                      <span className="text-xs font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                        [{selectedProfile.guildName}]
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5 truncate">
+                    {selectedProfile.email}
+                  </p>
+
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 mt-3">
+                    <span className="text-xs px-2.5 py-1 rounded-xl bg-cyan-950 text-cyan-300 border border-cyan-500/30 font-mono font-bold">
+                      LEVEL {selectedProfile.level || 1}
+                    </span>
+                    <span className="text-xs px-2.5 py-1 rounded-xl bg-amber-950/80 text-amber-300 border border-amber-500/30 font-mono font-bold">
+                      {Number(selectedProfile.globalExp || selectedProfile.exp || 0).toLocaleString()} EXP
+                    </span>
+                    {(() => {
+                      const exp = Number(selectedProfile.globalExp || selectedProfile.exp || 0);
+                      const r = getRankTitle(exp);
+                      return (
+                        <span className={`text-xs px-2.5 py-1 rounded-xl border font-bold flex items-center gap-1 ${r.bg} ${r.border} ${r.color}`}>
+                          <span>{r.icon}</span> {r.title}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Pet Info (If student has a pet) - 3D Virus Model Display */}
+              {selectedProfile.pet && (() => {
+                const pStats = getEffectivePetStats(selectedProfile.pet.stats, selectedProfile.globalExp || selectedProfile.exp || 0);
+                const virusType = familyToVirusType(selectedProfile.pet.family || 'corona');
+                const virusColor = pStats.rankBadgeColor || '#8b5cf6';
+
+                return (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-purple-950/40 via-slate-950 to-slate-900 border border-purple-500/30 space-y-3 shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-mono font-bold text-purple-300">
+                        <Activity className="w-4 h-4 text-purple-400" />
+                        <span>สัตว์เลี้ยงคู่หูประจำกาย (Holographic 3D)</span>
+                      </div>
+                      <span 
+                        className="text-[9px] font-mono font-black px-2.5 py-0.5 rounded-full border shadow-sm"
+                        style={{ 
+                          borderColor: `${pStats.rankBadgeColor}70`,
+                          backgroundColor: `${pStats.rankBadgeColor}20`,
+                          color: pStats.rankBadgeColor 
+                        }}
+                      >
+                        {pStats.rankTitle}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-4 pt-1">
+                      {/* 3D Interactive Hologram Box */}
+                      <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl bg-slate-950/90 border border-purple-500/40 overflow-hidden relative shadow-[inset_0_0_20px_rgba(139,92,246,0.3)] shrink-0 flex items-center justify-center">
+                        <VirusViewer3D 
+                          type={virusType} 
+                          color={virusColor}
+                          interactive={true}
+                          className="w-full h-full scale-125"
+                        />
+                        <span className="absolute bottom-1 right-2 text-[8px] font-mono text-purple-300/60 uppercase tracking-widest pointer-events-none">
+                          3D Interactive
+                        </span>
+                      </div>
+
+                      {/* Pet Combat & Family Details */}
+                      <div className="flex-1 min-w-0 text-center sm:text-left space-y-2">
+                        <div>
+                          <div className="text-base sm:text-lg font-black text-white flex items-center justify-center sm:justify-start gap-2">
+                            <span>{selectedProfile.pet.nickname || selectedProfile.pet.virusName}</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 font-mono">
+                              Stage {selectedProfile.pet.stage || 1}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-400 font-mono mt-0.5">
+                            สายพันธุ์ {selectedProfile.pet.family} • HP {pStats.maxHp} • ATK {pStats.atk} • DEF {pStats.def}
+                          </div>
+                        </div>
+
+                        {/* Pet Combat Gauge */}
+                        <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono pt-1">
+                          <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                            <span className="text-[9px] text-slate-500 block">พลังชีวิต (HP)</span>
+                            <span className="text-emerald-400 font-bold">{pStats.maxHp}</span>
+                          </div>
+                          <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                            <span className="text-[9px] text-slate-500 block">พลังโจมตี (ATK)</span>
+                            <span className="text-rose-400 font-bold">{pStats.atk}</span>
+                          </div>
+                          <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                            <span className="text-[9px] text-slate-500 block">ป้องกัน (DEF)</span>
+                            <span className="text-cyan-400 font-bold">{pStats.def}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Badges & Achievements Collection */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-amber-400" />
+                    <span>เหรียญตราเกียรติยศที่ปลดล็อค (Achievements & Badges)</span>
+                  </h4>
+                  {(() => {
+                    const uBadges = Array.isArray(selectedProfile.badges) ? selectedProfile.badges : [];
+                    const expCount = Array.isArray(selectedProfile.exploredTiles) ? selectedProfile.exploredTiles.length : 0;
+                    const expPct = Math.min(100, Math.round((expCount / 2500) * 100));
+                    const pExp = Number(selectedProfile.globalExp || selectedProfile.exp || 0);
+
+                    const unlockedCount = ACHIEVEMENTS.filter(a => {
+                      if (a.type === 'explore') return uBadges.includes(a.badgeKey!) || expPct >= (a.reqPercent || 0);
+                      return pExp >= (a.reqExp || 0);
+                    }).length;
+
+                    return (
+                      <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                        {unlockedCount} / {ACHIEVEMENTS.length} เหรียญ
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                {/* Badges Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {ACHIEVEMENTS.map((ach) => {
+                    const uBadges = Array.isArray(selectedProfile.badges) ? selectedProfile.badges : [];
+                    const expCount = Array.isArray(selectedProfile.exploredTiles) ? selectedProfile.exploredTiles.length : 0;
+                    const expPct = Math.min(100, Math.round((expCount / 2500) * 100));
+                    const pExp = Number(selectedProfile.globalExp || selectedProfile.exp || 0);
+
+                    const isUnlocked = ach.type === 'explore'
+                      ? (uBadges.includes(ach.badgeKey!) || expPct >= (aReqPercent(ach.reqPercent)))
+                      : pExp >= (ach.reqExp || 0);
+
+                    function aReqPercent(p?: number) { return p || 0; }
+
+                    const Icon = ach.icon;
+
+                    return (
+                      <div 
+                        key={ach.id}
+                        className={`p-3 rounded-2xl border transition-all flex items-center gap-3 ${
+                          isUnlocked 
+                            ? 'bg-slate-950/80 border-slate-700/80' 
+                            : 'bg-slate-950/30 border-slate-800/40 opacity-40 grayscale'
+                        }`}
+                      >
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${
+                          isUnlocked ? `${ach.bg} ${ach.border} shadow-sm` : 'bg-slate-900 border-slate-800'
+                        }`}>
+                          <Icon className={`w-5 h-5 ${isUnlocked ? ach.color : 'text-slate-600'}`} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs font-bold truncate ${isUnlocked ? 'text-white' : 'text-slate-500'}`}>
+                              {ach.title}
+                            </span>
+                            {isUnlocked ? (
+                              <span className="text-[9px] font-mono text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-500/30 px-1.5 py-0.2 rounded shrink-0">
+                                ปลดล็อคแล้ว
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-mono text-slate-500 shrink-0">
+                                ยังไม่ปลดล็อค
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-[11px] truncate ${isUnlocked ? 'text-slate-400' : 'text-slate-600'}`}>
+                            {ach.subtitle}
+                          </p>
+                          <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                            {ach.desc}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Close Button Footer */}
+              <div className="pt-2 border-t border-slate-800 text-center">
+                <Button 
+                  onClick={() => setSelectedProfile(null)}
+                  variant="outline"
+                  className="w-full border-slate-700 text-slate-300 text-xs font-bold"
+                >
+                  ปิดหน้าต่าง
+                </Button>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

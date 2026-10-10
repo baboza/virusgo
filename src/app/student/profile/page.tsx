@@ -1,12 +1,14 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { motion } from 'framer-motion';
-import { ShieldAlert, Award, Medal, Zap, Star, Target, Crown } from 'lucide-react';
+import { ShieldAlert, Award, Medal, Zap, Star, Target, Crown, Compass, MapPin, Globe2 } from 'lucide-react';
+import { db } from '@/lib/firebase/config';
+import { collection, query, where, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 
-const ACHIEVEMENTS = [
+export const ACHIEVEMENTS = [
   {
     id: 'a1',
     title: 'Rookie',
@@ -16,7 +18,8 @@ const ACHIEVEMENTS = [
     color: 'text-slate-400',
     bg: 'bg-slate-400/20',
     border: 'border-slate-400/50',
-    reqExp: 0
+    reqExp: 0,
+    type: 'exp'
   },
   {
     id: 'a2',
@@ -27,7 +30,8 @@ const ACHIEVEMENTS = [
     color: 'text-blue-400',
     bg: 'bg-blue-400/20',
     border: 'border-blue-400/50',
-    reqExp: 600
+    reqExp: 600,
+    type: 'exp'
   },
   {
     id: 'a3',
@@ -38,7 +42,8 @@ const ACHIEVEMENTS = [
     color: 'text-purple-400',
     bg: 'bg-purple-400/20',
     border: 'border-purple-400/50',
-    reqExp: 2000
+    reqExp: 2000,
+    type: 'exp'
   },
   {
     id: 'a4',
@@ -49,7 +54,8 @@ const ACHIEVEMENTS = [
     color: 'text-emerald-400',
     bg: 'bg-emerald-400/20',
     border: 'border-emerald-400/50',
-    reqExp: 5000
+    reqExp: 5000,
+    type: 'exp'
   },
   {
     id: 'a5',
@@ -60,12 +66,79 @@ const ACHIEVEMENTS = [
     color: 'text-yellow-500',
     bg: 'bg-yellow-500/20',
     border: 'border-yellow-500/50',
-    reqExp: 12000
+    reqExp: 12000,
+    type: 'exp'
+  },
+  // Cartography / Fog of War Badges
+  {
+    id: 'b1',
+    title: 'Junior Explorer',
+    subtitle: '🥉 นักสำรวจฝึกหัด',
+    desc: 'สำรวจแผนที่อาณาจักร Empire ครบ 25% (625 เซกเตอร์)',
+    icon: Compass,
+    color: 'text-amber-600',
+    bg: 'bg-amber-600/20',
+    border: 'border-amber-600/50',
+    badgeKey: 'Junior Explorer',
+    reqPercent: 25,
+    type: 'explore'
+  },
+  {
+    id: 'b2',
+    title: 'Master Cartographer',
+    subtitle: '🥈 ผู้ชำนาญแผนที่ชีวภาพ',
+    desc: 'สำรวจแผนที่อาณาจักร Empire ครบ 50% (1,250 เซกเตอร์)',
+    icon: MapPin,
+    color: 'text-slate-300',
+    bg: 'bg-slate-300/20',
+    border: 'border-slate-300/50',
+    badgeKey: 'Master Cartographer',
+    reqPercent: 50,
+    type: 'explore'
+  },
+  {
+    id: 'b3',
+    title: 'Grand Conqueror',
+    subtitle: '🥇 จอมจักรพรรดิผู้พิชิต',
+    desc: 'สำรวจแผนที่อาณาจักร Empire ครบ 100% ทั้งแผนที่ (2,500 เซกเตอร์)',
+    icon: Globe2,
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/20',
+    border: 'border-amber-400/50',
+    badgeKey: 'Grand Conqueror',
+    reqPercent: 100,
+    type: 'explore'
   }
 ];
 
 export default function ProfilePage() {
   const { appUser } = useAuth();
+  const [guildTilesCount, setGuildTilesCount] = useState(0);
+
+  useEffect(() => {
+    if (!appUser?.guildId) return;
+    const q = query(collection(db, 'empire_tiles'), where('guildId', '==', appUser.guildId));
+    getDocs(q).then((snap) => {
+      const gCount = snap.size;
+      setGuildTilesCount(gCount);
+
+      // Auto-award badges for guild members in Profile page
+      const currentBadges = Array.isArray(appUser.badges) ? appUser.badges : [];
+      const personalExplored = Array.isArray(appUser.exploredTiles) ? appUser.exploredTiles.length : 0;
+      const combinedTotal = Math.max(personalExplored, gCount);
+      const newBadges: string[] = [];
+
+      if (combinedTotal >= 625 && !currentBadges.includes('Junior Explorer')) newBadges.push('Junior Explorer');
+      if (combinedTotal >= 1250 && !currentBadges.includes('Master Cartographer')) newBadges.push('Master Cartographer');
+      if (combinedTotal >= 2500 && !currentBadges.includes('Grand Conqueror')) newBadges.push('Grand Conqueror');
+
+      if (newBadges.length > 0 && appUser.uid) {
+        updateDoc(doc(db, 'users', appUser.uid), {
+          badges: arrayUnion(...newBadges)
+        }).catch(console.error);
+      }
+    }).catch(console.error);
+  }, [appUser?.guildId, appUser?.uid, appUser?.badges, appUser?.exploredTiles]);
 
   if (!appUser) return null;
 
@@ -157,21 +230,31 @@ export default function ProfilePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {ACHIEVEMENTS.map((ach) => {
-            const isUnlocked = currentExp >= ach.reqExp;
+            const userBadges = Array.isArray(appUser.badges) ? appUser.badges : [];
+            const personalExplored = Array.isArray(appUser.exploredTiles) ? appUser.exploredTiles.length : 0;
+            const effectiveExploredCount = Math.max(personalExplored, guildTilesCount);
+            const currentExplorePercent = Math.min(100, Math.round((effectiveExploredCount / 2500) * 100));
+
+            const isUnlocked = ach.type === 'explore'
+              ? (userBadges.includes(ach.badgeKey!) || currentExplorePercent >= (ach.reqPercent || 0))
+              : currentExp >= (ach.reqExp || 0);
+
             const Icon = ach.icon;
 
             return (
               <motion.div variants={item} key={ach.id}>
                 <Card className={`p-4 flex items-center gap-4 transition-all duration-300 ${isUnlocked ? 'glass border-slate-700 hover:scale-[1.02]' : 'bg-black/40 border-slate-800 opacity-60 grayscale'}`}>
-                  <div className={`w-16 h-16 rounded-xl flex items-center justify-center shrink-0 ${isUnlocked ? `${ach.bg} ${ach.border} border` : 'bg-slate-900 border border-slate-800'}`}>
+                  <div className={`w-16 h-16 rounded-xl flex items-center justify-center shrink-0 ${isUnlocked ? `${ach.bg} ${ach.border} border shadow-md` : 'bg-slate-900 border border-slate-800'}`}>
                     <Icon className={`w-8 h-8 ${isUnlocked ? ach.color : 'text-slate-600'}`} />
                   </div>
-                  <div>
-                    <h3 className={`font-bold text-lg ${isUnlocked ? 'text-white' : 'text-slate-500'}`}>{ach.title} <span className="text-sm font-normal opacity-70">({ach.subtitle})</span></h3>
-                    <p className={`text-sm ${isUnlocked ? 'text-slate-400' : 'text-slate-600'}`}>{ach.desc}</p>
+                  <div className="min-w-0 flex-1">
+                    <h3 className={`font-bold text-base sm:text-lg ${isUnlocked ? 'text-white' : 'text-slate-500'}`}>{ach.title} <span className="text-xs sm:text-sm font-normal opacity-80">({ach.subtitle})</span></h3>
+                    <p className={`text-xs sm:text-sm ${isUnlocked ? 'text-slate-300' : 'text-slate-600'} leading-relaxed mt-0.5`}>{ach.desc}</p>
                     {!isUnlocked && (
-                      <div className="text-xs text-danger font-mono mt-1">
-                        ต้องการ {ach.reqExp} EXP เพื่อปลดล็อค
+                      <div className="text-[11px] text-danger font-mono mt-1">
+                        {ach.type === 'explore' 
+                          ? `สำรวจแล้ว ${currentExplorePercent}% (${effectiveExploredCount}/2,500 เซกเตอร์) (ต้องการ ${ach.reqPercent}%)`
+                          : `ต้องการ ${ach.reqExp} EXP เพื่อปลดล็อค`}
                       </div>
                     )}
                   </div>

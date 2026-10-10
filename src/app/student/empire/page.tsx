@@ -3,17 +3,16 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, doc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, setDoc, updateDoc, increment, arrayUnion, getDoc, writeBatch } from 'firebase/firestore';
 import { EmpireTile, Guild, User } from '@/types';
 import { SVGVirus } from '@/components/ui/SVGVirus';
-import { Loader2, ArrowLeft, Swords, Crosshair, AlertTriangle, Shield, Lock, Home, Target, Flame, Sparkles, Users, Plus, Check, Crown, Gift, Radio, Building2, Zap, Rocket, ShieldCheck, BookOpen, ZoomIn, ZoomOut, Compass, X, BarChart3 } from 'lucide-react';
-import { updateDoc, increment } from 'firebase/firestore';
+import { Loader2, ArrowLeft, Swords, Crosshair, AlertTriangle, Shield, Lock, Home, Target, Flame, Sparkles, Users, Plus, Check, Crown, Gift, Radio, Building2, Zap, Rocket, ShieldCheck, BookOpen, ZoomIn, ZoomOut, Compass, X, BarChart3, Eye, CloudFog, ChevronRight } from 'lucide-react';
 import { sfx } from '@/utils/sound';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { familyToVirusType } from '@/components/ui/SVGVirus';
-import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString } from '@/lib/dailyExpCap';
+import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString, getDailyScoutDroneInfo, DAILY_SCOUT_DRONE_LIMIT } from '@/lib/dailyExpCap';
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
   ssr: false,
@@ -151,6 +150,58 @@ export const getVaultGuardianCoords = (): string[] => {
   return coords;
 };
 
+// Bio-Radar Scout Drone Question Pool (Virology & Bio-Defense)
+export const SCOUT_FALLBACK_QUIZ = [
+  {
+    q: "ไวรัสที่มีสารพันธุกรรมเป็น RNA สายเดี่ยว แบบบวก (ssRNA(+)) สามารถทำหน้าที่ใดได้โดยตรงเมื่อเข้าสู่เซลล์โฮสต์?",
+    options: ["เป็น mRNA ให้ไรโบโซมสังเคราะห์โปรตีนได้ทันที", "ต้องแปลงเป็น DNA ก่อนเสมอ", "จำลองตัวเองโดยไม่อาศัยเอนไซม์ใดๆ", "ไม่สามารถเข้าสู่ไซโทพลาสซึมได้"],
+    ans: 0,
+    explanation: "RNA สายเดี่ยวแบบ Positive-sense (+) ทำหน้าที่เสมือน mRNA ที่ไรโบโซมของโฮสต์สามารถจับและแปลรหัส (Translate) โปรตีนได้ทันที"
+  },
+  {
+    q: "โครงสร้างใดของไวรัสที่มีหน้าที่สำคัญในการยึดเกาะกับตัวรับ (Receptor) บนผิวเซลล์โฮสต์?",
+    options: ["Glycoprotein Spikes บน Envelope หรือ Capsid", "Capsomere ภายในแกนกลาง", "Reverse Transcriptase", "Poly-A tail"],
+    ans: 0,
+    explanation: "Spike Glycoprotein ทำหน้าที่เสมือนกุญแจจับกับ Receptor บนผิวเซลล์โฮสต์เพื่อเหนี่ยวนำการเข้าสู่เซลล์"
+  },
+  {
+    q: "Envelope (เยื่อหุ้ม) ของไวรัสมักได้มาจากแหล่งใด?",
+    options: ["เยื่อหุ้มเซลล์หรือเยื่อหุ้มออร์แกเนลล์ของเซลล์โฮสต์", "สังเคราะห์ขึ้นใหม่จากกรดอะมิโนอิสระ", "ผนังเซลล์ของแบคทีเรีย", "สร้างขึ้นโดยไมโตคอนเดรียของไวรัส"],
+    ans: 0,
+    explanation: "Viral Envelope ได้มาจาก Lipid bilayer ของเยื่อหุ้มเซลล์โฮสต์ในระหว่างกระบวนการแตกหน่อ (Budding)"
+  },
+  {
+    q: "การทดสอบใดใช้ตรวจหาสารพันธุกรรมของไวรัสที่มีความไวและความจำเพาะสูงที่สุดในการวินิจฉัยระดับโมเลกุล?",
+    options: ["RT-PCR / Real-time PCR", "Gram Stain", "ELISA Antigen test อย่างเดียว", "การเพาะเลี้ยงในจานอาหารวุ้นสังเคราะห์"],
+    ans: 0,
+    explanation: "RT-PCR / Real-time PCR เป็น Gold standard ในการเพิ่มจำนวนและตรวจจับสารพันธุกรรมของไวรัสที่มีความแม่นยำสูงมาก"
+  },
+  {
+    q: "ไวรัสที่มีเยื่อหุ้ม (Enveloped virus) มักถูกทำลายได้ง่ายกว่า Non-enveloped virus ด้วยสารใด?",
+    options: ["แอลกอฮอล์ 70% และสบู่/ผงซักฟอก", "น้ำเปล่าอุณหภูมิห้อง", "เกลือแกงความเข้มข้นต่ำ", "แสงแดดอ่อนๆ เพียง 1 วินาที"],
+    ans: 0,
+    explanation: "สารลดแรงตึงผิว (สบู่) และแอลกอฮอล์สามารถละลาย Lipid envelope ทำให้โปรตีนหนามหลุดและสูญเสียความสามารถในการติดเชื้อ"
+  },
+  {
+    q: "Bacteriophage คือไวรัสที่มีเป้าหมายในการติดเชื้อสิ่งมีชีวิตกลุ่มใด?",
+    options: ["แบคทีเรีย", "สัตว์เลี้ยงลูกด้วยนม", "พืชดอก", "ราและยีสต์"],
+    ans: 0,
+    explanation: "Bacteriophage เป็นกลุ่มไวรัสที่ติดเชื้อเฉพาะเซลล์แบคทีเรียเท่านั้น"
+  },
+  {
+    q: "เซลล์เม็ดเลือดขาวชนิดใดมีบทบาทหลักในการสร้างแอนติบอดี (Antibodies) เพื่อทำลายไวรัส?",
+    options: ["B Cells (Plasma Cells)", "Neutrophils", "Eosinophils", "Erythrocytes"],
+    ans: 0,
+    explanation: "B lymphocytes เมื่อถูกกระตุ้นจะเจริญเป็น Plasma cells และหลั่ง Specific Antibodies เพื่อต่อต้านเชื้อ"
+  },
+  {
+    q: "กลไกใดของเซลล์โฮสต์ที่ทำหน้าที่หลั่งไซโตไคน์เตือนเซลล์ข้างเคียงให้ต้านทานการติดเชื้อไวรัส?",
+    options: ["Interferon response (IFN)", "Histamine release", "Insulin signaling", "Hemoglobin synthesis"],
+    ans: 0,
+    explanation: "Interferons (IFN-α, IFN-β) เป็นโปรตีนไซโตไคน์ที่เซลล์หลั่งออกมาเมื่อติดเชื้อไวรัสเพื่อกระตุ้นสถานะ Antiviral state แก่เซลล์ข้างเคียง"
+  }
+];
+
 export default function EmpireMap() {
   const { appUser } = useAuth();
   const router = useRouter();
@@ -160,6 +211,9 @@ export default function EmpireMap() {
 
   // Daily Empire Attack Quota Info
   const dailyEmpireInfo = useMemo(() => getDailyEmpireInfo(appUser), [appUser]);
+
+  // Daily Scout Drone Quota Info (5 missions per day)
+  const dailyScoutInfo = useMemo(() => getDailyScoutDroneInfo(appUser), [appUser]);
 
   // Drag-to-pan state (Smooth Mouse & Touch Dragging)
   const mapRef = useRef<HTMLDivElement>(null);
@@ -192,6 +246,45 @@ export default function EmpireMap() {
 
   const handleMouseUp = () => {
     isDragging.current = false;
+    if (hasMoved.current) {
+      setTimeout(() => {
+        hasMoved.current = false;
+      }, 100);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!mapRef.current) return;
+    isDragging.current = true;
+    hasMoved.current = false;
+    const touch = e.touches[0];
+    startPos.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      scrollLeft: mapRef.current.scrollLeft,
+      scrollTop: mapRef.current.scrollTop,
+    };
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging.current || !mapRef.current) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - startPos.current.x;
+    const dy = touch.clientY - startPos.current.y;
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+      hasMoved.current = true;
+    }
+    mapRef.current.scrollLeft = startPos.current.scrollLeft - dx;
+    mapRef.current.scrollTop = startPos.current.scrollTop - dy;
+  };
+
+  const handleTouchEnd = () => {
+    isDragging.current = false;
+    if (hasMoved.current) {
+      setTimeout(() => {
+        hasMoved.current = false;
+      }, 150);
+    }
   };
 
   // Guild / Alliance States
@@ -208,6 +301,23 @@ export default function EmpireMap() {
   const [isCreatingGuild, setIsCreatingGuild] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [previewGuildId, setPreviewGuildId] = useState<string | null>(null);
+
+  // Fog of War & GM View States
+  const isGmUser = useMemo(() => {
+    return appUser?.email === 'never.away@gmail.com' || appUser?.role === 'instructor';
+  }, [appUser?.email, appUser?.role]);
+
+  // GM View Mode: 'all' = God-mode view (sees all tiles), 'fog' = simulate player fog view
+  const [gmViewMode, setGmViewMode] = useState<'all' | 'fog'>('all');
+
+  // Scout Drone States
+  const [showScoutModal, setShowScoutModal] = useState(false);
+  const [scoutTarget, setScoutTarget] = useState<{ x: number; y: number } | null>(null);
+  const [scoutQuestions, setScoutQuestions] = useState(SCOUT_FALLBACK_QUIZ);
+  const [scoutQIndex, setScoutQIndex] = useState(0);
+  const [isScouting, setIsScouting] = useState(false);
+  const [scoutFeedback, setScoutFeedback] = useState<{ isCorrect: boolean; text: string } | null>(null);
+
 
   useEffect(() => {
     if (!appUser) return;
@@ -267,6 +377,67 @@ export default function EmpireMap() {
     if (!appUser?.guildId) return [];
     return allUsers.filter((u) => u.guildId === appUser.guildId);
   }, [allUsers, appUser?.guildId]);
+
+  // Auto-award Exploration & Conquest Badges (Option A: Guild Conquered + Personal Drone Scouts)
+  // Ensures ALL members of any guild with >= 625 conquered sectors receive 🥉 Junior Explorer immediately!
+  const hasAutoAwardedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (Object.keys(tiles).length === 0 || allUsers.length === 0) return;
+
+    // 1. Group conquered tiles by guild
+    const guildTileCoords: Record<string, string[]> = {};
+    Object.values(tiles).forEach((t) => {
+      if (t.guildId) {
+        if (!guildTileCoords[t.guildId]) guildTileCoords[t.guildId] = [];
+        guildTileCoords[t.guildId].push(`${t.x},${t.y}`);
+      }
+    });
+
+    // 2. Scope target users: Instructors can sync all users; students only update their own profile (strictly complies with Firestore security rules)
+    const isInstructor = appUser?.role === 'instructor' || appUser?.role === 'admin';
+    const usersToAward = isInstructor ? allUsers : allUsers.filter((u) => u.uid === appUser?.uid);
+
+    usersToAward.forEach((u) => {
+      if (!u.uid) return;
+      const uBadges = Array.isArray(u.badges) ? u.badges : [];
+      const gCoords = u.guildId ? (guildTileCoords[u.guildId] || []) : [];
+      const pExplored = Array.isArray(u.exploredTiles) ? u.exploredTiles : [];
+
+      // Effective explored set = Union of personal drone scouts + guild conquered sectors
+      const effectiveSet = new Set<string>([...pExplored, ...gCoords]);
+      const effectiveCount = effectiveSet.size;
+
+      const badgesToGive: string[] = [];
+      if (effectiveCount >= (MAP_SIZE * MAP_SIZE * 0.25) && !uBadges.includes('Junior Explorer')) {
+        badgesToGive.push('Junior Explorer');
+      }
+      if (effectiveCount >= (MAP_SIZE * MAP_SIZE * 0.5) && !uBadges.includes('Master Cartographer')) {
+        badgesToGive.push('Master Cartographer');
+      }
+      if (effectiveCount >= (MAP_SIZE * MAP_SIZE) && !uBadges.includes('Grand Conqueror')) {
+        badgesToGive.push('Grand Conqueror');
+      }
+
+      // Filter badges not yet processed for this user in this session
+      const pendingBadges = badgesToGive.filter((b) => !hasAutoAwardedRef.current.has(`${u.uid}_${b}`));
+
+      if (pendingBadges.length > 0) {
+        pendingBadges.forEach((b) => hasAutoAwardedRef.current.add(`${u.uid}_${b}`));
+        const userRef = doc(db, 'users', u.uid);
+        updateDoc(userRef, {
+          badges: arrayUnion(...pendingBadges),
+        }).then(() => {
+          if (u.uid === appUser?.uid) {
+            setClaimSuccessMsg(
+              `🎖️ ยินดีด้วย! กิลด์ของคุณครอบครอง/สำรวจดินแดนเกิน 25% (625 ช่อง) สมาชิกทุกคนปลดล็อคเหรียญตรา 🥉 Junior Explorer สำเร็จ!`
+            );
+            setTimeout(() => setClaimSuccessMsg(null), 5000);
+          }
+        }).catch((err) => console.error(`Failed to auto-award badge to ${u.uid}:`, err));
+      }
+    });
+  }, [tiles, allUsers, appUser?.uid, appUser?.role]);
 
   // Distribute bosses and 4 farm outposts across grid sectors
   const distributeBosses = async (currentTiles: Record<string, EmpireTile>) => {
@@ -409,6 +580,91 @@ export default function EmpireMap() {
     return auraSet;
   }, [guilds]);
 
+  // Fog of War: Pre-calculated Set of tiles visible to the current player
+  // Sanctuary border zone, central vault, bosses, outposts, player bases, and scouted tiles
+  const visibleTileSet = useMemo(() => {
+    // 1. If GM in 'all' mode: All tiles on the 50x50 map are visible
+    if (isGmUser && gmViewMode === 'all') {
+      return new Set<string>(); // Special handling: handled in isTileVisible or filled below
+    }
+
+    const vSet = new Set<string>();
+
+    // 2. Sanctuary zone (rim of 4 tiles around map) is always visible
+    for (let x = 0; x < MAP_SIZE; x++) {
+      for (let y = 0; y < MAP_SIZE; y++) {
+        if (isSanctuaryZone(x, y)) {
+          vSet.add(`${x},${y}`);
+        }
+      }
+    }
+
+    // 3. Central Vault zone is always visible (22..27, 22..27)
+    for (let x = 22; x <= 27; x++) {
+      for (let y = 22; y <= 27; y++) {
+        vSet.add(`${x},${y}`);
+      }
+    }
+
+    // 4. Strategic Beacons: Bosses & Outposts are visible beacons on radar
+    Object.values(tiles).forEach((t) => {
+      if (t.type === 'boss' || t.isOutpost || t.type === 'outpost') {
+        vSet.add(t.id);
+      }
+    });
+
+    // 5. Player's bases & Guild bases grant vision radius of 2 tiles
+    const userGuildId = appUser?.guildId;
+    Object.values(tiles).forEach((t) => {
+      const isMyBase = t.ownerUid === appUser?.uid;
+      const isGuildBase = userGuildId && t.guildId === userGuildId;
+      if (isMyBase || isGuildBase) {
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dy = -2; dy <= 2; dy++) {
+            const vx = t.x + dx;
+            const vy = t.y + dy;
+            if (vx >= 0 && vx < MAP_SIZE && vy >= 0 && vy < MAP_SIZE) {
+              vSet.add(`${vx},${vy}`);
+            }
+          }
+        }
+      }
+    });
+
+    // 6. Permanently scouted tiles by user (stored in Firestore appUser.exploredTiles)
+    if (Array.isArray(appUser?.exploredTiles)) {
+      appUser.exploredTiles.forEach((coord) => vSet.add(coord));
+    }
+
+    return vSet;
+  }, [isGmUser, gmViewMode, tiles, appUser?.uid, appUser?.guildId, appUser?.exploredTiles]);
+
+  // Fast helper to check tile visibility
+  const isTileVisible = useCallback((x: number, y: number): boolean => {
+    if (isGmUser && gmViewMode === 'all') return true;
+    return visibleTileSet.has(`${x},${y}`);
+  }, [isGmUser, gmViewMode, visibleTileSet]);
+
+  // Effective distinct explored count for HUD and badges (personal drone scouts + guild conquered sectors)
+  const effectiveExploredCount = useMemo(() => {
+    const exploredSet = new Set<string>(Array.isArray(appUser?.exploredTiles) ? appUser.exploredTiles : []);
+    if (appUser?.guildId) {
+      Object.values(tiles).forEach((t) => {
+        if (t.guildId === appUser.guildId) {
+          exploredSet.add(`${t.x},${t.y}`);
+        }
+      });
+    }
+    return exploredSet.size;
+  }, [appUser?.exploredTiles, appUser?.guildId, tiles]);
+
+  // Exploration percentage for UI HUD (out of 2,500 tiles, strictly aligned with Badges 25%, 50%, 100%)
+  const explorationPercent = useMemo(() => {
+    if (isGmUser && gmViewMode === 'all') return 100;
+    return Math.min(100, Math.round((effectiveExploredCount / (MAP_SIZE * MAP_SIZE)) * 100));
+  }, [isGmUser, gmViewMode, effectiveExploredCount]);
+
+
   const activeTileData = selectedTile ? tiles[`${selectedTile.x},${selectedTile.y}`] : null;
   const isMyTile = activeTileData?.ownerUid === appUser?.uid;
   // Check if active tile belongs to a guild member (checks guildId or member uid)
@@ -488,48 +744,60 @@ export default function EmpireMap() {
   }, [selectedTile, isMyTile, isGuildTile, activeTileData, attackableTileIds]);
 
   // Upkeep & Auto-Abandon (Territory Decay & Upkeep System)
+  const hasRefreshedUpkeepRef = useRef(false);
+  const hasCleanedAbandonRef = useRef(false);
+
   useEffect(() => {
     if (!appUser || Object.keys(tiles).length === 0) return;
 
-    // 1. Upkeep: Auto-refresh lastActive for current user's tiles if > 1 hour since last refresh
-    const myTilesToRefresh = Object.values(tiles).filter((t) => {
-      if (t.ownerUid !== appUser.uid) return false;
-      if (!t.lastActive) return true;
-      return (Date.now() - new Date(t.lastActive).getTime()) > 3600 * 1000;
-    });
-
-    if (myTilesToRefresh.length > 0) {
-      const nowIso = new Date().toISOString();
-      myTilesToRefresh.forEach((t) => {
-        updateDoc(doc(db, 'empire_tiles', t.id), {
-          lastActive: nowIso
-        }).catch(console.error);
+    // 1. Upkeep: Auto-refresh lastActive for current user's tiles if > 1 hour since last refresh (run at most ONCE per session via writeBatch)
+    if (!hasRefreshedUpkeepRef.current) {
+      const myTilesToRefresh = Object.values(tiles).filter((t) => {
+        if (t.ownerUid !== appUser.uid) return false;
+        if (!t.lastActive) return true;
+        return (Date.now() - new Date(t.lastActive).getTime()) > 3600 * 1000;
       });
+
+      if (myTilesToRefresh.length > 0) {
+        hasRefreshedUpkeepRef.current = true;
+        const nowIso = new Date().toISOString();
+        const batch = writeBatch(db);
+        myTilesToRefresh.slice(0, 100).forEach((t) => {
+          batch.update(doc(db, 'empire_tiles', t.id), { lastActive: nowIso });
+        });
+        batch.commit().catch(console.error);
+      }
     }
 
     // 2. Auto-Abandon: Revert tiles inactive > 120h (5 days) back to empty
-    // EXEMPTION: Citadels and tiles within Guild Citadel Aura are IMMUNE to abandonment!
-    const abandonedTiles = Object.values(tiles).filter((t) => {
-      if (t.type !== 'player' || t.isOutpost || t.isCitadel) return false;
-      if (citadelAuraTileIds.has(t.id)) return false;
-      const lastTime = t.lastActive 
-        ? new Date(t.lastActive).getTime() 
-        : t.lastAttacked 
-        ? new Date(t.lastAttacked).getTime() 
-        : 0;
-      if (!lastTime) return false;
-      return (Date.now() - lastTime) > 120 * 3600 * 1000;
-    });
-
-    if (abandonedTiles.length > 0) {
-      abandonedTiles.forEach((t) => {
-        setDoc(doc(db, 'empire_tiles', t.id), {
-          id: t.id,
-          x: t.x,
-          y: t.y,
-          type: 'empty'
-        }).catch(console.error);
+    // SAFETY RULE: ONLY Instructors / Admins are permitted to run background abandon cleanup to prevent write storms
+    const isInstructor = appUser.role === 'instructor' || appUser.role === 'admin';
+    if (isInstructor && !hasCleanedAbandonRef.current) {
+      const abandonedTiles = Object.values(tiles).filter((t) => {
+        if (t.type !== 'player' || t.isOutpost || t.isCitadel) return false;
+        if (citadelAuraTileIds.has(t.id)) return false;
+        const lastTime = t.lastActive 
+          ? new Date(t.lastActive).getTime() 
+          : t.lastAttacked 
+          ? new Date(t.lastAttacked).getTime() 
+          : 0;
+        if (!lastTime) return false;
+        return (Date.now() - lastTime) > 120 * 3600 * 1000;
       });
+
+      if (abandonedTiles.length > 0) {
+        hasCleanedAbandonRef.current = true;
+        const batch = writeBatch(db);
+        abandonedTiles.slice(0, 50).forEach((t) => {
+          batch.set(doc(db, 'empire_tiles', t.id), {
+            id: t.id,
+            x: t.x,
+            y: t.y,
+            type: 'empty'
+          });
+        });
+        batch.commit().catch(console.error);
+      }
     }
   }, [appUser, tiles, citadelAuraTileIds]);
 
@@ -725,22 +993,24 @@ export default function EmpireMap() {
         createdAt: new Date().toISOString(),
       };
 
-      await setDoc(doc(db, 'guilds', gId), newGuild);
-      await updateDoc(doc(db, 'users', appUser.uid), {
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'guilds', gId), newGuild);
+      batch.update(doc(db, 'users', appUser.uid), {
         guildId: gId,
         guildName: newGuild.name,
       });
 
-      // Update current user's tiles to reflect guild
-      const tileUpdates = Object.values(tiles)
+      // Update current user's tiles to reflect guild atomically
+      Object.values(tiles)
         .filter((t) => t.ownerUid === appUser.uid)
-        .map((t) =>
-          updateDoc(doc(db, 'empire_tiles', t.id), {
+        .slice(0, 450)
+        .forEach((t) => {
+          batch.update(doc(db, 'empire_tiles', t.id), {
             guildId: gId,
             guildName: newGuild.name,
-          })
-        );
-      await Promise.all(tileUpdates);
+          });
+        });
+      await batch.commit();
 
       setNewGuildName('');
       setNewGuildTag('');
@@ -766,26 +1036,26 @@ export default function EmpireMap() {
   const handleJoinGuild = async (targetGuild: Guild) => {
     if (!appUser) return;
     try {
-      const joiningUserTilesCount = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length;
-      await updateDoc(doc(db, 'guilds', targetGuild.id), {
+      const joiningUserTiles = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid);
+      const batch = writeBatch(db);
+
+      batch.update(doc(db, 'guilds', targetGuild.id), {
         membersCount: (targetGuild.membersCount || 1) + 1,
-        totalTiles: (targetGuild.totalTiles || 0) + joiningUserTilesCount,
+        totalTiles: (targetGuild.totalTiles || 0) + joiningUserTiles.length,
       });
-      await updateDoc(doc(db, 'users', appUser.uid), {
+      batch.update(doc(db, 'users', appUser.uid), {
         guildId: targetGuild.id,
         guildName: targetGuild.name,
       });
 
-      // Update tiles to match new guild
-      const tileUpdates = Object.values(tiles)
-        .filter((t) => t.ownerUid === appUser.uid)
-        .map((t) =>
-          updateDoc(doc(db, 'empire_tiles', t.id), {
-            guildId: targetGuild.id,
-            guildName: targetGuild.name,
-          })
-        );
-      await Promise.all(tileUpdates);
+      // Update tiles to match new guild atomically
+      joiningUserTiles.slice(0, 450).forEach((t) => {
+        batch.update(doc(db, 'empire_tiles', t.id), {
+          guildId: targetGuild.id,
+          guildName: targetGuild.name,
+        });
+      });
+      await batch.commit();
 
       setShowGuildModal(false);
     } catch (err) {
@@ -797,28 +1067,28 @@ export default function EmpireMap() {
     if (!appUser || !appUser.guildId) return;
     const currentG = guilds[appUser.guildId];
     try {
-      const leavingUserTilesCount = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length;
+      const leavingUserTiles = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid);
+      const batch = writeBatch(db);
+
       if (currentG) {
-        await updateDoc(doc(db, 'guilds', currentG.id), {
+        batch.update(doc(db, 'guilds', currentG.id), {
           membersCount: Math.max(1, (currentG.membersCount || 2) - 1),
-          totalTiles: Math.max(0, (currentG.totalTiles || 0) - leavingUserTilesCount),
+          totalTiles: Math.max(0, (currentG.totalTiles || 0) - leavingUserTiles.length),
         });
       }
-      await updateDoc(doc(db, 'users', appUser.uid), {
+      batch.update(doc(db, 'users', appUser.uid), {
         guildId: null,
         guildName: null,
       });
 
-      // Remove guild tag from tiles
-      const tileUpdates = Object.values(tiles)
-        .filter((t) => t.ownerUid === appUser.uid)
-        .map((t) =>
-          updateDoc(doc(db, 'empire_tiles', t.id), {
-            guildId: null,
-            guildName: null,
-          })
-        );
-      await Promise.all(tileUpdates);
+      // Remove guild tag from tiles atomically
+      leavingUserTiles.slice(0, 450).forEach((t) => {
+        batch.update(doc(db, 'empire_tiles', t.id), {
+          guildId: null,
+          guildName: null,
+        });
+      });
+      await batch.commit();
     } catch (err) {
       console.error("Error leaving guild:", err);
     }
@@ -1004,6 +1274,143 @@ export default function EmpireMap() {
     }
   };
 
+  // Open Scout Drone Quiz Modal for selected tile
+  const handleOpenScoutModal = (x: number, y: number) => {
+    // Check Daily Scout Drone Limit
+    if (!dailyScoutInfo.canScout) {
+      alert(`⛔ แบตเตอรี่โดรนสอดแนมหมด! คุณใช้โควตาสอดแนมครบ ${DAILY_SCOUT_DRONE_LIMIT} ครั้งสำหรับวันนี้แล้ว (รีเซ็ตทุกเที่ยงคืน)`);
+      return;
+    }
+
+    setScoutTarget({ x, y });
+    setScoutQIndex(Math.floor(Math.random() * scoutQuestions.length));
+    setScoutFeedback(null);
+    setShowScoutModal(true);
+    sfx.click();
+  };
+
+  // Reset Scout Drone Quota (Instructor/GM test helper)
+  const handleResetScoutQuota = async () => {
+    if (!appUser) return;
+    if (confirm('🔄 [สิทธิ์อาจารย์/ผู้ดูแล] ต้องการรีเซ็ตโควตาโดรนสอดแนมของตนเองกลับเป็น 5/5 หรือไม่?')) {
+      try {
+        const userRef = doc(db, 'users', appUser.uid);
+        await updateDoc(userRef, {
+          dailyScoutDrones: {
+            date: getTodayDateString(),
+            count: 0
+          }
+        });
+        alert('✅ รีเซ็ตโควตาโดรนสำเร็จ! แบตเตอรี่กลับเป็น 5/5 แล้ว');
+      } catch (err) {
+        console.error('Failed to reset scout quota:', err);
+      }
+    }
+  };
+
+  // Handle Scout Drone Quiz Answer submission
+  const handleAnswerScoutQuiz = async (selectedOptionIndex: number) => {
+    if (!appUser || !scoutTarget || isScouting) return;
+
+    if (!dailyScoutInfo.canScout) {
+      alert(`⛔ โควตาสอดแนมสำหรับวันนี้หมดแล้ว (${DAILY_SCOUT_DRONE_LIMIT}/${DAILY_SCOUT_DRONE_LIMIT})`);
+      setShowScoutModal(false);
+      return;
+    }
+
+    const currentQuiz = scoutQuestions[scoutQIndex];
+    if (selectedOptionIndex !== currentQuiz.ans) {
+      sfx.wrong();
+      setScoutFeedback({
+        isCorrect: false,
+        text: `❌ ยังไม่ถูกต้อง! คำอธิบาย: ${currentQuiz.explanation}`
+      });
+      return;
+    }
+
+    // Correct Answer: Reveal 5x5 area (up to 25 tiles) centered at target
+    setIsScouting(true);
+    sfx.correct();
+    setScoutFeedback({
+      isCorrect: true,
+      text: `🎉 ตอบถูกต้อง! ${currentQuiz.explanation}`
+    });
+
+    try {
+      const revealedTiles: string[] = [];
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dy = -2; dy <= 2; dy++) {
+          const rx = scoutTarget.x + dx;
+          const ry = scoutTarget.y + dy;
+          if (rx >= 0 && rx < MAP_SIZE && ry >= 0 && ry < MAP_SIZE) {
+            revealedTiles.push(`${rx},${ry}`);
+          }
+        }
+      }
+
+      // Calculate total explored set including previous explored tiles + revealed tiles + guild conquered tiles
+      const previousExplored = Array.isArray(appUser.exploredTiles) ? appUser.exploredTiles : [];
+      const guildTiles = appUser.guildId
+        ? Object.values(tiles).filter((t) => t.guildId === appUser.guildId).map((t) => `${t.x},${t.y}`)
+        : [];
+      const totalExploredSet = new Set([...previousExplored, ...revealedTiles, ...guildTiles]);
+      const currentBadges = Array.isArray(appUser.badges) ? [...appUser.badges] : [];
+      const newBadgesToAdd: string[] = [];
+
+      // Check Badges:
+      // 🥉 Junior Explorer: สำรวจครบ 25% (>= 625 tiles)
+      if (totalExploredSet.size >= (MAP_SIZE * MAP_SIZE * 0.25) && !currentBadges.includes('Junior Explorer')) {
+        newBadgesToAdd.push('Junior Explorer');
+      }
+      // 🥈 Master Cartographer: สำรวจครบ 50% (>= 1250 tiles)
+      if (totalExploredSet.size >= (MAP_SIZE * MAP_SIZE * 0.5) && !currentBadges.includes('Master Cartographer')) {
+        newBadgesToAdd.push('Master Cartographer');
+      }
+      // 🥇 Grand Conqueror: สำรวจครบ 100% (>= 2500 tiles)
+      if (totalExploredSet.size >= (MAP_SIZE * MAP_SIZE) && !currentBadges.includes('Grand Conqueror')) {
+        newBadgesToAdd.push('Grand Conqueror');
+      }
+
+      // Save permanently to user's profile with arrayUnion, increment dailyScoutDrones count, and award +25 EXP
+      const userRef = doc(db, 'users', appUser.uid);
+      const today = getTodayDateString();
+      const currentScouts = (appUser.dailyScoutDrones?.date === today ? (Number(appUser.dailyScoutDrones?.count) || 0) : 0) + 1;
+
+      const updatePayload: any = {
+        exploredTiles: arrayUnion(...revealedTiles),
+        dailyScoutDrones: {
+          date: today,
+          count: currentScouts
+        },
+        exp: increment(25),
+        score: increment(25)
+      };
+
+      if (newBadgesToAdd.length > 0) {
+        updatePayload.badges = arrayUnion(...newBadgesToAdd);
+      }
+
+      await updateDoc(userRef, updatePayload);
+
+      sfx.levelUp();
+      const badgeText = newBadgesToAdd.length > 0 ? ` 🎖️ ปลดล็อคเหรียญตรา: ${newBadgesToAdd.join(', ')}!` : '';
+      setClaimSuccessMsg(`🛸 โดรนสแกนสำเร็จ! ปลดล็อคหมอก 25 เซกเตอร์ และรับ +25 EXP (เหลือโควตาวันนี้ ${Math.max(0, DAILY_SCOUT_DRONE_LIMIT - currentScouts)} ครั้ง)${badgeText}`);
+      setTimeout(() => setClaimSuccessMsg(null), 5000);
+
+      // Close modal after brief success presentation
+      setTimeout(() => {
+        setShowScoutModal(false);
+        setScoutFeedback(null);
+        setIsScouting(false);
+      }, 1500);
+    } catch (err) {
+      console.error('Error scouting tiles:', err);
+      setIsScouting(false);
+    }
+  };
+
+
+
   const handleAction = () => {
     if (!selectedTile || !canInfect) return;
 
@@ -1072,10 +1479,69 @@ export default function EmpireMap() {
               <span className="text-[9px] text-amber-400/80 hover:text-amber-300 font-bold ml-0.5" title="รีเซ็ตโควตา">↺</span>
             )}
           </button>
+
+          {/* Daily Scout Drone Quota Badge (5/5 per day) */}
+          <button
+            type="button"
+            onClick={appUser?.role === 'instructor' ? handleResetScoutQuota : undefined}
+            className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-xl text-[10px] sm:text-xs font-bold font-mono border flex items-center gap-1 shadow-sm shrink-0 transition-all ${
+              dailyScoutInfo.canScout 
+                ? 'bg-blue-950/80 border-blue-500/40 text-blue-300' 
+                : 'bg-red-950/80 border-red-500/50 text-red-300'
+            } ${appUser?.role === 'instructor' ? 'cursor-pointer hover:border-amber-400/80 active:scale-95' : 'cursor-default'}`}
+            title={appUser?.role === 'instructor' ? "คลิกเพื่อรีเซ็ตโควตาโดรนทดสอบ (สิทธิ์อาจารย์/ผู้ดูแล)" : "แบตเตอรี่โดรนสอดแนมประจำวัน (รีเซ็ตทุกเที่ยงคืน)"}
+          >
+            <Rocket className="w-3 h-3 text-cyan-400" />
+            <span className="hidden sm:inline">โดรน:</span>
+            <span>{dailyScoutInfo.remainingScouts}/{DAILY_SCOUT_DRONE_LIMIT}</span>
+            {appUser?.role === 'instructor' && (
+              <span className="text-[9px] text-amber-400/80 hover:text-amber-300 font-bold ml-0.5" title="รีเซ็ตโควตาโดรน">↺</span>
+            )}
+          </button>
         </div>
 
-        {/* Right: Navigation (mobile), Quick Stats, Guild, and Rules */}
+        {/* Right: Navigation (mobile), GM Toggle, Exploration %, Quick Stats, Guild, and Rules */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* GM View Mode Toggle Button (For never.away@gmail.com and instructors) */}
+          {isGmUser && (
+            <button
+              type="button"
+              onClick={() => {
+                setGmViewMode((prev) => (prev === 'all' ? 'fog' : 'all'));
+                sfx.click();
+              }}
+              className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10px] sm:text-xs font-mono font-bold border transition-all flex items-center gap-1 shadow-sm active:scale-95 ${
+                gmViewMode === 'all'
+                  ? 'bg-amber-950/90 border-amber-500/70 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                  : 'bg-slate-800/90 border-slate-600 text-slate-300'
+              }`}
+              title="สลับมุมมอง GM: มองเห็นทั้งแผนที่ 50x50 หรือจำลองมุมมองหมอกสงครามของผู้เล่น"
+            >
+              {gmViewMode === 'all' ? (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">GM:</span>
+                  <span>เห็นทั้งหมด</span>
+                </>
+              ) : (
+                <>
+                  <CloudFog className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="hidden sm:inline">GM:</span>
+                  <span>จำลองหมอก</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Map Exploration Progress Badge */}
+          <div 
+            className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-800/80 border border-slate-700/80 text-[10px] sm:text-xs font-mono font-bold text-slate-300"
+            title={`พื้นที่ที่คุณและกิลด์สำรวจแล้ว: ${explorationPercent}% (${effectiveExploredCount}/2,500 เซกเตอร์) (ปลดล็อคผ่านโดรนสอดแนม/ฐานกิลด์)`}
+          >
+            <CloudFog className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-cyan-300">{explorationPercent}%</span>
+          </div>
+
           {/* Mobile-Only Fast Travel & Zoom Nav Button */}
           <button
             type="button"
@@ -1466,6 +1932,10 @@ export default function EmpireMap() {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         className="flex-1 overflow-auto no-scrollbar cursor-grab active:cursor-grabbing select-none p-6 sm:p-12 pb-28 sm:pb-32 bg-slate-950 touch-pan-x touch-pan-y relative"
       >
         <div
@@ -1520,6 +1990,33 @@ export default function EmpireMap() {
               : isSanctuary
               ? '#082f49'
               : '#0f172a';
+
+            const isVisible = isTileVisible(x, y);
+
+            // Fog of War Cell Rendering: If tile is concealed by fog
+            if (!isVisible) {
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => handleTileClick(x, y)}
+                  className={`relative rounded-sm overflow-hidden flex items-center justify-center transition-all ${
+                    isSelected ? 'z-20 ring-2 ring-cyan-400 scale-110 shadow-lg' : 'hover:border-slate-600'
+                  }`}
+                  style={{
+                    width: 'clamp(28px, 4.4vw, 44px)',
+                    height: 'clamp(28px, 4.4vw, 44px)',
+                    backgroundColor: '#020617', // Pitch dark
+                    border: isSelected ? '1.5px solid #22d3ee' : '1px dashed #1e293b',
+                    backgroundImage: 'radial-gradient(circle, rgba(30,41,59,0.7) 1px, transparent 1px)',
+                    backgroundSize: '6px 6px',
+                  }}
+                  title={`[หมอกสงคราม] พิกัด [${x}, ${y}] - ส่งโดรนสอดแนมเพื่อเปิดแผนที่`}
+                >
+                  <CloudFog className="w-3.5 h-3.5 text-slate-700/80 animate-pulse pointer-events-none" />
+                </button>
+              );
+            }
 
             return (
               <button
@@ -1637,6 +2134,64 @@ export default function EmpireMap() {
           <div className="pointer-events-auto bg-slate-900/95 border border-slate-700/80 rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-[0_10px_40px_rgba(0,0,0,0.8)] backdrop-blur-md animate-in slide-in-from-bottom-3 duration-200">
             <div className="flex items-center justify-between gap-2.5 sm:gap-4">
               
+              {/* Check if Selected Tile is in Fog of War */}
+              {!isTileVisible(selectedTile.x, selectedTile.y) ? (
+                <>
+                  {/* Fog Radar Hologram Icon */}
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-950/90 border border-slate-800 shrink-0 overflow-hidden relative shadow-inner flex items-center justify-center">
+                    <CloudFog className="w-6 h-6 text-cyan-400 animate-pulse" />
+                  </div>
+
+                  {/* Fog Info Details */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-300">
+                      <span className="text-white font-black">เซกเตอร์ [{selectedTile.x}, {selectedTile.y}]</span>
+                      <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-1.5 py-0.2 rounded font-mono">
+                        ปกคลุมด้วยหมอกสงคราม (Uncharted)
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5 truncate">
+                      ส่งโดรนสอดแนมตอบคำถามไวรัสวิทยาเพื่อเปิดแผนที่ 5×5 ถาวร (+25 EXP)
+                    </div>
+                  </div>
+
+                  {/* Scout Drone Button */}
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={!dailyScoutInfo.canScout}
+                      onClick={() => handleOpenScoutModal(selectedTile.x, selectedTile.y)}
+                      className={`h-10 sm:h-11 px-3.5 sm:px-5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+                        dailyScoutInfo.canScout
+                          ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.6)] active:scale-95'
+                          : 'bg-slate-800 text-slate-500 border border-slate-700/80 cursor-not-allowed'
+                      }`}
+                    >
+                      {dailyScoutInfo.canScout ? (
+                        <>
+                          <Rocket className="w-4 h-4 text-slate-950 animate-bounce" />
+                          <span>🛸 ส่งโดรนสอดแนม ({dailyScoutInfo.remainingScouts}/{DAILY_SCOUT_DRONE_LIMIT})</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-4 h-4 text-slate-500" />
+                          <span>แบตหมด ({DAILY_SCOUT_DRONE_LIMIT}/{DAILY_SCOUT_DRONE_LIMIT})</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTile(null)}
+                      className="p-2 sm:p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                      title="ปิดกล่องข้อมูล"
+                    >
+                      <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
               {/* 3D Target Pet Hologram Preview */}
               <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-950/90 border border-slate-700/80 shrink-0 overflow-hidden relative shadow-inner flex items-center justify-center">
                 {(activeTileData?.isCitadel ||
@@ -1889,6 +2444,8 @@ export default function EmpireMap() {
                   <X className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
               </div>
+                </>
+              )}
 
             </div>
           </div>
@@ -2607,6 +3164,19 @@ export default function EmpireMap() {
                 </p>
               </div>
 
+              {/* Section 9: Fog of War & Scouts */}
+              <div className="bg-slate-950/70 border border-cyan-500/40 rounded-2xl p-3.5 space-y-1.5">
+                <div className="flex items-center gap-2 text-cyan-400 font-bold">
+                  <CloudFog className="w-4 h-4 shrink-0" />
+                  <span className="font-mono text-xs sm:text-sm uppercase tracking-wider">9. หมอกสงคราม (Fog of War) & โดรนสอดแนม (Bio-Radar)</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed text-xs">
+                  • <span className="text-cyan-300 font-bold">หมอกสงครามครอบคลุม:</span> แผนที่ขนาด 50×50 จะถูกปกคลุมด้วยหมอกสงคราม โดยมีจุดที่มองเห็นได้แต่แรกคือ ขอบเขตเกิดปลอดภัย (Sanctuary 4 ทิศ), ป้อมฟาร์มวิจัย (Outposts), บอสผู้พิทักษ์ และใจกลางสมบัติ<br/>
+                  • <span className="text-emerald-300 font-bold">ระยะสายตาจากฐาน (Vision Radius):</span> ฐานทัพของคุณและสมาชิกในกิลด์จะเปิดการมองเห็นรัศมี 2 ช่องรอบฐานโดยอัตโนมัติ<br/>
+                  • <span className="text-cyan-400 font-bold">🛸 ส่งโดรนสอดแนม (สแกน 5×5):</span> คลิกที่ช่องหมอกเพื่อส่งโดรน ผู้เล่นแต่ละคนมีแบตเตอรี่โดรน <strong className="text-cyan-300">5 ครั้งต่อวัน</strong> (รีเซ็ตทุกเที่ยงคืน) เมื่อตอบคำถามไวรัสวิทยาถูกต้อง จะเปิดแผนที่พื้นที่ 5×5 (25 เซกเตอร์) <strong className="text-white">แบบถาวรตลอดไป</strong> ไม่ต้องตอบซ้ำทุกวัน พร้อมรับ <span className="text-emerald-300 font-bold">+25 EXP</span> ต่อครั้งทันที
+                </p>
+              </div>
+
             </div>
 
             {/* Footer */}
@@ -2618,6 +3188,104 @@ export default function EmpireMap() {
               >
                 เข้าใจแล้ว เข้าสู่สมรภูมิ!
               </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 8. Scout Drone Quiz Modal (Bio-Radar Question Modal) */}
+      {showScoutModal && scoutTarget && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-cyan-500/50 rounded-3xl max-w-lg w-full p-4 sm:p-6 shadow-[0_0_50px_rgba(6,182,212,0.3)] space-y-4 animate-in fade-in zoom-in-95 duration-150 relative">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-inner">
+                  <Rocket className="w-5 h-5 animate-bounce" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                    <span>🛸 โดรนสอดแนมชีวภาพ</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">
+                      พิกัด [{scoutTarget.x}, {scoutTarget.y}]
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    ตอบคำถามไวรัสวิทยาเพื่อปล่อยสัญญาณโซนาร์สแกนแผนที่ 5×5 (25 ช่อง) ถาวร
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowScoutModal(false);
+                  setScoutFeedback(null);
+                }}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title="ปิด"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quiz Card */}
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-cyan-400 font-bold flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-cyan-400" /> คำถามพิสูจน์รหัสผ่านโซนาร์
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-blue-300 font-bold bg-blue-950/80 border border-blue-500/30 px-2 py-0.5 rounded-full">
+                    🔋 เหลือโควตาวันนี้ {dailyScoutInfo.remainingScouts}/{DAILY_SCOUT_DRONE_LIMIT}
+                  </span>
+                  <span className="text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                    +25 EXP
+                  </span>
+                </div>
+              </div>
+
+              {/* Question Text */}
+              <p className="text-sm sm:text-base font-semibold text-white leading-relaxed">
+                {scoutQuestions[scoutQIndex]?.q}
+              </p>
+
+              {/* Multiple Choice Options */}
+              <div className="space-y-2 pt-1">
+                {scoutQuestions[scoutQIndex]?.options.map((opt, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={isScouting}
+                    onClick={() => handleAnswerScoutQuiz(idx)}
+                    className="w-full text-left p-3 sm:p-3.5 rounded-xl bg-slate-900/90 hover:bg-cyan-950/60 border border-slate-700/80 hover:border-cyan-500/60 text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-all flex items-center justify-between group active:scale-[0.99] disabled:opacity-50"
+                  >
+                    <span>{opt}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+                  </button>
+                ))}
+              </div>
+
+              {/* Answer Feedback Alert */}
+              {scoutFeedback && (
+                <div
+                  className={`p-3 rounded-xl text-xs leading-relaxed animate-in fade-in flex items-start gap-2 border ${
+                    scoutFeedback.isCorrect
+                      ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
+                      : 'bg-red-950/80 border-red-500/50 text-red-300'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>{scoutFeedback.text}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Notice */}
+            <div className="text-[11px] text-slate-400 text-center flex items-center justify-center gap-1.5 font-mono">
+              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+              <span>เมื่อสแกนสำเร็จ หมอกจะหายไปอย่างถาวรสำหรับบัญชีของคุณ</span>
             </div>
 
           </div>
