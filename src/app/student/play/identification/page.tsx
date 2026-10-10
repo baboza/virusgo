@@ -16,22 +16,27 @@ import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyE
 
 import { ALL_15_CHAPTER_QUESTIONS } from '@/data/veterinaryVirologyContent';
 
-const DEFAULT_QUESTIONS = ALL_15_CHAPTER_QUESTIONS.map(q => ({
-  id: q.id,
-  chapter: q.chapter,
-  chapterTitle: q.chapterTitle,
-  question: q.q,
-  choices: q.choices,
-  answer: q.answer,
-  explanation: q.explanation,
-  virusType: q.virusType
-}));
-
 const shuffle = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
+
+const formatAndShuffleQuestions = (rawQuestions: any[]) => {
+  return shuffle(
+    rawQuestions.map(q => ({
+      id: q.id,
+      chapter: q.chapter,
+      chapterTitle: q.chapterTitle,
+      question: q.q || q.question,
+      choices: shuffle(q.choices || []),
+      answer: q.answer,
+      explanation: q.explanation,
+      virusType: q.virusType
+    }))
+  );
+};
 
 export default function IdentificationGame() {
   const { appUser } = useAuth();
-  const [questions, setQuestions] = useState<any[]>(() => shuffle(DEFAULT_QUESTIONS));
+  const [questions, setQuestions] = useState<any[]>(() => formatAndShuffleQuestions(ALL_15_CHAPTER_QUESTIONS));
+
   const [currentQ, setCurrentQ] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
@@ -53,7 +58,7 @@ export default function IdentificationGame() {
     import('firebase/firestore').then(({ getDoc, doc }) => {
       getDoc(doc(db, 'game_content', 'identification')).then(docSnap => {
         if (docSnap.exists() && docSnap.data().data?.length > 0) {
-          setQuestions(shuffle(docSnap.data().data));
+          setQuestions(formatAndShuffleQuestions(docSnap.data().data));
         }
       }).catch(console.error);
     });

@@ -15,11 +15,21 @@ import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyE
 
 import { ALL_15_LAB_CASES } from '@/data/veterinaryVirologyContent';
 
-const DEFAULT_CASES = ALL_15_LAB_CASES;
+const shuffle = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
+
+const formatAndShuffleCases = (rawCases: any[]) => {
+  return rawCases.map(c => ({
+    ...c,
+    choices: shuffle(c.choices || [])
+  }));
+};
+
+const DEFAULT_CASES = formatAndShuffleCases(ALL_15_LAB_CASES);
 
 export default function LabDetective() {
   const { appUser } = useAuth();
   const [cases, setCases] = useState<any[]>(DEFAULT_CASES);
+
   const [currentCaseIndex, setCurrentCaseIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
@@ -40,7 +50,7 @@ export default function LabDetective() {
     import('firebase/firestore').then(({ getDoc, doc }) => {
       getDoc(doc(db, 'game_content', 'lab_detective')).then(docSnap => {
         if (docSnap.exists() && docSnap.data().data?.length > 0) {
-          setCases(docSnap.data().data);
+          setCases(formatAndShuffleCases(docSnap.data().data));
         }
       }).catch(console.error);
     });
@@ -101,9 +111,30 @@ export default function LabDetective() {
               <Microscope className="w-8 h-8 text-purple-400" />
               นักสืบห้องแล็บ
             </h1>
-            <p className="text-purple-400 font-mono text-sm uppercase tracking-widest mt-1">
-              Lab Detective • Case {currentCaseIndex + 1}/{cases.length}
-            </p>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-purple-400 font-mono text-sm uppercase tracking-widest">
+                Lab Detective • Case {currentCaseIndex + 1}/{cases.length}
+              </p>
+              {cases.length > 1 && (
+                <select
+                  value={currentCaseIndex}
+                  onChange={(e) => {
+                    const idx = Number(e.target.value);
+                    setCurrentCaseIndex(idx);
+                    setSelectedAnswer(null);
+                    setIsCorrect(null);
+                    setShowExplanation(false);
+                  }}
+                  className="bg-slate-900 border border-purple-500/30 text-purple-300 text-xs rounded-lg px-2 py-1 outline-none focus:border-purple-400"
+                >
+                  {cases.map((c, i) => (
+                    <option key={`${c.id || 'case'}-${i}`} value={i} className="bg-slate-900 text-white">
+                      เคสที่ {i + 1}: {c.title.replace(/เคสที่ \d+:\s*/, '').slice(0, 32)}...
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
         </div>
         

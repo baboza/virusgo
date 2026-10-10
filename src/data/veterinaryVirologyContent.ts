@@ -3118,6 +3118,196 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     ],
     answer: "Caprine Arthritis Encephalitis Virus (CAEV)",
     explanation: "ข้อเข่าหน้าบวมโตผิดรูป (Big knee) ร่วมกับเต้านมแข็ง (Hard udder) และผลบวกต่อการตรวจซีรั่มในแพะโต เป็นลักษณะของ Caprine Arthritis Encephalitis (CAEV)"
+  },
+
+  // Case 31: Duck Viral Enteritis (Duck Plague)
+  {
+    id: "c_duck_plague",
+    chapter: 4,
+    title: "เคสที่ 31: เป็ดไข่ตายเฉียบพลัน คอพับ มีจุดเลือดออกทั่วอวัยวะภายใน",
+    species: "เป็ด (Anseriformes)",
+    history: "ฟาร์มเป็ดไข่ริมคลองพบเป็ดทยอยตายเฉียบพลันวันละกว่า 100 ตัว ตัวป่วยมีไข้ ซึม ขนยุ่ง ดวงตากึ่งปิดมีน้ำตาเกรอะ ปีกตก คอพับ (Dropped wing & neck) ถ่ายเหลวสีเขียวปนเปื้อนเลือด และกระหายน้ำจัด",
+    symptoms: ["คอพับ ปีกตก (Dropped neck and wings)", "ถ่ายเหลวสีเขียวปนเลือด กลิ่นเหม็น", "ตายเฉียบพลันจำนวนมาก", "เยื่อตาอักเสบมีเมือกเกรอะกรัง"],
+    laboratoryResults: "ผ่าซากพบรอยโรคแผ่นเนื้อตาย Fibrinous/Diphtheritic membrane เป็นแนวยาวในหลอดอาหาร (Esophagus) และจุดเลือดออกรูปวงแหวน (Annular bands) ในลำไส้ ตรวจ PCR พบ Anatid Alphaherpesvirus 1",
+    choices: [
+      "Duck Viral Enteritis (Duck Plague / Anatid Alphaherpesvirus 1)",
+      "Avian Cholera (Pasteurella multocida)",
+      "Duck Viral Hepatitis (DHAV)",
+      "Infectious Bursal Disease"
+    ],
+    answer: "Duck Viral Enteritis (Duck Plague / Anatid Alphaherpesvirus 1)",
+    explanation: "อาการคอพับปีกตก ถ่ายเหลวสีเขียวปนเลือด รอยโรค Diphtheritic membrane ในหลอดอาหาร และ Annular hemorrhagic bands ในลำไส้ ร่วมกับผลตรวจ Herpesvirus ยืนยันโรคกาฬโรคเป็ด (Duck Plague)"
+  },
+
+  // Case 32: Swine Japanese Encephalitis
+  {
+    id: "c_je",
+    chapter: 11,
+    title: "เคสที่ 32: พ่อพันธุ์สุกรลูกอัณฑะบวมโตข้างเดียว แม่สุกรคลอดลูกมัมมี่",
+    species: "สุกร (Porcine)",
+    history: "ฟาร์มสุกรพ่อแม่พันธุ์ในช่วงฤดูฝนพบยุงรำคาญชุกชุมมาก พ่อพันธุ์สุกรหนุ่มเริ่มมีไข้ ซึม และลูกอัณฑะบวมโตข้างเดียวอย่างเห็นได้ชัด (Orchitis) ส่วนแม่สุกรท้องมีปัญหาคลอดลูกมัมมี่ขนาดต่างๆ ปนลูกตายแรกคลอด",
+    symptoms: ["อัณฑะบวมโตข้างเดียว (Unilateral Orchitis)", "ความสมบูรณ์พันธุ์ลดลงฮวบ", "แม่สุกรคลอดลูกมัมมี่หลายขนาด", "ยุงรำคาญชุกชุมในฟาร์ม"],
+    laboratoryResults: "ตรวจน้ำในช่องสมองลูกสุกรแรกเกิดที่ผิดรูปพบ Hydrocephalus และ Hypoplasia ของสมองน้อย ตรวจ RT-PCR ของเนื้อสมองพบเชื้อ Flavivirus ยืนยัน",
+    choices: [
+      "Japanese Encephalitis Virus (JEV)",
+      "Porcine Parvovirus (PPV)",
+      "Brucella suis",
+      "Leptospira interrogans"
+    ],
+    answer: "Japanese Encephalitis Virus (JEV)",
+    explanation: "ปัญหาผสมพันธุ์ในฤดูยุงชุม พ่อสุกรมีลูกอัณฑะบวมโตข้างเดียว (Orchitis) และแม่สุกรคลอดลูกมัมมี่สมองฝ่อ (Hydrocephalus) ตรวจพบ Flavivirus เป็นลักษณะเด่นของโรคไข้สมองอักเสบเจอี (JEV)"
+  },
+
+  // Case 33: Horse West Nile Encephalomyelitis
+  {
+    id: "c_wnv_case33",
+    chapter: 11,
+    title: "เคสที่ 33: ม้าขี่เล่นกล้ามเนื้อกระตุก เดินเซ และริมฝีปากสั่นเกร็ง",
+    species: "ม้า (Equine)",
+    history: "ม้าพันธุ์ผสมอายุ 5 ปี เลี้ยงปล่อยในคอกม้าใกล้บึงน้ำขนาดใหญ่ มีไข้ ซึม เดินเซ ขาหลังปัดไปมา (Ataxia) พบกล้ามเนื้อใบหน้าและริมฝีปากกระตุกเป็นจังหวะ (Fasciculations) และสะดุ้งไวต่อสัมผัสผิดปกติ",
+    symptoms: ["เดินเซโซเซ ขาปัด (Ataxia & weakness)", "กล้ามเนื้อใบหน้าและปากสั่นกระตุก (Muscle fasciculations)", "ไข้ ซึม เซื่อง", "ไวต่อสิ่งเร้าเกินเหตุ (Hyperesthesia)"],
+    laboratoryResults: "ตรวจวิเคราะห์น้ำไขสันหลัง (CSF) พบเซลล์ Mononuclear สูง ตรวจน้ำไขสันหลังด้วย IgM Capture ELISA ให้ผลบวกจำเพาะต่อ Lineage 1 Flavivirus",
+    choices: [
+      "West Nile Virus (WNV)",
+      "Equine Infectious Anemia Virus (EIAV)",
+      "Tetanus (บาดทะยัก)",
+      "Equine Herpesvirus-1 (EHM)"
+    ],
+    answer: "West Nile Virus (WNV)",
+    explanation: "ม้าแสดงอาการทางระบบประสาท Ataxia ร่วมกับ Muscle fasciculations บริเวณใบหน้าและริมฝีปาก ในช่วงที่มียุงเป็นพาหะ และตรวจพบ IgM Capture ELISA บวกใน CSF ยืนยันโรคไข้สมองอักเสบเวสต์ไนล์ (WNV)"
+  },
+
+  // Case 34: Bovine Ephemeral Fever (Three-day Sickness)
+  {
+    id: "c_befv",
+    chapter: 10,
+    title: "เคสที่ 34: โคเนื้อไข้สูงจัด ขาแข็งเกร็ง ล้มนอนแต่ลุกได้เองใน 3 วัน",
+    species: "โค (Bovine)",
+    history: "ช่วงต้นฤดูฝน โคขุนหลายตัวในฝูงมีไข้สูงเฉียบพลัน 41-42°C นอนซม ข้อต่อบวม เจ็บกล้ามเนื้อยืนขาแข็งเกร็ง (Stiff gait) น้ำลายไหลย้อย และไม่อยากก้าวเดิน แต่เมื่อผ่านไป 3 วัน อาการไข้และขาแข็งกลับทุเลาลงอย่างรวดเร็ว",
+    symptoms: ["ไข้สูงเฉียบพลันสองระลอก (Biphasic fever)", "เดินขาแข็งเกร็ง เจ็บข้อต่อ (Stiff gait / Shifting lameness)", "น้ำลายไหลยืด ซึม หายใจหอบ", "ฟื้นตัวเร็วภายใน 3-4 วัน"],
+    laboratoryResults: "ตรวจตัวอย่างเลือดครบส่วน (Whole blood) เก็บในระยะไข้สูงด้วย RT-PCR พบสารพันธุกรรมของ Ephemerovirus (Rhabdoviridae)",
+    choices: [
+      "Bovine Ephemeral Fever Virus (BEFV - ไข้สามวัน)",
+      "Blackleg (Clostridium chauvoei)",
+      "Foot and Mouth Disease Virus",
+      "Bovine Spongiform Encephalopathy (BSE)"
+    ],
+    answer: "Bovine Ephemeral Fever Virus (BEFV - ไข้สามวัน)",
+    explanation: "ไข้สูงเฉียบพลัน เดินขาแข็งเกร็ง (Stiffness) เจ็บข้อกล้ามเนื้อ และฟื้นตัวได้เองภายใน 3 วันในฤดูแมลงดูดเลือดชุกชุม ร่วมกับผลบวกต่อ Ephemerovirus คือโรคไข้สามวัน (Three-day sickness / BEFV)"
+  },
+
+  // Case 35: Canine Infectious Tracheobronchitis (Kennel Cough - Cav-2)
+  {
+    id: "c_cav2",
+    chapter: 3,
+    title: "เคสที่ 35: สุนัขไอเสียงดังคล้ายห่านร้องหลังกลับจากโรงแรมรับฝากสัตว์",
+    species: "สุนัข (Canine)",
+    history: "สุนัขปอมเมอเรเนียน อายุ 2 ปี เพิ่งกลับจากการเข้าพักโรงแรมรับฝากสุนัขได้ 5 วัน แสดงอาการไอแห้งเสียงดังคล้ายห่านร้อง (Honking cough) ไอตลอดเวลาโดยเฉพาะเมื่อดึงสายจูงหรือคลำสัมผัสหลอดลม",
+    symptoms: ["ไอแห้งรุนแรงเสียงดัง (Harsh honking cough)", "ไอสำลักคล้ายมีก้างติดคอหลังออกกำลังกาย", "กดหลอดลมกระตุ้นให้ไอ (Tracheal pinch positive)", "ร่าเริงและกินอาหารได้ปกติ"],
+    laboratoryResults: "ป้ายตรวจสิ่งคัดหลั่งโพรงจมูกและคอหอย ตรวจ PCR พบ DNA ของ Canine Adenovirus type 2 (CAV-2) ร่วมกับเชื้อ Bordetella bronchiseptica",
+    choices: [
+      "Kennel Cough Complex (Canine Adenovirus type 2)",
+      "Canine Distemper Virus (CDV)",
+      "หัวใจโตกดหลอดลม",
+      "พยาธิหนอนหัวใจระยะรุนแรง"
+    ],
+    answer: "Kennel Cough Complex (Canine Adenovirus type 2)",
+    explanation: "ประวัติเข้าพักโรงแรมสุนัข มีอาการไอเสียงดัง Honking cough เมื่อกดหลอดลม และผลตรวจพบ Adenovirus type 2 (CAV-2) เป็นลักษณะคลาสสิกของ Canine Infectious Respiratory Disease Complex (CIRDC / Kennel Cough)"
+  },
+
+  // Case 36: Rabbit Hemorrhagic Disease (Calicivirus)
+  {
+    id: "c_rhdv",
+    chapter: 13,
+    title: "เคสที่ 36: กระต่ายบ้านตายเฉียบพลัน มีฟองเลือดสดไหลออกจากรูจมูก",
+    species: "กระต่าย (Lagomorph)",
+    history: "ฟาร์มเพาะพันธุ์กระต่ายสวยงามพบกระต่ายโตเต็มวัยทยอยล้มนอนชักเกร็งและตายเฉียบพลันภายในไม่กี่ชั่วโมง ซากกระต่ายพบคราบเลือดและฟองโฟมสีชมพูไหลทะลักออกมาจากรูจมูก (Epistaxis)",
+    symptoms: ["ตายเฉียบพลัน (Peracute death)", "เลือดกำเดาไหลปนฟองโฟมจากจมูก (Epistaxis)", "ไข้ ซึม หายใจหอบก่อนตาย", "กระต่ายโตตายเกือบ 100% แต่ลูกกระต่ายอายุน้อยกว่า 4 สัปดาห์รอด"],
+    laboratoryResults: "ผ่าซากพบตับบวมซีดเปราะเกิดเนื้อตายเป็นวงกว้าง (Necrotizing hepatitis) ปอดคั่งเลือดและบวมน้ำรุนแรง ตรวจ RT-PCR ยืนยันเชื้อ Lagovirus (Caliciviridae)",
+    choices: [
+      "Rabbit Hemorrhagic Disease Virus (RHDV / Calicivirus)",
+      "Myxomatosis (Poxvirus)",
+      "Pasteurellosis (Snuffles)",
+      "ภาวะกระเพาะอาหารอุดตันจากก้อนขน"
+    ],
+    answer: "Rabbit Hemorrhagic Disease Virus (RHDV / Calicivirus)",
+    explanation: "กระต่ายโตตายเฉียบพลัน เลือดสดทะลักรูจมูก ตับเกิด Necrotizing hepatitis รุนแรง และเป็นเชื้อในวงศ์ Caliciviridae ยืนยันโรคตับอักเสบเลือดออกในกระต่าย (Rabbit Hemorrhagic Disease - RHDV)"
+  },
+
+  // Case 37: Bovine Respiratory Syncytial Virus (BRSV)
+  {
+    id: "c_brsv",
+    chapter: 7,
+    title: "เคสที่ 37: ลูกโคขุนอายุน้อย หายใจอ้าปาก หอบเหนื่อย ปอดโป่งพอง",
+    species: "โค (Bovine)",
+    history: "ลูกโคขุนอายุ 4 เดือนหลังหย่านมและรวมฝูง มีไข้สูงเฉียบพลัน ซึม ไอแห้ง หายใจหอบเหนื่อยรุนแรง อ้าปากหายใจ ยืดคอ และมีน้ำมูกใสไหล ตรวจปอดได้ยินเสียง Cracles และ Wheezes ทั่วทรวงอก",
+    symptoms: ["หายใจอ้าปากและยืดคอ (Open-mouth breathing)", "หายใจหอบลึก (Tachypnea & dyspnea)", "ไอแห้ง ไข้สูง", "ลูกโคเครียดจากการขนส่งและรวมฝูง"],
+    laboratoryResults: "ส่องกล้องจุลทรรศน์ชิ้นเนื้อปอดพบเซลล์ยักษ์หลายนิวเคลียส (Syncytia formation) และมี Intracytoplasmic inclusion bodies ย้อมตรวจ Fluorescent Antibody พบ Pneumovirus (Paramyxoviridae)",
+    choices: [
+      "Bovine Respiratory Syncytial Virus (BRSV)",
+      "Infectious Bovine Rhinotracheitis (IBR)",
+      "Contagious Bovine Pleuropneumonia (CBPP)",
+      "Bovine Tuberculosis"
+    ],
+    answer: "Bovine Respiratory Syncytial Virus (BRSV)",
+    explanation: "อาการหายใจหอบอ้าปากรุนแรงในลูกโคหลังหย่านม ร่วมกับการตรวจพบ Syncytia formation (Syncytial giant cells) ในเนื้อเยื่อปอด ชี้ชัดว่าเป็น Bovine Respiratory Syncytial Virus (BRSV)"
+  },
+
+  // Case 38: Porcine Circovirus Type 2 (PMWS)
+  {
+    id: "c_pcv2_case38",
+    chapter: 14,
+    title: "เคสที่ 38: สุกรอนุบาลผอมแห้งแคระแกร็น ต่อมน้ำเหลืองโตทั่วร่างกาย",
+    species: "สุกร (Porcine)",
+    history: "สุกรระยะอนุบาลถึงขุนรุ่น (อายุ 8-12 สัปดาห์) มีอาการซูบผอม โตช้า แคระแกร็น (Wasting) ผิวหนังซีดจาง หายใจลำบาก ถ่ายเหลว และคลำพบต่อมน้ำเหลืองที่ขาหนีบ (Inguinal lymph nodes) บวมโตขนาดเท่าผลมะนาว",
+    symptoms: ["ผอมแห้ง แคระแกร็น โตช้า (Severe wasting/stunting)", "ต่อมน้ำเหลืองทั่วตัวโตผิดปกติ (Lymphadenopathy)", "ผิวหนังซีด หายใจหอบ", "ท้องเสียเรื้อรัง"],
+    laboratoryResults: "ตรวจชิ้นเนื้อต่อมน้ำเหลืองพบการสูญเสียเซลล์ลิมโฟไซต์ (Lymphoid depletion) และพบ Botryoid-like intracytoplasmic inclusion bodies ตรวจ Real-time PCR พบ Circovirus DNA ปริมาณสูง",
+    choices: [
+      "Porcine Circovirus type 2 (PCV-2 / PMWS)",
+      "Classical Swine Fever Virus",
+      "Porcine Parvovirus",
+      "โรคพยาธิในทางเดินอาหารรุนแรง"
+    ],
+    answer: "Porcine Circovirus type 2 (PCV-2 / PMWS)",
+    explanation: "อาการผอมแคระแกร็น (Wasting syndrome) ต่อมน้ำเหลืองโตทั่วตัว (Lymphadenopathy) ร่วมกับรอยโรค Lymphoid depletion และ Botryoid inclusions ยืนยันโรค PCVAD / PMWS จากเชื้อ PCV-2"
+  },
+
+  // Case 39: Avian Encephalomyelitis (Epidemic Tremor)
+  {
+    id: "c_aev",
+    chapter: 13,
+    title: "เคสที่ 39: ลูกไก่แรกเกิดเดินโซเซ หัวและคอสั่นระริก ตาขุ่นขาว",
+    species: "ไก่ (Avian)",
+    history: "ลูกไก่เนื้ออายุ 1-2 สัปดาห์ในโรงเรือนอนุบาล แสดงอาการเดินโซเซ ขาอ่อนแรง ล้มลงนอนตะแคง ตัวสั่น หัวและคอสั่นระริกอย่างรวดเร็ว (Tremors of head and neck) ลูกไก่บางตัวที่รอดชีวิตเริ่มมีแก้วตาขุ่นขาว (Lens opacity / Cataract)",
+    symptoms: ["หัวและคอสั่นระริก (Rapid tremor of head & neck)", "เดินเซ ขาอ่อนแรง ล้มนอนตะแคง (Ataxia & paresis)", "แก้วตาขุ่นขาวในตัวที่รอด (Blue eye / Cataract)", "อัตราตายสูงในลูกไก่อายุน้อยกว่า 3 สัปดาห์"],
+    laboratoryResults: "ตรวจทางจุลพยาธิวิทยาของสมองและไขสันหลังพบ Neuronal chromatolysis และต่อมน้ำเหลืองแทรกตัวรอบหลอดเลือด (Perivascular cuffing) ตรวจพบ Picornavirus",
+    choices: [
+      "Avian Encephalomyelitis Virus (AEV / Picornaviridae)",
+      "Newcastle Disease Virus (Neurotropic form)",
+      "Marek's Disease Virus",
+      "ภาวะขาดวิตามินอี (Crazy chick disease)"
+    ],
+    answer: "Avian Encephalomyelitis Virus (AEV / Picornaviridae)",
+    explanation: "ลูกไก่อายุน้อยมีอาการหัวคอสั่นระริก (Epidemic tremor) เดินเซ และเกิด Lens opacity ในตัวที่รอด ร่วมกับรอยโรค Neuronal chromatolysis ในระบบประสาท เป็นอาการเฉพาะของ Avian Encephalomyelitis (AEV)"
+  },
+
+  // Case 40: Equine Viral Arteritis (EVA)
+  {
+    id: "c_eva",
+    chapter: 14,
+    title: "เคสที่ 40: ม้าพ่อพันธุ์เบ้าตาบวมน้ำ ถุงอัณฑะบวม แม่ม้าแท้งลูก",
+    species: "ม้า (Equine)",
+    history: "ศูนย์เพาะพันธุ์ม้าพบม้ามีไข้ ซึม มีน้ำมูกน้ำตาไหล เปลือกตาบวมแดงชมพู (Pinkeye) บวมน้ำที่ขา ใต้ท้อง และถุงหุ้มอัณฑะ (Scrotal edema) แม่ม้าที่ผสมพันธุ์ไปเริ่มแท้งลูกสดโดยไม่มีอาการเตือนล่วงหน้า",
+    symptoms: ["เยื่อบุตาบวมแดงมีน้ำตาเกรอะ (Pink eye / Conjunctivitis)", "บวมน้ำที่ถุงอัณฑะ ใต้ท้อง และขาหลัง (Scrotal & ventral edema)", "แม่ม้าแท้งลูกเฉียบพลัน", "ไข้ ซึม ผื่นลมพิษ"],
+    laboratoryResults: "ตรวจพบการอักเสบของผนังหลอดเลือดแดงขนาดเล็ก (Panarteritis) ตรวจน้ำอสุจิของม้าพ่อพันธุ์ด้วย RT-PCR พบ Arterivirus ในระดับสูง",
+    choices: [
+      "Equine Viral Arteritis (EVA / Arteriviridae)",
+      "Equine Infectious Anemia (EIA / Coggins test)",
+      "African Horse Sickness (AHSV)",
+      "Strangles (Streptococcus equi)"
+    ],
+    answer: "Equine Viral Arteritis (EVA / Arteriviridae)",
+    explanation: "อาการ Pinkeye เยื่อตาบวมแดง บวมน้ำที่ถุงอัณฑะและขา แม่ม้าแท้งลูก และตรวจพบการอักเสบของหลอดเลือดแดง Panarteritis พร้อมเชื้อในน้ำอสุจิ ยืนยันโรค Equine Viral Arteritis (EVA)"
   }
 ];
 

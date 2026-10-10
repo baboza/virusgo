@@ -27,7 +27,9 @@ import {
   Shield,
   Activity,
   Flame,
-  CheckCircle2
+  CheckCircle2,
+  Trophy,
+  Play
 } from 'lucide-react';
 import Link from 'next/link';
 import { collection, getDocs } from 'firebase/firestore';
@@ -196,7 +198,7 @@ export default function PlayerHub() {
                   {appUser.fullname}
                 </h1>
                 {appUser.studentID && (
-                  <span className="text-xs font-mono text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700">
+                  <span className="text-xs font-mono text-slate-400 bg-slate-800/80 px-2.5 py-0.5 rounded-md border border-slate-700">
                     ID: {appUser.studentID}
                   </span>
                 )}
@@ -211,10 +213,10 @@ export default function PlayerHub() {
                 </div>
 
                 {appUser.guildName ? (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                  <Link href="/student/empire" className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 transition-colors">
                     <Users className="w-3.5 h-3.5" />
                     <span>กิลด์: {appUser.guildName}</span>
-                  </div>
+                  </Link>
                 ) : (
                   <Link href="/student/empire" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800/70 text-slate-400 border border-slate-700 hover:border-slate-500 transition-colors">
                     <Users className="w-3 h-3 text-slate-500" />
@@ -240,7 +242,7 @@ export default function PlayerHub() {
                 <Flame className="w-3.5 h-3.5 text-accent" /> ระดับประสบการณ์ (EXP)
               </span>
               <span className="font-mono font-bold text-accent">
-                {currentExp} / {nextLevelExp} EXP
+                {currentExp.toLocaleString()} / {nextLevelExp.toLocaleString()} EXP
               </span>
             </div>
 
@@ -256,7 +258,7 @@ export default function PlayerHub() {
             <div className="flex justify-between items-center text-[11px] text-slate-500 font-mono">
               <span>ความคืบหน้า: {Math.round(progress)}%</span>
               {nextRank ? (
-                <span>อีก {nextRank.reqExp - currentExp} EXP → {nextRank.title}</span>
+                <span>อีก {(nextRank.reqExp - currentExp).toLocaleString()} EXP → {nextRank.title}</span>
               ) : (
                 <span className="text-yellow-400 font-bold">MAX RANK ACHIEVED</span>
               )}
@@ -276,13 +278,13 @@ export default function PlayerHub() {
             <div className="text-xl font-black text-purple-400 font-mono">{history.length} <span className="text-xs text-slate-500">ครั้ง</span></div>
           </div>
           <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/70 text-center">
-            <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">โหมดที่ทดสอบ</div>
-            <div className="text-xl font-black text-emerald-400 font-mono">{uniqueGamesPlayed} / 6 <span className="text-xs text-slate-500">โหมด</span></div>
+            <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">โหมดเกมที่ทดสอบ</div>
+            <div className="text-xl font-black text-emerald-400 font-mono">{uniqueGamesPlayed} / 7 <span className="text-xs text-slate-500">โหมด</span></div>
           </div>
           <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/70 text-center">
             <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">สถานะอาณาจักร</div>
             <div className="text-xl font-black text-amber-400 font-mono">
-              {isEmpireUnlocked ? 'Active' : 'Locked'}
+              {isEmpireUnlocked ? 'Active' : 'Locked (1,000 EXP)'}
             </div>
           </div>
         </div>
@@ -359,7 +361,7 @@ export default function PlayerHub() {
                       <Crosshair className="w-6 h-6" />
                     </div>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                      6 มินิเกม
+                      7 มินิเกม
                     </span>
                   </div>
 
@@ -367,7 +369,7 @@ export default function PlayerHub() {
                     Game Simulation
                   </h3>
                   <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                    วินิจฉัยเคสคลินิก, นักสืบแล็บ, จับคู่คุณสมบัติ, สปีดควิซ 60s, ปะทะบอส และแข่งสดในห้องเรียน
+                    วินิจฉัยเคสคลินิก, นักสืบแล็บ, ควบคุมโรคระบาดฟาร์ม, จับคู่คุณสมบัติ, สปีดควิซ 60s, ปะทะบอส และแข่งสดในห้องเรียน
                   </p>
                 </div>
 
@@ -471,7 +473,7 @@ export default function PlayerHub() {
                 </div>
 
                 <div className="pt-6 border-t border-slate-800 text-xs text-slate-500 font-mono flex items-center justify-between">
-                  <span>ขาดอีก {1000 - currentExp} EXP</span>
+                  <span>ขาดอีก {(1000 - currentExp).toLocaleString()} EXP</span>
                   <Lock className="w-4 h-4" />
                 </div>
               </div>
@@ -499,7 +501,7 @@ export default function PlayerHub() {
                       Virus Empire
                     </h3>
                     <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                      แผนที่ Hexagon ขยายอาณาเขต สร้างหรือเข้าร่วมกิลด์ วาง Pet 3D เฝ้าเซกเตอร์ และชิงความเป็นหนึ่ง
+                      แผนที่ Hexagon ขยายอาณาเขต สร้างหรือเข้าร่วมกิลด์ วางสิ่งป้องกันเมือง และตีปราสาทร่วมมือกัน
                     </p>
                   </div>
 
@@ -534,7 +536,7 @@ export default function PlayerHub() {
                 </div>
 
                 <div className="pt-6 border-t border-slate-800 text-xs text-slate-500 font-mono flex items-center justify-between">
-                  <span>ขาดอีก {1000 - currentExp} EXP</span>
+                  <span>ขาดอีก {(1000 - currentExp).toLocaleString()} EXP</span>
                   <Lock className="w-4 h-4" />
                 </div>
               </div>
@@ -544,7 +546,78 @@ export default function PlayerHub() {
       </div>
 
 
-      {/* ── 4. RANK BADGES PROGRESSION ────────────────────────────────────────── */}
+      {/* ── 4. QUICK ACCESS GAME SHORTCUTS (Direct Play Launcher) ──────────────── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+            <Play className="w-4 h-4 text-emerald-400" /> เข้าสู่สนามประลองทันใจ (Quick Launch)
+          </h2>
+          <Link href="/student/play" className="text-xs text-primary hover:text-blue-300 font-bold transition-colors flex items-center gap-1">
+            ดูโหมดทั้งหมด <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            {
+              title: "Outbreak Sim",
+              subtitle: "10 เคสระบาดวิทยาฟาร์ม",
+              href: "/student/play/outbreak",
+              color: "text-emerald-400",
+              border: "border-emerald-500/30 hover:border-emerald-400",
+              bg: "bg-emerald-500/10",
+              icon: Map
+            },
+            {
+              title: "Lab Detective",
+              subtitle: "40 เคสชันสูตรห้องแล็บ",
+              href: "/student/play/lab-detective",
+              color: "text-purple-400",
+              border: "border-purple-500/30 hover:border-purple-400",
+              bg: "bg-purple-500/10",
+              icon: Microscope
+            },
+            {
+              title: "Boss Raid",
+              subtitle: "10 บอสไวรัสอันตราย",
+              href: "/student/play/boss-battle",
+              color: "text-red-400",
+              border: "border-red-500/30 hover:border-red-400",
+              bg: "bg-red-500/10",
+              icon: Swords
+            },
+            {
+              title: "Leaderboard",
+              subtitle: "ทำเนียบยศและแฟ้มประวัติ",
+              href: "/student/leaderboard",
+              color: "text-amber-400",
+              border: "border-amber-500/30 hover:border-amber-400",
+              bg: "bg-amber-500/10",
+              icon: Trophy
+            }
+          ].map((mode, idx) => {
+            const Icon = mode.icon;
+            return (
+              <Link key={idx} href={mode.href}>
+                <div className={`p-4 rounded-2xl glass border ${mode.border} transition-all duration-300 hover:scale-[1.02] flex items-center gap-3.5 group cursor-pointer shadow-sm hover:shadow-md`}>
+                  <div className={`w-10 h-10 rounded-xl ${mode.bg} flex items-center justify-center shrink-0 ${mode.color} group-hover:scale-110 transition-transform`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="truncate">
+                    <h4 className="text-sm font-black text-white group-hover:text-cyan-300 transition-colors truncate">
+                      {mode.title}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">{mode.subtitle}</p>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+
+      {/* ── 5. RANK BADGES PROGRESSION ────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -613,7 +686,7 @@ export default function PlayerHub() {
       </motion.div>
 
 
-      {/* ── 5. ACTIVE QUESTS & RECENT LOGS ─────────────────────────────────────── */}
+      {/* ── 6. ACTIVE QUESTS & RECENT LOGS ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Active Quests (2 Cols) */}
@@ -656,7 +729,7 @@ export default function PlayerHub() {
               },
               {
                 title: "ขุนศึกไวรัส (Empire Ready)",
-                desc: `สะสม EXP ครบ 1,000 เพื่อปลดล็อกห้องเพาะเลี้ยง Pet 3D และสงคราม Empire (ปัจจุบัน: ${currentExp} EXP)`,
+                desc: `สะสม EXP ครบ 1,000 เพื่อปลดล็อกห้องเพาะเลี้ยง Pet 3D และสงคราม Empire (ปัจจุบัน: ${currentExp.toLocaleString()} EXP)`,
                 exp: "+200 EXP",
                 done: currentExp >= 1000,
                 icon: "🏰"

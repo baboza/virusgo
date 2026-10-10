@@ -101,17 +101,99 @@ const BOSSES = [
       { q: "อาการทางระบบประสาทที่จำเพาะอย่างยิ่งของโรคไข้หัดสุนัขคืออะไร?", choices: ["Myoclonus (กล้ามเนื้อกระตุกเป็นจังหวะ)", "ตาบอดข้างเดียวเฉียบพลัน", "เดินวนซ้ายตลอดเวลา", "คอบิดถาวร"], answer: "Myoclonus (กล้ามเนื้อกระตุกเป็นจังหวะ)", damage: 50 },
       { q: "ลักษณะ Inclusion bodies ของไวรัส CDV สามารถพบได้ที่ใดในเซลล์?", choices: ["พบได้ทั้งในนิวเคลียสและไซโทพลาสซึม (Both intranuclear & intracytoplasmic)", "เฉพาะในนิวเคลียสเท่านั้น", "เฉพาะในไซโทพลาสซึมเท่านั้น", "ไม่สร้าง Inclusion bodies"], answer: "พบได้ทั้งในนิวเคลียสและไซโทพลาสซึม (Both intranuclear & intracytoplasmic)", damage: 50 }
     ]
+  },
+  {
+    name: "H5N1 Avian Influenza Virus (HPAI)",
+    chapter: 8,
+    chapterTitle: "Orthomyxoviridae",
+    maxHp: 200,
+    virusType: 'orthomyxo',
+    glow: 'rgba(239, 68, 68, 0.9)',
+    questions: [
+      { q: "จีโนมของเชื้อไวรัสไข้หวัดใหญ่สัตว์ปีก (Avian Influenza) มีลักษณะสำคัญอย่างไร?", choices: ["ลบสายเดี่ยวแยกเป็น 8 ท่อน (-ssRNA 8 segments)", "บวกสายเดี่ยวท่อนเดียว (+ssRNA non-segmented)", "DNA สายคู่ทรงกลม (Circular dsDNA)", "RNA สายคู่ 10-12 ท่อน (dsRNA)"], answer: "ลบสายเดี่ยวแยกเป็น 8 ท่อน (-ssRNA 8 segments)", damage: 50 },
+      { q: "ปรากฏการณ์ Antigenic Shift ที่ทำให้เกิดสายพันธุ์ระบาดใหญ่ (Pandemic) เกิดจากกลไกใด?", choices: ["Genetic Reassortment ระหว่างสองสายพันธุ์ในเซลล์เดียวกัน", "การกลายพันธุ์สะสมทีละเบสของยีน HA", "การติดเชื้อซ้ำซ้อนของแบคทีเรีย", "การตัดต่อยีนด้วยสัตวแพทย์"], answer: "Genetic Reassortment ระหว่างสองสายพันธุ์ในเซลล์เดียวกัน", damage: 50 },
+      { q: "โปรตีนเปลือกนอกคู่ใดที่มีบทบาทสำคัญในการเกาะติด (Attachment) และการหลุดออกจากเซลล์ (Release)?", choices: ["Hemagglutinin (HA) และ Neuraminidase (NA)", "Spike (S) และ Envelope (E)", "Glycoprotein G และ Matrix M", "Fusion (F) และ Attachment (G)"], answer: "Hemagglutinin (HA) และ Neuraminidase (NA)", damage: 50 },
+      { q: "รอยโรคเด่นชัดในสัตว์ปีกที่ติดเชื้อ HPAI สายพันธุ์รุนแรงคือข้อใด?", choices: ["หงอนและเหนียงบวมคล้ำ จุดเลือดออกที่แข้งและอวัยวะภายใน", "ตุ่มหูดแห้งที่หงอน", "ตาขุ่นขาวข้างเดียว", "ข้อเข่าหน้าบวมโต"], answer: "หงอนและเหนียงบวมคล้ำ จุดเลือดออกที่แข้งและอวัยวะภายใน", damage: 50 }
+    ]
+  },
+  {
+    name: "CPV-2 (Canine Parvovirus)",
+    chapter: 3,
+    chapterTitle: "Parvoviridae",
+    maxHp: 200,
+    virusType: 'parvo',
+    glow: 'rgba(168, 85, 247, 0.8)',
+    questions: [
+      { q: "ลักษณะทางโครงสร้างของ Canine Parvovirus ข้อใดถูกต้อง?", choices: ["Naked icosahedral ssDNA ขนาดเล็ก ทนทานต่อสิ่งแวดล้อมสูง", "Enveloped ssRNA ขนาดใหญ่ ไวต่อน้ำยาฆ่าเชื้อ", "Circular dsDNA ขนาดใหญ่", "Enveloped dsRNA"], answer: "Naked icosahedral ssDNA ขนาดเล็ก ทนทานต่อสิ่งแวดล้อมสูง", damage: 50 },
+      { q: "Canine Parvovirus ต้องการเซลล์เป้าหมายที่มีลักษณะเฉพาะแบบใดในการแบ่งตัว?", choices: ["เซลล์ที่มีการแบ่งตัวอย่างรวดเร็ว (Rapidly dividing cells เช่น Crypt & Bone marrow)", "เซลล์ประสาทที่ไม่แบ่งตัว", "เซลล์ไขมันใต้ผิวหนัง", "เซลล์กระดูกแข็ง"], answer: "เซลล์ที่มีการแบ่งตัวอย่างรวดเร็ว (Rapidly dividing cells เช่น Crypt & Bone marrow)", damage: 50 },
+      { q: "การทำลายเซลล์ในหลุมเยื่อบุลำไส้ (Intestinal crypt cells) ส่งผลให้เกิดพยาธิสภาพใด?", choices: ["ลำไส้อักเสบถ่ายเป็นเลือดสด (Hemorrhagic enteritis) และ Villus collapse", "แผลหลุมเฉพาะในกระเพาะอาหาร", "ก้อนนิ่วอุดตันทางเดินอาหาร", "ลำไส้กลืนกันแบบเรื้อรัง"], answer: "ลำไส้อักเสบถ่ายเป็นเลือดสด (Hemorrhagic enteritis) และ Villus collapse", damage: 50 },
+      { q: "น้ำยาฆ่าเชื้อใดที่สามารถทำลายไวรัส Parvovirus ที่ไม่มีเปลือกหุ้มได้อย่างมีประสิทธิภาพ?", choices: ["Sodium hypochlorite (น้ำยาฟอกขาว/Bleach เจือจาง 1:30)", "แอลกอฮอล์ 70% ธรรมดา", "น้ำสบู่และผงซักฟอกทั่วไป", "น้ำเกลือล้างแผล"], answer: "Sodium hypochlorite (น้ำยาฟอกขาว/Bleach เจือจาง 1:30)", damage: 50 }
+    ]
+  },
+  {
+    name: "PRRSV (Blue-Ear Pig Virus)",
+    chapter: 14,
+    chapterTitle: "Arteriviridae",
+    maxHp: 200,
+    virusType: 'arterivirus',
+    glow: 'rgba(56, 189, 248, 0.8)',
+    questions: [
+      { q: "PRRSV จัดเป็นไวรัสชนิดใด?", choices: ["Enveloped positive-sense ssRNA (+ssRNA)", "Naked dsDNA", "Negative-sense ssRNA (-ssRNA)", "Double-stranded RNA (dsRNA)"], answer: "Enveloped positive-sense ssRNA (+ssRNA)", damage: 50 },
+      { q: "เซลล์เป้าหมายหลักที่ PRRSV ชอบเข้าทำลายและแบ่งตัวในระบบหายใจสุกรคือเซลล์ใด?", choices: ["Porcine Alveolar Macrophages (PAMs)", "Ciliated epithelial cells", "Red blood cells (Erythrocytes)", "Neutrophils"], answer: "Porcine Alveolar Macrophages (PAMs)", damage: 50 },
+      { q: "กลุ่มอาการเด่นชัดทางระบบสืบพันธุ์ที่เกิดจาก PRRSV ในเล้าแม่พันธุ์คืออะไร?", choices: ["การแท้งลูกระยะท้ายคลอด (Late-term abortion) และลูกหมูมัมมี่", "เป็นสัดเงียบถาวร", "คลอดลูกตัวใหญ่ผิดปกติ", "มดลูกอักเสบหลังคลอด 2 เดือน"], answer: "การแท้งลูกระยะท้ายคลอด (Late-term abortion) และลูกหมูมัมมี่", damage: 50 },
+      { q: "กลยุทธ์การจัดการฝูงแม่สุกรเพื่อตัดวงจรและกำจัดเชื้อ PRRS ภายในฟาร์มคือข้อใด?", choices: ["การปิดฝูง (Herd closure) นานอย่างน้อย 200 วัน ร่วมกับ All-in All-out", "นำสุกรสาวจากตลาดภายนอกเข้ามาเติมทุกสัปดาห์", "ฉีดยาปฏิชีวนะให้แม่สุกรทุกตัวตลอดชีวิต", "งดให้น้ำสุกรในเวลากลางวัน"], answer: "การปิดฝูง (Herd closure) นานอย่างน้อย 200 วัน ร่วมกับ All-in All-out", damage: 50 }
+    ]
+  },
+  {
+    name: "BoHV-1 (Infectious Bovine Rhinotracheitis)",
+    chapter: 4,
+    chapterTitle: "Herpesviridae",
+    maxHp: 200,
+    virusType: 'herpes',
+    glow: 'rgba(234, 88, 12, 0.8)',
+    questions: [
+      { q: "ไวรัสในตระกูล Herpesviridae มีคุณสมบัติเด่นเฉพาะตัวในข้อใดหลังจากการติดเชื้อระยะแรก?", choices: ["การแฝงตัวตลอดชีวิต (Latency) ในปมประสาทรับความรู้สึก", "การสลายตัวหายไปจากร่างกาย 100%", "การเปลี่ยนจีโนมเป็น RNA", "การไม่กระตุ้นแอนติบอดีใดๆ"], answer: "การแฝงตัวตลอดชีวิต (Latency) ในปมประสาทรับความรู้สึก", damage: 50 },
+      { q: "รอยโรคเด่นชัดในระบบทางเดินหายใจของโคที่ติดเชื้อ BoHV-1 คืออะไร?", choices: ["เยื่อบุโพรงจมูกอักเสบแดงจัดเป็นเนื้อตาย (Red nose)", "ตุ่มน้ำใสที่กีบเท้า", "แผลหลุมรูปวงกลมที่เต้านม", "ปอดโป่งพองมีลมรั่ว"], answer: "เยื่อบุโพรงจมูกอักเสบแดงจัดเป็นเนื้อตาย (Red nose)", damage: 50 },
+      { q: "ปมประสาท (Ganglion) ใดที่เป็นแหล่งแฝงตัวหลักของ BoHV-1 ในระบบประสาทของโค?", choices: ["Trigeminal ganglion", "Dorsal root ganglion ที่เอว", "Sympathetic chain ganglion", "Ciliary ganglion"], answer: "Trigeminal ganglion", damage: 50 },
+      { q: "Inclusion bodies ของเชื้อไวรัสกลุ่ม Herpesvirus มักพบที่ตำแหน่งใดในเซลล์?", choices: ["Intranuclear inclusion bodies (Cowdry type A)", "Intracytoplasmic inclusion bodies", "ไม่พบ Inclusion bodies", "พบเฉพาะในถุงน้ำดี"], answer: "Intranuclear inclusion bodies (Cowdry type A)", damage: 50 }
+    ]
+  },
+  {
+    name: "FeLV / FIV Retroviral Complex",
+    chapter: 6,
+    chapterTitle: "Retroviridae",
+    maxHp: 200,
+    virusType: 'retro',
+    glow: 'rgba(16, 185, 129, 0.8)',
+    questions: [
+      { q: "เอนไซม์จำเพาะที่ไวรัส Retrovirus ต้องใช้ในการเปลี่ยน RNA เป็น DNA คือเอนไซม์ใด?", choices: ["Reverse Transcriptase (RNA-dependent DNA polymerase)", "RNA Polymerase II", "DNA Ligase", "Topoisomerase"], answer: "Reverse Transcriptase (RNA-dependent DNA polymerase)", damage: 50 },
+      { q: "เซลล์เป้าหมายหลักที่ถูกทำลายในแมวที่ติดเชื้อ Feline Immunodeficiency Virus (FIV) คืออะไร?", choices: ["CD4+ T lymphocytes", "B lymphocytes", "Erythrocytes", "Platelets"], answer: "CD4+ T lymphocytes", damage: 50 },
+      { q: "การวินิจฉัยโรค FeLV ในคลินิกสัตว์เลี้ยงนิยมตรวจหาองค์ประกอบใดเป็นหลัก?", choices: ["FeLV p27 Capsid Antigen ในกระแสเลือด", "Antibody ต่อ FeLV", "เอนไซม์ย่อยไขมัน", "เกล็ดเลือด"], answer: "FeLV p27 Capsid Antigen ในกระแสเลือด", damage: 50 },
+      { q: "การถ่ายทอดเชื้อ FeLV ในแมวมักเกิดขึ้นผ่านช่องทางใดที่สำคัญที่สุด?", choices: ["น้ำลายจากการเลียแต่งตัวให้กัน (Friendly grooming) และการกินชามข้าวร่วมกัน", "ละอองลอยในอากาศไกล 1 กิโลเมตร", "ยุงและแมลงดูดเลือด", "อาหารเม็ดสำเร็จรูป"], answer: "น้ำลายจากการเลียแต่งตัวให้กัน (Friendly grooming) และการกินชามข้าวร่วมกัน", damage: 50 }
+    ]
   }
 ];
 
+
 const PLAYER_MAX_HP = 100;
+
+const shuffle = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
+
+const formatBossQuestions = (bossQuestions: any[]) => {
+  return shuffle(
+    bossQuestions.map(q => ({
+      ...q,
+      choices: shuffle(q.choices || [])
+    }))
+  );
+};
 
 export default function BossBattle() {
   const { appUser } = useAuth();
   const [currentBossIndex, setCurrentBossIndex] = useState(0);
   const currentBoss = BOSSES[currentBossIndex];
   
-  const [questions, setQuestions] = useState(() => [...currentBoss.questions].sort(() => Math.random() - 0.5));
+  const [questions, setQuestions] = useState(() => formatBossQuestions(currentBoss.questions));
   const [bossHp, setBossHp] = useState(currentBoss.maxHp);
   const [playerHp, setPlayerHp] = useState(PLAYER_MAX_HP);
   const [currentQ, setCurrentQ] = useState(0);
@@ -120,6 +202,7 @@ export default function BossBattle() {
   const [dailyInfo, setDailyInfo] = useState<DailyExpInfo | null>(null);
   const [totalAwardedExp, setTotalAwardedExp] = useState(0);
   const [lastBossAwardedExp, setLastBossAwardedExp] = useState<number | null>(null);
+
 
   useLiveTracking('boss-battle', `ด่าน: ${currentBossIndex + 1}/${BOSSES.length} | เลือดบอส: ${bossHp}/${currentBoss.maxHp} | เลือดผู้เล่น: ${playerHp}/${PLAYER_MAX_HP}`);
   
@@ -176,7 +259,7 @@ export default function BossBattle() {
               const nextBoss = BOSSES[currentBossIndex + 1];
               setCurrentBossIndex(prev => prev + 1);
               setBossHp(nextBoss.maxHp);
-              setQuestions([...nextBoss.questions].sort(() => Math.random() - 0.5));
+              setQuestions(formatBossQuestions(nextBoss.questions));
               setCurrentQ(0);
               setBattleState('idle');
             }, 3000); // 3 seconds transition
@@ -274,14 +357,44 @@ export default function BossBattle() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-24 pt-4 px-2">
-      <div className="flex items-center justify-between">
-        <Link href="/student/play" onClick={() => sfx.click()}>
-          <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </Link>
-        <div className="font-bold text-danger text-glow flex items-center gap-2">
-          <Swords className="w-5 h-5 animate-pulse" /> BOSS BATTLE
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link href="/student/play" onClick={() => sfx.click()}>
+            <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10">
+              <ArrowLeft className="w-5 h-5 text-white" />
+            </Button>
+          </Link>
+          <div>
+            <div className="font-bold text-danger text-glow flex items-center gap-2">
+              <Swords className="w-5 h-5 animate-pulse" /> BOSS RAID: {currentBoss.name}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-slate-400 font-mono">
+                บอสตัวที่ {currentBossIndex + 1}/{BOSSES.length}
+              </span>
+              <select
+                value={currentBossIndex}
+                onChange={(e) => {
+                  const idx = Number(e.target.value);
+                  const b = BOSSES[idx];
+                  setCurrentBossIndex(idx);
+                  setBossHp(b.maxHp);
+                  setQuestions(formatBossQuestions(b.questions));
+                  setCurrentQ(0);
+                  setPlayerHp(PLAYER_MAX_HP);
+                  setBattleState('idle');
+                  setDamageText(null);
+                }}
+                className="bg-slate-900 border border-red-500/40 text-red-300 text-xs rounded-lg px-2 py-0.5 outline-none focus:border-red-400"
+              >
+                {BOSSES.map((b, i) => (
+                  <option key={`${b.name}-${i}`} value={i} className="bg-slate-900 text-white">
+                    บอสที่ {i + 1}: {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {dailyInfo && (

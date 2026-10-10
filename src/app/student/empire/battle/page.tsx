@@ -220,12 +220,47 @@ function BattleContent() {
               dAtk = Math.max(dAtk + 15, 45);
             }
 
+            // Defense Structures bonus (Bio-Wall, Spike Wall, Sentry Tower, Regen Depot)
+            let buildingBonusHp = 0;
+            let buildingBonusAtk = 0;
+            let buildingPrefix = '';
+            if (currentTile.buildingType) {
+              if (currentTile.buildingType === 'spike_wall') {
+                buildingBonusHp = Math.max(currentTile.buildingHp || 3500, 500);
+                buildingBonusAtk = 30;
+                buildingPrefix = '🏰 [กำแพงหนาม Lv.2] ';
+              } else if (currentTile.buildingType === 'sentry_tower') {
+                buildingBonusHp = Math.max(currentTile.buildingHp || 1800, 400);
+                buildingBonusAtk = 45;
+                buildingPrefix = '🏹 [ป้อมยิงโจมตี] ';
+              } else if (currentTile.buildingType === 'regen_depot') {
+                buildingBonusHp = Math.max(currentTile.buildingHp || 1200, 300);
+                buildingBonusAtk = 10;
+                buildingPrefix = '💚 [สถานีฟื้นฟู] ';
+              } else {
+                buildingBonusHp = Math.max(currentTile.buildingHp || 1500, 350);
+                buildingBonusAtk = 15;
+                buildingPrefix = '🛡️ [กำแพงชีวภาพ] ';
+              }
+            }
+
+            dHp += buildingBonusHp;
+            dAtk += buildingBonusAtk;
+
+            // Persistent Siege Damage: If sector was previously attacked by someone and not fully repaired/reset
+            const maxCalculatedHp = dHp;
+            let currentPersistentHp = maxCalculatedHp;
+            if (typeof currentTile.currentDefenderHp === 'number' && currentTile.currentDefenderHp > 0) {
+              currentPersistentHp = Math.min(maxCalculatedHp, currentTile.currentDefenderHp);
+            }
+
             const citadelPrefix = currentTile.isCitadel ? `🏛️ นครหลวงกิลด์ [${currentTile.guildName || 'CITADEL'}] - ` : '';
+            const damagedPrefix = currentPersistentHp < maxCalculatedHp ? `💥 [เสียหายเหลือ ${Math.round((currentPersistentHp / maxCalculatedHp) * 100)}%] ` : '';
             setDefenderStats({
-              hp: dHp,
-              maxHp: dHp,
+              hp: currentPersistentHp,
+              maxHp: maxCalculatedHp,
               atk: dAtk,
-              name: `${citadelPrefix}${defData.fullname || 'Defender'}${isDecayed ? ' ⚠️ (ฐานรกร้าง -50% HP)' : ''}`,
+              name: `${citadelPrefix}${damagedPrefix}${buildingPrefix}${defData.fullname || 'Defender'}${isDecayed ? ' ⚠️ (ฐานรกร้าง -50% HP)' : ''}`,
               family: defData.pet?.family || 'parvo'
             });
           }
@@ -277,6 +312,18 @@ function BattleContent() {
             'pet.isInjured': true,
             'pet.currentHp': 0,
             'pet.maxHp': prev.maxHp,
+          }).catch(console.error);
+        }
+
+        // Persistent Siege Damage: Save remaining defender HP so comrades can finish off the weakened sector!
+        if (tile?.id) {
+          updateDoc(doc(db, 'empire_tiles', tile.id), {
+            currentDefenderHp: defenderStats.hp,
+            maxDefenderHp: defenderStats.maxHp,
+            buildingHp: tile.buildingType ? Math.min(tile.buildingHp || defenderStats.maxHp, defenderStats.hp) : undefined,
+            lastAttacked: new Date().toISOString(),
+            lastAttackedBy: appUser?.uid,
+            lastAttackedByName: appUser?.fullname || 'Attacker',
           }).catch(console.error);
         }
       }
@@ -371,6 +418,19 @@ function BattleContent() {
     if (appUser.guildName) {
       updatedTile.guildName = appUser.guildName;
     }
+
+    // Reset conquered defense structures and persistent HP for new owner
+    delete updatedTile.buildingType;
+    delete updatedTile.buildingName;
+    delete updatedTile.buildingHp;
+    delete updatedTile.maxBuildingHp;
+    delete updatedTile.buildingLevel;
+    delete updatedTile.builtBy;
+    delete updatedTile.builtByName;
+    delete updatedTile.currentDefenderHp;
+    delete updatedTile.maxDefenderHp;
+    delete updatedTile.lastAttackedBy;
+    delete updatedTile.lastAttackedByName;
 
     // Safety: remove all keys with undefined value to prevent Firestore setDoc error
     Object.keys(updatedTile).forEach((key) => {

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, doc, setDoc, updateDoc, increment, arrayUnion, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, setDoc, updateDoc, increment, arrayUnion, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { EmpireTile, Guild, User } from '@/types';
 import { SVGVirus } from '@/components/ui/SVGVirus';
 import { Loader2, ArrowLeft, Swords, Crosshair, AlertTriangle, Shield, Lock, Home, Target, Flame, Sparkles, Users, Plus, Check, Crown, Gift, Radio, Building2, Zap, Rocket, ShieldCheck, BookOpen, ZoomIn, ZoomOut, Compass, X, BarChart3, Eye, CloudFog, ChevronRight } from 'lucide-react';
@@ -131,6 +131,33 @@ export const getPlayerUniqueColor = (uid: string, isCurrentPlayer: boolean) => {
   return PLAYER_PALETTE[index];
 };
 
+// Generates clean, readable 2-3 character initials for tactical map view
+export const getOwnerMonogram = (name?: string): string => {
+  if (!name) return '?';
+  const trimmed = name.trim();
+  if (!trimmed) return '?';
+
+  // English name: e.g. "John Doe" -> "JD", "Admin" -> "AD"
+  if (/^[A-Za-z]/.test(trimmed)) {
+    const words = trimmed.split(/[\s_-]+/);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return trimmed.slice(0, 2).toUpperCase();
+  }
+
+  // Thai leading vowels (เ, แ, โ, ใ, ไ) -> take 3 chars (e.g. "เอก", "ไชย")
+  if (/^[\u0E40-\u0E44]/.test(trimmed)) {
+    return trimmed.slice(0, 3);
+  }
+
+  // Thai 2nd char is upper/lower vowel (e.g. ิ in "ชิน", า in "วาร", ุ in "ดุษ") -> take 3 chars ("ชิน", "วาร")
+  if (trimmed.length >= 3 && /[\u0E30-\u0E39]/.test(trimmed[1])) {
+    return trimmed.slice(0, 3);
+  }
+
+  // Default 2 characters (e.g. "ณภ", "สม", "ปก")
+  return trimmed.slice(0, 2);
+};
+
 export const getVaultGuardianCoords = (): string[] => {
   const coords: string[] = [];
   // 50x50 central vault perimeter (22..27, excluding 24,24..25,25)
@@ -148,6 +175,71 @@ export const getVaultGuardianCoords = (): string[] => {
     }
   }
   return coords;
+};
+
+// ── DEFENSE STRUCTURES & WALLS SPECIFICATIONS (EXP SINKS) ──
+export interface DefenseStructureConfig {
+  id: 'bio_wall' | 'spike_wall' | 'sentry_tower' | 'regen_depot';
+  name: string;
+  icon: string;
+  costExp: number;
+  repairCostExp: number;
+  bonusHp: number;
+  bonusAtk: number;
+  desc: string;
+  badge: string;
+  badgeColor: string;
+}
+
+export const DEFENSE_STRUCTURES: Record<string, DefenseStructureConfig> = {
+  bio_wall: {
+    id: 'bio_wall',
+    name: 'กำแพงชีวภาพคัดหลั่ง (Bio-Wall)',
+    icon: '🛡️',
+    costExp: 250,
+    repairCostExp: 50,
+    bonusHp: 1500,
+    bonusAtk: 15,
+    desc: 'กำแพงด่านหน้า เพิ่ม HP ป้องกัน +1,500 และสะท้อน ATK +15 ป้องกันเมืองหลวงและเส้นทาง',
+    badge: 'กำแพง Lv.1',
+    badgeColor: 'border-cyan-400 text-cyan-300 bg-cyan-950/80',
+  },
+  spike_wall: {
+    id: 'spike_wall',
+    name: 'กำแพงหนามไกลโคโปรตีน (Spike Wall)',
+    icon: '🧱',
+    costExp: 600,
+    repairCostExp: 100,
+    bonusHp: 3500,
+    bonusAtk: 30,
+    desc: 'กำแพงหนาพิเศษชั้นใน เพิ่ม HP ป้องกัน +3,500 และสะท้อน ATK +30 ทนทานต่อการโจมตีสูงมาก',
+    badge: 'กำแพงหนา Lv.2',
+    badgeColor: 'border-amber-400 text-amber-300 bg-amber-950/80',
+  },
+  sentry_tower: {
+    id: 'sentry_tower',
+    name: 'ป้อมแอนติบอดีคอยยิงสวน (Antibody Sentry)',
+    icon: '🏹',
+    costExp: 450,
+    repairCostExp: 75,
+    bonusHp: 1800,
+    bonusAtk: 45,
+    desc: 'ป้อมชีวภาพยิงสวน เพิ่ม HP +1,800 และมี ATK สวนกลับสูง +45 ช่วยหยุดยั้งศัตรู',
+    badge: 'ป้อมยิงโจมตี',
+    badgeColor: 'border-rose-400 text-rose-300 bg-rose-950/80',
+  },
+  regen_depot: {
+    id: 'regen_depot',
+    name: 'สถานีฟื้นฟูชีวะ (Regen Bio-Depot)',
+    icon: '💚',
+    costExp: 350,
+    repairCostExp: 60,
+    bonusHp: 1200,
+    bonusAtk: 10,
+    desc: 'สถานีฟื้นฟูแนวรบ เพิ่ม HP +1,200 และช่วยเพิ่มขวัญกำลังใจให้กองกำลังในกิลด์',
+    badge: 'สถานีฟื้นฟู',
+    badgeColor: 'border-emerald-400 text-emerald-300 bg-emerald-950/80',
+  },
 };
 
 // Bio-Radar Scout Drone Question Pool (Virology & Bio-Defense)
@@ -302,9 +394,20 @@ export default function EmpireMap() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [previewGuildId, setPreviewGuildId] = useState<string | null>(null);
 
+  // Defense Structures & Wall Construction State
+  const [showBuildModal, setShowBuildModal] = useState(false);
+  const [buildingInProgress, setBuildingInProgress] = useState(false);
+  const [repairingInProgress, setRepairingInProgress] = useState(false);
+
   // Fog of War & GM View States
   const isGmUser = useMemo(() => {
-    return appUser?.email === 'never.away@gmail.com' || appUser?.role === 'instructor';
+    return (
+      appUser?.email === 'never.away@gmail.com' ||
+      appUser?.role === 'instructor' ||
+      appUser?.role === 'admin' ||
+      Boolean(appUser?.email?.includes('instructor')) ||
+      Boolean(appUser?.email?.includes('admin'))
+    );
   }, [appUser?.email, appUser?.role]);
 
   // GM View Mode: 'all' = God-mode view (sees all tiles), 'fog' = simulate player fog view
@@ -356,20 +459,18 @@ export default function EmpireMap() {
       setGuilds(gMap);
     });
 
-    // 3. Subscribe to All Users (to sync guild members list & leader status)
-    const qUsers = query(collection(db, 'users'));
-    const unsubUsers = onSnapshot(qUsers, (snap) => {
+    // 3. Load Guild Members on-demand (Replaces heavy onSnapshot across all users!)
+    getDocs(query(collection(db, 'users'))).then((snap) => {
       const uList: User[] = [];
       snap.forEach((d) => {
         uList.push(d.data() as User);
       });
       setAllUsers(uList);
-    });
+    }).catch(console.error);
 
     return () => {
       unsubTiles();
       unsubGuilds();
-      unsubUsers();
     };
   }, [appUser, router]);
 
@@ -974,6 +1075,72 @@ export default function EmpireMap() {
     }
   };
 
+  // ── GM Administrative Tools Handlers ──
+  const handleGmResetTile = async (tileId: string) => {
+    if (!isGmUser) return;
+    if (!window.confirm(`[GM Action] ยืนยันการล้างเซกเตอร์ [${tileId}] ให้กลับเป็นช่องว่าง (Empty Tile) หรือไม่?`)) return;
+    try {
+      const [tx, ty] = tileId.split(',').map(Number);
+      await setDoc(doc(db, 'empire_tiles', tileId), {
+        id: tileId,
+        x: tx,
+        y: ty,
+        type: 'empty',
+      });
+      sfx.click();
+      setClaimSuccessMsg(`🧹 [GM] รีเซ็ตเซกเตอร์ [${tileId}] ให้เป็นช่องว่างเรียบร้อยแล้ว`);
+      setTimeout(() => setClaimSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Failed to reset tile by GM:', err);
+      alert('เกิดข้อผิดพลาดในการล้างเซกเตอร์');
+    }
+  };
+
+  const handleGmFullHealTile = async (tileId: string) => {
+    if (!isGmUser) return;
+    try {
+      const t = tiles[tileId];
+      if (!t) return;
+      const updates: Partial<EmpireTile> = {
+        currentDefenderHp: t.maxDefenderHp || 1000,
+      };
+      if (t.buildingType) {
+        updates.buildingHp = t.maxBuildingHp || 1000;
+      }
+      await updateDoc(doc(db, 'empire_tiles', tileId), updates);
+      sfx.success();
+      setClaimSuccessMsg(`💖 [GM] ฟื้นฟู HP 100% ให้เซกเตอร์ [${tileId}] สำเร็จ`);
+      setTimeout(() => setClaimSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Failed to heal tile by GM:', err);
+    }
+  };
+
+  const handleGmGrantShield = async (tileId: string, hours: number = 24) => {
+    if (!isGmUser) return;
+    try {
+      const shieldUntil = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+      await updateDoc(doc(db, 'empire_tiles', tileId), { shieldUntil });
+      sfx.success();
+      setClaimSuccessMsg(`🛡️ [GM] มอบบาเรีย ${hours} ชั่วโมง ให้เซกเตอร์ [${tileId}] สำเร็จ`);
+      setTimeout(() => setClaimSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Failed to grant shield by GM:', err);
+    }
+  };
+
+  const handleGmRemoveShield = async (tileId: string) => {
+    if (!isGmUser) return;
+    try {
+      await updateDoc(doc(db, 'empire_tiles', tileId), { shieldUntil: null });
+      sfx.click();
+      setClaimSuccessMsg(`🔓 [GM] ปลดบาเรียของเซกเตอร์ [${tileId}] สำเร็จ`);
+      setTimeout(() => setClaimSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Failed to remove shield by GM:', err);
+    }
+  };
+
   // Guild Management Handlers
   const handleCreateGuild = async () => {
     if (!appUser || !newGuildName.trim() || !newGuildTag.trim()) return;
@@ -1241,6 +1408,113 @@ export default function EmpireMap() {
       console.error('Error donating to citadel:', err);
     } finally {
       setDonatingCitadelExp(false);
+    }
+  };
+
+  // ── DEFENSE STRUCTURES: BUILD & REPAIR HANDLERS (EXP SINKS) ──
+  const handleBuildDefenseStructure = async (structureId: string) => {
+    if (!appUser || !selectedTile || buildingInProgress) return;
+    const tileKey = `${selectedTile.x},${selectedTile.y}`;
+    const targetTile = tiles[tileKey];
+    const struct = DEFENSE_STRUCTURES[structureId];
+    if (!struct) return;
+
+    // Permissions: Can only build on own tile or allied guild tile
+    const isOwner = targetTile?.ownerUid === appUser.uid;
+    const isGuildMate = Boolean(appUser.guildId && targetTile?.guildId === appUser.guildId);
+    if (!isOwner && !isGuildMate) {
+      alert('⛔ คุณสามารถสร้างสิ่งก่อสร้างป้องกันได้เฉพาะในอาณาเขตของตนเองหรืออาณาเขตของกิลด์ตนเองเท่านั้น!');
+      return;
+    }
+
+    if (targetTile?.isCitadel) {
+      alert('🏛️ บริเวณนี้เป็นนครหลวงกิลด์อยู่แล้ว ไม่สามารถสร้างกำแพงทับตัวเมืองได้ (สร้างกำแพงรอบๆ นครหลวงเพื่อป้องกัน)');
+      return;
+    }
+
+    if (targetTile?.isOutpost || targetTile?.type === 'outpost') {
+      alert('🌾 บริเวณนี้เป็นป้อมฟาร์มวิจัย (Bio-Farm Outpost) ไม่สามารถสร้างกำแพงทับได้');
+      return;
+    }
+
+    const userCurrentExp = Number(appUser.exp || 0);
+    if (userCurrentExp < struct.costExp) {
+      alert(`⚠️ คุณมี EXP ไม่เพียงพอ! การก่อสร้าง "${struct.name}" ต้องการ ${struct.costExp} EXP (คุณมี ${userCurrentExp} EXP)`);
+      return;
+    }
+
+    setBuildingInProgress(true);
+    try {
+      // 1. Deduct user EXP
+      await updateDoc(doc(db, 'users', appUser.uid), {
+        exp: increment(-struct.costExp),
+      });
+
+      // 2. Set building data on empire tile
+      await updateDoc(doc(db, 'empire_tiles', tileKey), {
+        buildingType: struct.id,
+        buildingName: struct.name,
+        buildingHp: struct.bonusHp,
+        maxBuildingHp: struct.bonusHp,
+        buildingLevel: 1,
+        builtBy: appUser.uid,
+        builtByName: appUser.fullname || 'Defender',
+      });
+
+      sfx.levelUp();
+      setShowBuildModal(false);
+      setClaimSuccessMsg(`🧱 สร้าง "${struct.name}" สำเร็จ ณ เซกเตอร์ [${selectedTile.x}, ${selectedTile.y}] (-${struct.costExp} EXP)`);
+      setTimeout(() => setClaimSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Error building defense structure:', err);
+      alert('เกิดข้อผิดพลาดในการสร้างสิ่งก่อสร้าง');
+    } finally {
+      setBuildingInProgress(false);
+    }
+  };
+
+  const handleRepairDefenseStructure = async () => {
+    if (!appUser || !selectedTile || repairingInProgress) return;
+    const tileKey = `${selectedTile.x},${selectedTile.y}`;
+    const targetTile = tiles[tileKey];
+    if (!targetTile?.buildingType) return;
+    const struct = DEFENSE_STRUCTURES[targetTile.buildingType];
+    if (!struct) return;
+
+    const currentHp = targetTile.buildingHp || 0;
+    const maxHp = targetTile.maxBuildingHp || struct.bonusHp;
+    if (currentHp >= maxHp) {
+      alert('🛡️ สิ่งก่อสร้างนี้มีความสมบูรณ์ 100% อยู่แล้ว ไม่จำเป็นต้องซ่อมแซม');
+      return;
+    }
+
+    const userCurrentExp = Number(appUser.exp || 0);
+    if (userCurrentExp < struct.repairCostExp) {
+      alert(`⚠️ คุณมี EXP ไม่เพียงพอ! การซ่อมแซมต้องการ ${struct.repairCostExp} EXP (คุณมี ${userCurrentExp} EXP)`);
+      return;
+    }
+
+    setRepairingInProgress(true);
+    try {
+      // 1. Deduct repair EXP
+      await updateDoc(doc(db, 'users', appUser.uid), {
+        exp: increment(-struct.repairCostExp),
+      });
+
+      // 2. Restore building HP and persistent defender HP to max
+      await updateDoc(doc(db, 'empire_tiles', tileKey), {
+        buildingHp: maxHp,
+        currentDefenderHp: targetTile.maxDefenderHp || maxHp,
+      });
+
+      sfx.correct();
+      setClaimSuccessMsg(`🔨 ซ่อมแซม "${struct.name}" จนสมบูรณ์ 100% (-${struct.repairCostExp} EXP)`);
+      setTimeout(() => setClaimSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Error repairing structure:', err);
+      alert('เกิดข้อผิดพลาดในการซ่อมแซม');
+    } finally {
+      setRepairingInProgress(false);
     }
   };
 
@@ -1542,6 +1816,19 @@ export default function EmpireMap() {
             <span className="text-cyan-300">{explorationPercent}%</span>
           </div>
 
+          {/* Quick Jump to My Base */}
+          {stats.myCount > 0 && (
+            <button
+              type="button"
+              onClick={jumpToMyBase}
+              className="px-2 sm:px-2.5 py-1 rounded-xl text-xs font-bold font-mono bg-cyan-950/80 hover:bg-cyan-900/80 border border-cyan-400/60 text-cyan-300 transition-all flex items-center gap-1 shadow-sm active:scale-95 shadow-[0_0_12px_rgba(6,182,212,0.3)] animate-pulse"
+              title="เลื่อนกล้องไปยังเซกเตอร์ฐานทัพหลักของคุณทันที"
+            >
+              <Home className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <span className="hidden sm:inline">ฐานฉัน</span>
+            </button>
+          )}
+
           {/* Mobile-Only Fast Travel & Zoom Nav Button */}
           <button
             type="button"
@@ -1747,27 +2034,49 @@ export default function EmpireMap() {
         )}
       </div>
 
-      {/* Navigation & Zoom Modal (Opens from Header 'นำทาง' Button, Never Blocks Sectors!) */}
+      {/* Navigation & Zoom Modal (Full Screen Ready & Clean Exit) */}
       {showNavMenu && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm sm:max-w-md w-full p-4 sm:p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
             
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-              <div className="flex items-center gap-2 text-cyan-400 font-bold">
-                <Compass className="w-5 h-5 text-cyan-400" />
-                <h2 className="text-sm sm:text-base font-black uppercase tracking-wider text-white">
-                  นำทาง & ควบคุมแผนที่
-                </h2>
+            {/* Header with Prominent Back Button */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowNavMenu(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
+                  title="ย้อนกลับ / ปิด"
+                >
+                  <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                  <span>ย้อนกลับ</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                    <Compass className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
+                      นำทาง & ควบคุมแผนที่
+                    </h2>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      ระบบวาร์ปพิกัดด่วนและควบคุมระยะซูม
+                    </p>
+                  </div>
+                </div>
               </div>
               <button 
+                type="button"
                 onClick={() => setShowNavMenu(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
-                title="ปิด"
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                title="ปิดหน้าต่าง"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Scrollable Content Body */}
+            <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
 
             {/* 1. Zoom Controls */}
             <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3 space-y-2">
@@ -1910,14 +2219,17 @@ export default function EmpireMap() {
               </div>
             </div>
 
+            </div>
+
             {/* Footer */}
-            <div className="pt-1 text-center border-t border-slate-800">
+            <div className="pt-2 text-center border-t border-slate-800 shrink-0 flex items-center justify-end gap-2">
               <button 
                 type="button"
                 onClick={() => setShowNavMenu(false)}
-                className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold font-mono transition-colors"
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold font-mono transition-colors active:scale-95 flex items-center justify-center gap-1.5"
               >
-                ปิดหน้าต่าง
+                <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                <span>กลับสู่แผนที่ (Back to Map)</span>
               </button>
             </div>
 
@@ -1969,19 +2281,32 @@ export default function EmpireMap() {
               ? getPlayerUniqueColor(tile.ownerUid, isMyTileOnMap)
               : undefined;
 
-            const isAllyGuildTile = tile?.guildId && appUser?.guildId && tile.guildId === appUser.guildId;
+            const isAllyGuildTile = Boolean(tile?.guildId && appUser?.guildId && tile.guildId === appUser.guildId);
             const isOutpost = tile?.type === 'outpost' || tile?.isOutpost;
 
-            // Guild & Player Color Logic: If in a guild, use the guild's assigned color!
+            // Guild & Player Color Logic:
+            // - If personal tile: Full solid vibrant guild color
+            // - If guildmate's tile: Softer translucent guild shade (45% opacity) so the player's personal base stands out distinctly!
+            const guildBaseColor = guildObj?.color || '#2563eb';
+            const guildmateBgColor = guildBaseColor.startsWith('#') && guildBaseColor.length === 7
+              ? `${guildBaseColor}70`
+              : guildBaseColor.startsWith('#') && guildBaseColor.length === 4
+              ? `${guildBaseColor}7`
+              : guildBaseColor;
+
             const tileBgColor = isShielded
               ? '#083344'
               : guildObj?.color
-              ? guildObj.color
-              : playerColor
               ? isMyTileOnMap
+                ? guildObj.color
+                : isAllyGuildTile && !isGmUser
+                ? guildmateBgColor
+                : guildObj.color
+              : playerColor
+              ? isMyTileOnMap || isGmUser
                 ? `${playerColor}ee`
                 : isAllyGuildTile
-                ? `${playerColor}88`
+                ? `${playerColor}70`
                 : `${playerColor}55`
               : isOutpost
               ? '#064e3b'
@@ -2018,11 +2343,29 @@ export default function EmpireMap() {
               );
             }
 
+            const hasBuilding = Boolean(tile?.buildingType);
+            const buildingConfig = tile?.buildingType ? DEFENSE_STRUCTURES[tile.buildingType] : null;
+
             return (
               <button
                 key={id}
                 type="button"
                 onClick={() => handleTileClick(x, y)}
+                title={
+                  isGmUser && tile
+                    ? `[${x},${y}] ${
+                        tile.type === 'player'
+                          ? `👤 ผู้เล่น: ${tile.ownerName || 'ไม่ระบุ'} | 🛡️ กิลด์: ${tile.guildName || 'ไม่มี'} | 🦠 ${tile.ownerFamily || 'Pet'} | HP: ${tile.currentDefenderHp ?? 1000}/${tile.maxDefenderHp ?? 1000}${tile.buildingName ? ` | 🏗️ ${tile.buildingName} (สร้างโดย ${tile.builtByName || 'ไม่ระบุ'})` : ''}${isShielded ? ' | 🛡️ มีบาเรีย' : ''}`
+                          : tile.type === 'boss'
+                          ? `👹 บอส: ${tile.ownerName} (HP: ${tile.bossHp ?? 900}/${tile.maxBossHp ?? 900})`
+                          : isOutpost
+                          ? `🌾 ป้อมฟาร์มวิจัย (+100 EXP/วัน)${tile.ownerName ? ` | เจ้าของ: ${tile.ownerName}` : ' | ว่าง'}`
+                          : isCitadel
+                          ? `🏛️ นครหลวงกิลด์ [${guildObj?.name || 'Citadel'}]`
+                          : `เซกเตอร์ว่างเปล่า [${x},${y}]`
+                      }`
+                    : undefined
+                }
                 className={`relative rounded-sm overflow-hidden flex items-center justify-center transition-transform active:scale-90 ${
                   isSelected ? 'z-20 ring-2 ring-white scale-110 shadow-lg' : ''
                 }`}
@@ -2030,12 +2373,24 @@ export default function EmpireMap() {
                   width: 'clamp(28px, 4.4vw, 44px)',
                   height: 'clamp(28px, 4.4vw, 44px)',
                   backgroundColor: tileBgColor,
-                  border: isMyTileOnMap
+                  border: (tile && typeof tile.currentDefenderHp === 'number' && tile.maxDefenderHp && tile.currentDefenderHp < tile.maxDefenderHp)
+                    ? '2.5px solid #f43f5e'
+                    : hasBuilding
+                    ? tile.buildingType === 'spike_wall'
+                      ? '2.5px solid #fbbf24'
+                      : tile.buildingType === 'sentry_tower'
+                      ? '2.5px solid #f43f5e'
+                      : tile.buildingType === 'regen_depot'
+                      ? '2.5px solid #10b981'
+                      : '2.5px solid #22d3ee'
+                    : isMyTileOnMap
                     ? isOutpost
                       ? '2.5px solid #34d399'
-                      : '2px solid #ffffff'
+                      : '2.5px solid #22d3ee'
                     : isAllyGuildTile
-                    ? '2px solid #fbbf24'
+                    ? guildObj?.color
+                      ? `1.5px solid ${guildObj.color}90`
+                      : '1.5px solid rgba(255,255,255,0.25)'
                     : guildObj?.color
                     ? `1.5px solid ${guildObj.color}`
                     : playerColor
@@ -2057,16 +2412,22 @@ export default function EmpireMap() {
                     : isSanctuary
                     ? '1px dashed #0284c7'
                     : '1px solid #1e293b',
-                  boxShadow: isCitadel
+                  boxShadow: hasBuilding
+                    ? tile.buildingType === 'spike_wall'
+                      ? '0 0 12px rgba(245,158,11,0.9)'
+                      : tile.buildingType === 'sentry_tower'
+                      ? '0 0 12px rgba(244,63,94,0.9)'
+                      : '0 0 10px rgba(6,182,212,0.9)'
+                    : isCitadel
                     ? '0 0 14px rgba(245,158,11,0.9)'
                     : isShielded
                     ? '0 0 10px rgba(6,182,212,0.85)'
                     : isOutpost
                     ? '0 0 12px rgba(16,185,129,0.7)'
                     : isMyTileOnMap
-                    ? `0 0 10px rgba(255,255,255,0.7)`
+                    ? 'inset 0 0 8px rgba(34,211,238,0.7), 0 0 14px rgba(6,182,212,0.95)'
                     : isAllyGuildTile
-                    ? `0 0 8px rgba(251,191,36,0.6)`
+                    ? '0 0 4px rgba(0,0,0,0.35)'
                     : isInCitadelZone
                     ? 'inset 0 0 6px rgba(245,158,11,0.5)'
                     : guildObj?.color
@@ -2086,15 +2447,56 @@ export default function EmpireMap() {
                   <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse pointer-events-none" />
                 )}
 
-                {/* Citadel Icon */}
+                {/* Citadel Icon (Fills the sector with Grand Golden Castle 🏰) */}
                 {isCitadel && (
-                  <div className="w-full h-full p-1 flex items-center justify-center text-amber-300">
-                    <Building2 className="w-full h-full drop-shadow-[0_0_8px_rgba(245,158,11,0.9)] animate-pulse" />
+                  <div className="w-full h-full flex items-center justify-center relative z-10 animate-in zoom-in-75 duration-200">
+                    <span className="text-2xl sm:text-3xl drop-shadow-[0_0_12px_rgba(245,158,11,1)] select-none animate-pulse">
+                      🏰
+                    </span>
+                  </div>
+                )}
+
+                {/* Defense Structure Full-Sector Icon (Fills the entire sector with Shield/Wall/Bow) */}
+                {hasBuilding && !isCitadel && buildingConfig && (
+                  <div className="w-full h-full flex items-center justify-center relative z-10 animate-in zoom-in-75 duration-200">
+                    {tile.buildingType === 'sentry_tower' ? (
+                      <span className="text-2xl sm:text-3xl drop-shadow-[0_0_10px_rgba(244,63,94,0.9)] select-none animate-pulse">
+                        🏹
+                      </span>
+                    ) : tile.buildingType === 'spike_wall' ? (
+                      <span className="text-2xl sm:text-3xl drop-shadow-[0_0_10px_rgba(245,158,11,0.9)] select-none">
+                        🧱
+                      </span>
+                    ) : tile.buildingType === 'regen_depot' ? (
+                      <span className="text-2xl sm:text-3xl drop-shadow-[0_0_10px_rgba(16,185,129,0.9)] select-none">
+                        💚
+                      </span>
+                    ) : (
+                      <span className="text-2xl sm:text-3xl drop-shadow-[0_0_10px_rgba(6,182,212,0.9)] select-none">
+                        🛡️
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Building Mini Health Bar on Bottom */}
+                {hasBuilding && tile && (
+                  <div className="absolute bottom-0 inset-x-0 h-1 bg-slate-950/90 overflow-hidden z-20 pointer-events-none">
+                    <div 
+                      className={`h-full transition-all ${
+                        (tile.buildingHp || 0) / (tile.maxBuildingHp || 1000) > 0.5 
+                          ? 'bg-emerald-400' 
+                          : 'bg-rose-400'
+                      }`}
+                      style={{ 
+                        width: `${Math.min(100, Math.max(0, ((tile.buildingHp || 0) / (tile.maxBuildingHp || 1000)) * 100))}%` 
+                      }}
+                    />
                   </div>
                 )}
 
                 {/* Outpost Icon (Unclaimed or Claimed) */}
-                {isOutpost && !tile?.ownerFamily && !isCitadel && (
+                {isOutpost && !tile?.ownerFamily && !isCitadel && !hasBuilding && (
                   <div className="w-full h-full p-1 flex items-center justify-center text-emerald-300">
                     <Radio className="w-full h-full animate-pulse text-emerald-400" />
                   </div>
@@ -2107,18 +2509,28 @@ export default function EmpireMap() {
                   </div>
                 )}
 
-                {/* Player Icon */}
-                {tile?.type === 'player' && tile.ownerFamily && !isCitadel && (
-                  <div className="w-full h-full p-0.5 flex items-center justify-center relative">
-                    {tile.bonusExp && (
-                      <Crown className="w-2.5 h-2.5 text-yellow-300 absolute -top-0.5 -right-0.5 drop-shadow z-10" />
-                    )}
+                {/* Player Identity: Centered Pet Virus with Personal Highlight */}
+                {tile?.type === 'player' && !isCitadel && !hasBuilding && (
+                  <div className="w-full h-full p-0.5 flex items-center justify-center relative select-none">
+                    {/* Crown on Player's Own Base or Bonus EXP */}
+                    {isMyTileOnMap ? (
+                      <Crown className="w-3.5 h-3.5 text-amber-300 absolute -top-1 -right-1 drop-shadow-[0_0_8px_rgba(251,191,36,1)] z-20 animate-pulse pointer-events-none" />
+                    ) : tile.bonusExp ? (
+                      <Crown className="w-2.5 h-2.5 text-yellow-300 absolute -top-0.5 -right-0.5 drop-shadow z-10 pointer-events-none" />
+                    ) : null}
+
                     {isOutpost && (
-                      <Radio className="w-2.5 h-2.5 text-emerald-300 absolute -top-0.5 -right-0.5 drop-shadow z-10 animate-pulse" />
+                      <Radio className="w-2.5 h-2.5 text-emerald-300 absolute -top-0.5 -left-0.5 drop-shadow z-10 animate-pulse pointer-events-none" />
                     )}
+
+                    {/* Virus Pet Graphic */}
                     <SVGVirus
-                      type={tile.ownerFamily as any}
-                      className={`w-full h-full ${isMyTileOnMap ? 'text-white' : 'text-slate-200'}`}
+                      type={familyToVirusType(tile.ownerFamily || 'parvo')}
+                      className={`w-full h-full transition-all ${
+                        isMyTileOnMap
+                          ? 'text-cyan-200 drop-shadow-[0_0_8px_rgba(34,211,238,1)] scale-110'
+                          : 'text-white/90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)] hover:scale-105'
+                      }`}
                     />
                   </div>
                 )}
@@ -2132,322 +2544,450 @@ export default function EmpireMap() {
       <div className="fixed bottom-0 inset-x-0 z-40 p-2 sm:p-4 max-w-4xl mx-auto pointer-events-none">
         {selectedTile ? (
           <div className="pointer-events-auto bg-slate-900/95 border border-slate-700/80 rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-[0_10px_40px_rgba(0,0,0,0.8)] backdrop-blur-md animate-in slide-in-from-bottom-3 duration-200">
-            <div className="flex items-center justify-between gap-2.5 sm:gap-4">
-              
-              {/* Check if Selected Tile is in Fog of War */}
-              {!isTileVisible(selectedTile.x, selectedTile.y) ? (
-                <>
-                  {/* Fog Radar Hologram Icon */}
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-950/90 border border-slate-800 shrink-0 overflow-hidden relative shadow-inner flex items-center justify-center">
-                    <CloudFog className="w-6 h-6 text-cyan-400 animate-pulse" />
-                  </div>
-
-                  {/* Fog Info Details */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-300">
-                      <span className="text-white font-black">เซกเตอร์ [{selectedTile.x}, {selectedTile.y}]</span>
-                      <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-1.5 py-0.2 rounded font-mono">
-                        ปกคลุมด้วยหมอกสงคราม (Uncharted)
-                      </span>
+            {/* Check if Selected Tile is in Fog of War */}
+            {!isTileVisible(selectedTile.x, selectedTile.y) ? (
+              <>
+                {/* TIER 1: Fog Radar Hologram + Details + Close Button */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    {/* Fog Radar Hologram Icon */}
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-950/90 border border-slate-800 shrink-0 overflow-hidden relative shadow-inner flex items-center justify-center mt-0.5">
+                      <CloudFog className="w-6 h-6 text-cyan-400 animate-pulse" />
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5 truncate">
-                      ส่งโดรนสอดแนมตอบคำถามไวรัสวิทยาเพื่อเปิดแผนที่ 5×5 ถาวร (+25 EXP)
+
+                    {/* Fog Info Details */}
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-300 flex-wrap">
+                        <span className="text-white font-black text-sm whitespace-nowrap bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60">
+                          เซกเตอร์ [{selectedTile.x}, {selectedTile.y}]
+                        </span>
+                        <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded font-mono whitespace-nowrap">
+                          ปกคลุมด้วยหมอกสงคราม (Uncharted)
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        ส่งโดรนสอดแนมตอบคำถามไวรัสวิทยาเพื่อเปิดแผนที่ 5×5 ถาวร (+25 EXP)
+                      </div>
                     </div>
                   </div>
 
-                  {/* Scout Drone Button */}
-                  <div className="shrink-0 flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      disabled={!dailyScoutInfo.canScout}
-                      onClick={() => handleOpenScoutModal(selectedTile.x, selectedTile.y)}
-                      className={`h-10 sm:h-11 px-3.5 sm:px-5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
-                        dailyScoutInfo.canScout
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.6)] active:scale-95'
-                          : 'bg-slate-800 text-slate-500 border border-slate-700/80 cursor-not-allowed'
-                      }`}
-                    >
-                      {dailyScoutInfo.canScout ? (
-                        <>
-                          <Rocket className="w-4 h-4 text-slate-950 animate-bounce" />
-                          <span>🛸 ส่งโดรนสอดแนม ({dailyScoutInfo.remainingScouts}/{DAILY_SCOUT_DRONE_LIMIT})</span>
-                        </>
-                      ) : (
-                        <>
-                          <Lock className="w-4 h-4 text-slate-500" />
-                          <span>แบตหมด ({DAILY_SCOUT_DRONE_LIMIT}/{DAILY_SCOUT_DRONE_LIMIT})</span>
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTile(null)}
-                      className="p-2 sm:p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-                      title="ปิดกล่องข้อมูล"
-                    >
-                      <X className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-              {/* 3D Target Pet Hologram Preview */}
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-950/90 border border-slate-700/80 shrink-0 overflow-hidden relative shadow-inner flex items-center justify-center">
-                {(activeTileData?.isCitadel ||
-                  (activeTileData?.guildId &&
-                    (guilds[activeTileData.guildId]?.citadelCoords?.includes(`${selectedTile.x},${selectedTile.y}`) ||
-                      guilds[activeTileData.guildId]?.citadelCoord === `${selectedTile.x},${selectedTile.y}`))) ? (
-                  <div className="w-full h-full flex items-center justify-center bg-amber-950/60 text-amber-300 shadow-[inset_0_0_12px_rgba(245,158,11,0.5)]">
-                    <Building2 className="w-6 h-6 text-amber-400 animate-pulse" />
-                  </div>
-                ) : (activeTileData?.type === 'outpost' || activeTileData?.isOutpost) ? (
-                  <div className="w-full h-full flex items-center justify-center bg-emerald-950/60 text-emerald-300 shadow-[inset_0_0_10px_rgba(16,185,129,0.4)]">
-                    <Radio className="w-6 h-6 text-emerald-400 animate-pulse" />
-                  </div>
-                ) : activeTileData?.type === 'boss' ? (
-                  <VirusViewer3D 
-                    type="corona" 
-                    color="#ef4444" 
-                    interactive={false} 
-                    className="w-full h-full scale-125" 
-                  />
-                ) : activeTileData?.type === 'player' ? (
-                  <VirusViewer3D 
-                    type={familyToVirusType(activeTileData.ownerFamily || 'parvo')} 
-                    color={
-                      activeTileData.guildId && guilds[activeTileData.guildId]?.color
-                        ? guilds[activeTileData.guildId].color
-                        : getPlayerUniqueColor(activeTileData.ownerUid || '', isMyTile) 
-                    } 
-                    interactive={false} 
-                    className="w-full h-full scale-125" 
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Crosshair className="w-5 h-5 text-slate-600 animate-spin-slow" />
-                  </div>
-                )}
-              </div>
-
-              {/* Sector Information & Badges */}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1 sm:gap-1.5 text-xs font-mono font-bold text-cyan-400 flex-wrap">
-                  <span className="text-white font-black">เซกเตอร์ [{selectedTile.x}, {selectedTile.y}]</span>
-                  {(activeTileData?.isCitadel ||
-                    (activeTileData?.guildId &&
-                      (guilds[activeTileData.guildId]?.citadelCoords?.includes(`${selectedTile.x},${selectedTile.y}`) ||
-                        guilds[activeTileData.guildId]?.citadelCoord === `${selectedTile.x},${selectedTile.y}`))) && (
-                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/50 px-1.5 py-0.2 rounded font-mono font-bold flex items-center gap-1 shadow-sm">
-                      <Building2 className="w-2.5 h-2.5 text-amber-400" /> นครหลวงกิลด์ (4 ช่อง) LV.{activeTileData?.guildId ? (guilds[activeTileData.guildId]?.citadelLevel || 1) : 1}
-                    </span>
-                  )}
-                  {activeTileData?.guildId && isCitadelInfluenceZone(selectedTile.x, selectedTile.y, guilds[activeTileData.guildId]?.citadelCoord, guilds[activeTileData.guildId]?.citadelCoords) && !(activeTileData?.isCitadel || guilds[activeTileData.guildId]?.citadelCoords?.includes(`${selectedTile.x},${selectedTile.y}`) || guilds[activeTileData.guildId]?.citadelCoord === `${selectedTile.x},${selectedTile.y}`) && (
-                    <span className="text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/30 px-1.5 py-0.2 rounded font-mono font-bold flex items-center gap-1">
-                      <Shield className="w-2.5 h-2.5 text-amber-400" /> ป้องกันรกร้าง (Aura)
-                    </span>
-                  )}
-                  {isSanctuaryZone(selectedTile.x, selectedTile.y) && (
-                    <span className="text-[10px] bg-sky-500/20 text-sky-300 border border-sky-500/40 px-1.5 py-0.2 rounded font-mono font-bold flex items-center gap-1">
-                      <ShieldCheck className="w-2.5 h-2.5 text-sky-400" /> เขตเกิดปลอดภัย
-                    </span>
-                  )}
-                  {isShieldedTile(activeTileData) && (
-                    <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-1.5 py-0.2 rounded font-mono font-bold flex items-center gap-1 animate-pulse">
-                      <ShieldCheck className="w-2.5 h-2.5 text-cyan-400" /> บาเรีย ({Math.max(1, Math.ceil((new Date(activeTileData?.shieldUntil!).getTime() - Date.now()) / (3600 * 1000)))} ชม.)
-                    </span>
-                  )}
-                  {isDecayedTile(activeTileData, activeTileData?.guildId ? guilds[activeTileData.guildId]?.citadelCoord : undefined, activeTileData?.guildId ? guilds[activeTileData.guildId]?.citadelCoords : undefined) && (
-                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 rounded font-mono font-bold flex items-center gap-1">
-                      <AlertTriangle className="w-2.5 h-2.5 text-amber-400" /> ฐานรกร้าง (-50% HP)
-                    </span>
-                  )}
-                  {isMyTile && (
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.2 rounded font-sans">
-                      ของคุณ
-                    </span>
-                  )}
-                  {isGuildTile && !isMyTile && (
-                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 rounded font-mono font-bold flex items-center gap-1">
-                      <Shield className="w-2.5 h-2.5 text-amber-400" /> พันธมิตร
-                    </span>
-                  )}
-                  {(activeTileData?.type === 'outpost' || activeTileData?.isOutpost) && (
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.2 rounded font-mono font-bold flex items-center gap-1">
-                      <Zap className="w-2.5 h-2.5 text-emerald-400" /> +100 EXP/วัน
-                    </span>
-                  )}
-                </div>
-
-                <div className="text-xs sm:text-sm font-bold text-slate-200 truncate flex items-center gap-1.5 mt-0.5">
-                  {(activeTileData?.type === 'outpost' || activeTileData?.isOutpost) ? (
-                    <span className="text-emerald-300 font-black flex items-center gap-1.5">
-                      <span>{activeTileData.ownerName || 'ป้อมฟาร์มวิจัย (Bio-Farm Outpost)'}</span>
-                      {activeTileData.ownerUid && (
-                        <span className="text-[10px] text-slate-300 font-normal">
-                          (ผู้ครอง: {activeTileData.ownerName})
-                        </span>
-                      )}
-                    </span>
-                  ) : activeTileData?.type === 'boss' ? (
-                    <span className="text-red-300 font-black">{activeTileData.ownerName || 'บอสระบบภูมิคุ้มกัน'}</span>
-                  ) : activeTileData?.type === 'player' ? (
-                    <>
-                      <span 
-                        className="w-2.5 h-2.5 rounded-full inline-block shrink-0 shadow-sm" 
-                        style={{ 
-                          backgroundColor: activeTileData.guildId && guilds[activeTileData.guildId]?.color
-                            ? guilds[activeTileData.guildId].color
-                            : getPlayerUniqueColor(activeTileData.ownerUid || '', isMyTile) 
-                        }}
-                      />
-                      {activeTileData.guildName && (
-                        <span 
-                          className="text-[10px] px-1.5 py-0.2 rounded border font-mono font-bold"
-                          style={{
-                            backgroundColor: activeTileData.guildId && guilds[activeTileData.guildId]?.color
-                              ? `${guilds[activeTileData.guildId].color}25`
-                              : 'rgba(245,158,11,0.2)',
-                            borderColor: activeTileData.guildId && guilds[activeTileData.guildId]?.color
-                              ? guilds[activeTileData.guildId].color
-                              : '#f59e0b',
-                            color: activeTileData.guildId && guilds[activeTileData.guildId]?.color
-                              ? guilds[activeTileData.guildId].color
-                              : '#fcd34d',
-                          }}
-                        >
-                          [{activeTileData.guildName}]
-                        </span>
-                      )}
-                      <span>{activeTileData.ownerName}</span>
-                      <span className="text-[10px] text-slate-400 font-normal">({activeTileData.ownerFamily})</span>
-                    </>
-                  ) : (
-                    <span className="text-slate-400">เซลล์ว่างเปล่า (ยังไม่มีเจ้าของ)</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Button & Close Button */}
-              <div className="shrink-0 flex items-center gap-1.5">
-                {/* Guild Leader: Establish Citadel Button (Only when guild has no citadel yet - Relocation locked) */}
-                {appUser?.guildId &&
-                  guilds[appUser.guildId]?.leaderUid === appUser.uid &&
-                  !guilds[appUser.guildId]?.citadelCoord &&
-                  (!guilds[appUser.guildId]?.citadelCoords || guilds[appUser.guildId]?.citadelCoords?.length === 0) &&
-                  (activeTileData?.guildId === appUser.guildId || activeTileData?.ownerUid === appUser.uid || isGuildTile) &&
-                  !activeTileData?.isCitadel &&
-                  !activeTileData?.isOutpost &&
-                  !isCentralVaultZone(selectedTile.x, selectedTile.y) && (
-                    <button
-                      type="button"
-                      onClick={() => handleEstablishCitadel(`${selectedTile.x},${selectedTile.y}`)}
-                      className="h-10 sm:h-11 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.6)] active:scale-95 transition-all"
-                      title="สถาปนานครหลวงกิลด์ 4 ช่อง (2x2 บล็อก) ณ บริเวณนี้"
-                    >
-                      <Building2 className="w-4 h-4 text-slate-950" />
-                      <span>🏛️ สถาปนานครหลวง (4 ช่อง)</span>
-                    </button>
-                )}
-
-                {isMyTile && (activeTileData?.isOutpost || activeTileData?.type === 'outpost') ? (
-                  (() => {
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    const hasClaimedToday = activeTileData.lastClaimedDate === todayStr;
-                    return (
-                      <button
-                        type="button"
-                        disabled={hasClaimedToday || claimingOutpost}
-                        onClick={() => handleClaimDailyExp(`${selectedTile.x},${selectedTile.y}`)}
-                        className={`h-10 sm:h-11 px-3 sm:px-5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all ${
-                          hasClaimedToday
-                            ? 'bg-slate-800 text-emerald-400/60 border border-emerald-900/40 cursor-default'
-                            : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)] active:scale-95'
-                        }`}
-                      >
-                        <Zap className={`w-4 h-4 ${hasClaimedToday ? 'text-emerald-500/60' : 'text-slate-950 fill-current'}`} />
-                        <span>{hasClaimedToday ? 'รับแล้ว' : '🌾 เก็บเกี่ยว (+100 EXP)'}</span>
-                      </button>
-                    );
-                  })()
-                ) : isShieldedTile(activeTileData) ? (
+                  {/* Close Button */}
                   <button
                     type="button"
-                    disabled
-                    className="h-10 sm:h-11 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0 bg-slate-800 text-cyan-400 border border-cyan-500/40 cursor-not-allowed shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+                    onClick={() => setSelectedTile(null)}
+                    className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                    title="ปิดกล่องข้อมูล"
                   >
-                    <ShieldCheck className="w-4 h-4 text-cyan-400 animate-pulse" />
-                    <span>ติดบาเรีย ({Math.max(1, Math.ceil((new Date(activeTileData?.shieldUntil!).getTime() - Date.now()) / (3600 * 1000)))} ชม.)</span>
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
-                ) : !isMyTile && (
+                </div>
+
+                {/* TIER 2: Scout Drone Button */}
+                <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-end">
                   <button
                     type="button"
-                    disabled={!canInfect || (stats.myCount > 0 && !dailyEmpireInfo.canAttack)}
-                    onClick={handleAction}
-                    className={`h-10 sm:h-11 px-4 sm:px-6 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all ${
-                      canInfect && (stats.myCount === 0 || dailyEmpireInfo.canAttack)
-                        ? stats.myCount === 0
-                          ? 'bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow-[0_0_15px_rgba(52,211,153,0.6)] active:scale-95'
-                          : (activeTileData?.type === 'outpost' || activeTileData?.isOutpost)
-                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)] active:scale-95'
-                          : activeTileData?.type === 'boss'
-                          ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] active:scale-95'
-                          : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.5)] active:scale-95'
-                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    disabled={!dailyScoutInfo.canScout}
+                    onClick={() => handleOpenScoutModal(selectedTile.x, selectedTile.y)}
+                    className={`h-9 sm:h-10 px-3.5 sm:px-5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+                      dailyScoutInfo.canScout
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.6)] active:scale-95'
+                        : 'bg-slate-800 text-slate-500 border border-slate-700/80 cursor-not-allowed'
                     }`}
                   >
-                    {canInfect && (stats.myCount === 0 || dailyEmpireInfo.canAttack) ? (
+                    {dailyScoutInfo.canScout ? (
                       <>
-                        {stats.myCount === 0 ? (
-                          <>
-                            <Rocket className="w-4 h-4 text-slate-950 animate-bounce" />
-                            <span>{activeTileData?.type === 'empty' ? '🚀 สถาปนาฐานแรก' : '🚀 ทิ้งดิ่งชิงฐาน'}</span>
-                          </>
-                        ) : (activeTileData?.type === 'outpost' || activeTileData?.isOutpost) ? (
-                          <>
-                            <Radio className="w-4 h-4 text-slate-950 animate-pulse" />
-                            <span>ยึดป้อม (+100 EXP)</span>
-                          </>
-                        ) : activeTileData?.type === 'boss' ? (
-                          <>
-                            <Swords className="w-4 h-4" />
-                            <span>ตีบอส</span>
-                          </>
-                        ) : (
-                          <>
-                            <Swords className="w-4 h-4" />
-                            <span>บุกรุก</span>
-                          </>
-                        )}
+                        <Rocket className="w-4 h-4 text-slate-950 animate-bounce" />
+                        <span>🛸 ส่งโดรนสอดแนม ({dailyScoutInfo.remainingScouts}/{DAILY_SCOUT_DRONE_LIMIT})</span>
                       </>
                     ) : (
                       <>
-                        <Lock className="w-3.5 h-3.5" />
-                        <span className="text-[11px] whitespace-nowrap">
-                          {stats.myCount > 0 && !dailyEmpireInfo.canAttack
-                            ? `โควตาหมด (${dailyEmpireInfo.attacksToday}/${DAILY_EMPIRE_ATTACK_LIMIT})`
-                            : stats.myCount === 0
-                            ? 'เลือกช่องเพื่อส่ง Drop Pod'
-                            : 'ต้องติดกับเขตคุณ'}
-                        </span>
+                        <Lock className="w-4 h-4 text-slate-500" />
+                        <span>แบตหมด ({DAILY_SCOUT_DRONE_LIMIT}/{DAILY_SCOUT_DRONE_LIMIT})</span>
                       </>
                     )}
                   </button>
-                )}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* TIER 1: Visual Hologram Preview + Detailed Sector Info + Close Button */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    {/* 3D Target Pet Hologram Preview */}
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-950/90 border border-slate-700/80 shrink-0 overflow-hidden relative shadow-inner flex items-center justify-center mt-0.5">
+                      {(activeTileData?.isCitadel ||
+                        (activeTileData?.guildId &&
+                          (guilds[activeTileData.guildId]?.citadelCoords?.includes(`${selectedTile.x},${selectedTile.y}`) ||
+                            guilds[activeTileData.guildId]?.citadelCoord === `${selectedTile.x},${selectedTile.y}`))) ? (
+                        <div className="w-full h-full flex items-center justify-center bg-amber-950/60 text-amber-300 shadow-[inset_0_0_12px_rgba(245,158,11,0.5)]">
+                          <Building2 className="w-6 h-6 text-amber-400 animate-pulse" />
+                        </div>
+                      ) : (activeTileData?.type === 'outpost' || activeTileData?.isOutpost) ? (
+                        <div className="w-full h-full flex items-center justify-center bg-emerald-950/60 text-emerald-300 shadow-[inset_0_0_10px_rgba(16,185,129,0.4)]">
+                          <Radio className="w-6 h-6 text-emerald-400 animate-pulse" />
+                        </div>
+                      ) : activeTileData?.type === 'boss' ? (
+                        <VirusViewer3D 
+                          type="corona" 
+                          color="#ef4444" 
+                          interactive={false} 
+                          className="w-full h-full scale-125" 
+                        />
+                      ) : activeTileData?.type === 'player' ? (
+                        <VirusViewer3D 
+                          type={familyToVirusType(activeTileData.ownerFamily || 'parvo')} 
+                          color={
+                            activeTileData.guildId && guilds[activeTileData.guildId]?.color
+                              ? guilds[activeTileData.guildId].color
+                              : getPlayerUniqueColor(activeTileData.ownerUid || '', isMyTile) 
+                          } 
+                          interactive={false} 
+                          className="w-full h-full scale-125" 
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Crosshair className="w-5 h-5 text-slate-600 animate-spin-slow" />
+                        </div>
+                      )}
+                    </div>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedTile(null)}
-                  className="p-2 sm:p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-                  title="ปิดกล่องข้อมูล"
-                >
-                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
-                </button>
-              </div>
-                </>
-              )}
+                    {/* Sector Information & Badges */}
+                    <div className="min-w-0 flex-1 space-y-1">
+                      {/* Line 1: Sector Coords + Status Badges */}
+                      <div className="flex items-center gap-1.5 text-xs font-mono font-bold flex-wrap">
+                        <span className="text-white font-black text-sm whitespace-nowrap bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60">
+                          เซกเตอร์ [{selectedTile.x}, {selectedTile.y}]
+                        </span>
+                        {(activeTileData?.isCitadel ||
+                          (activeTileData?.guildId &&
+                            (guilds[activeTileData.guildId]?.citadelCoords?.includes(`${selectedTile.x},${selectedTile.y}`) ||
+                              guilds[activeTileData.guildId]?.citadelCoord === `${selectedTile.x},${selectedTile.y}`))) && (
+                          <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/50 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 shadow-sm whitespace-nowrap">
+                            <Building2 className="w-2.5 h-2.5 text-amber-400" /> นครหลวงกิลด์ (4 ช่อง) LV.{activeTileData?.guildId ? (guilds[activeTileData.guildId]?.citadelLevel || 1) : 1}
+                          </span>
+                        )}
+                        {activeTileData?.guildId && isCitadelInfluenceZone(selectedTile.x, selectedTile.y, guilds[activeTileData.guildId]?.citadelCoord, guilds[activeTileData.guildId]?.citadelCoords) && !(activeTileData?.isCitadel || guilds[activeTileData.guildId]?.citadelCoords?.includes(`${selectedTile.x},${selectedTile.y}`) || guilds[activeTileData.guildId]?.citadelCoord === `${selectedTile.x},${selectedTile.y}`) && (
+                          <span className="text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 whitespace-nowrap">
+                            <Shield className="w-2.5 h-2.5 text-amber-400" /> ป้องกันรกร้าง (Aura)
+                          </span>
+                        )}
+                        {isSanctuaryZone(selectedTile.x, selectedTile.y) && (
+                          <span className="text-[10px] bg-sky-500/20 text-sky-300 border border-sky-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 whitespace-nowrap">
+                            <ShieldCheck className="w-2.5 h-2.5 text-sky-400" /> เขตเกิดปลอดภัย
+                          </span>
+                        )}
+                        {isShieldedTile(activeTileData) && (
+                          <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 animate-pulse whitespace-nowrap">
+                            <ShieldCheck className="w-2.5 h-2.5 text-cyan-400" /> บาเรีย ({Math.max(1, Math.ceil((new Date(activeTileData?.shieldUntil!).getTime() - Date.now()) / (3600 * 1000)))} ชม.)
+                          </span>
+                        )}
+                        {isDecayedTile(activeTileData, activeTileData?.guildId ? guilds[activeTileData.guildId]?.citadelCoord : undefined, activeTileData?.guildId ? guilds[activeTileData.guildId]?.citadelCoords : undefined) && (
+                          <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 whitespace-nowrap">
+                            <AlertTriangle className="w-2.5 h-2.5 text-amber-400" /> ฐานรกร้าง (-50% HP)
+                          </span>
+                        )}
+                        {isMyTile && (
+                          <span className="text-[10px] bg-cyan-500/25 text-cyan-300 border border-cyan-400/60 px-2 py-0.5 rounded-full font-mono font-black flex items-center gap-1 shadow-[0_0_8px_rgba(6,182,212,0.4)] animate-pulse whitespace-nowrap">
+                            👑 ดินแดนของคุณ
+                          </span>
+                        )}
+                        {isGuildTile && !isMyTile && (
+                          <span className="text-[10px] bg-blue-500/25 text-blue-300 border border-blue-400/50 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 shadow-sm whitespace-nowrap">
+                            <Shield className="w-2.5 h-2.5 text-blue-400" /> ดินแดนเพื่อนร่วมกิลด์
+                          </span>
+                        )}
+                        {isGmUser && (
+                          <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/50 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 shadow-sm whitespace-nowrap">
+                            <Eye className="w-2.5 h-2.5 text-amber-400" /> GM Inspector
+                          </span>
+                        )}
+                        {(activeTileData?.type === 'outpost' || activeTileData?.isOutpost) && (
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 whitespace-nowrap">
+                            <Zap className="w-2.5 h-2.5 text-emerald-400" /> +100 EXP/วัน
+                          </span>
+                        )}
+                        {/* Under Siege Badge (Persistent Damage Indicator) */}
+                        {activeTileData && typeof activeTileData.currentDefenderHp === 'number' && activeTileData.maxDefenderHp && activeTileData.currentDefenderHp < activeTileData.maxDefenderHp && (
+                          <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 animate-pulse whitespace-nowrap">
+                            <Swords className="w-2.5 h-2.5 text-rose-400" /> กำลังถูกปิดล้อมตี (HP เหลือ {Math.round((activeTileData.currentDefenderHp / activeTileData.maxDefenderHp) * 100)}%)
+                          </span>
+                        )}
+                      </div>
 
-            </div>
+                      {/* Line 2: Owner Name & Guild badge */}
+                      <div className="text-xs sm:text-sm font-bold text-slate-200 truncate flex items-center gap-1.5">
+                        {(activeTileData?.type === 'outpost' || activeTileData?.isOutpost) ? (
+                          <span className="text-emerald-300 font-black flex items-center gap-1.5 truncate">
+                            <span>{activeTileData.ownerName || 'ป้อมฟาร์มวิจัย (Bio-Farm Outpost)'}</span>
+                            {activeTileData.ownerUid && (
+                              <span className="text-[10px] text-slate-300 font-normal">
+                                (ผู้ครอง: {activeTileData.ownerName})
+                              </span>
+                            )}
+                          </span>
+                        ) : activeTileData?.type === 'boss' ? (
+                          <span className="text-red-300 font-black">{activeTileData.ownerName || 'บอสระบบภูมิคุ้มกัน'}</span>
+                        ) : activeTileData?.type === 'player' ? (
+                          <>
+                            <span 
+                              className="w-2.5 h-2.5 rounded-full inline-block shrink-0 shadow-sm" 
+                              style={{ 
+                                backgroundColor: activeTileData.guildId && guilds[activeTileData.guildId]?.color
+                                  ? guilds[activeTileData.guildId].color
+                                  : getPlayerUniqueColor(activeTileData.ownerUid || '', isMyTile) 
+                              }}
+                            />
+                            {activeTileData.guildName && (
+                              <span 
+                                className="text-[10px] px-1.5 py-0.2 rounded border font-mono font-bold shrink-0"
+                                style={{
+                                  backgroundColor: activeTileData.guildId && guilds[activeTileData.guildId]?.color
+                                    ? `${guilds[activeTileData.guildId].color}25`
+                                    : 'rgba(245,158,11,0.2)',
+                                  borderColor: activeTileData.guildId && guilds[activeTileData.guildId]?.color
+                                    ? guilds[activeTileData.guildId].color
+                                    : '#f59e0b',
+                                  color: activeTileData.guildId && guilds[activeTileData.guildId]?.color
+                                    ? guilds[activeTileData.guildId].color
+                                    : '#fcd34d',
+                                }}
+                              >
+                                [{activeTileData.guildName}]
+                              </span>
+                            )}
+                            <span className="truncate">{activeTileData.ownerName}</span>
+                            <span className="text-[10px] text-slate-400 font-normal shrink-0">({activeTileData.ownerFamily})</span>
+                          </>
+                        ) : (
+                          <span className="text-slate-400">เซลล์ว่างเปล่า (ยังไม่มีเจ้าของ)</span>
+                        )}
+                      </div>
+
+                      {/* Line 3: GM Live Diagnostics Info */}
+                      {isGmUser && activeTileData?.ownerUid && (
+                        <div className="text-[10px] font-mono text-amber-300/80 flex items-center gap-2 flex-wrap">
+                          <span>UID: <span className="text-amber-200">{activeTileData.ownerUid.slice(0, 10)}...</span></span>
+                          {activeTileData.currentDefenderHp !== undefined && (
+                            <span>💖 HP: {activeTileData.currentDefenderHp}/{activeTileData.maxDefenderHp || 1000}</span>
+                          )}
+                          {activeTileData.lastActive && (
+                            <span>⏳ Active: {new Date(activeTileData.lastActive).toLocaleTimeString()}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Line 4: DEFENSE STRUCTURE STATUS IN BOTTOM DRAWER */}
+                      {activeTileData?.buildingType && (() => {
+                        const bConfig = DEFENSE_STRUCTURES[activeTileData.buildingType];
+                        const bHp = activeTileData.buildingHp || 0;
+                        const bMaxHp = activeTileData.maxBuildingHp || bConfig?.bonusHp || 1000;
+                        const isDamaged = bHp < bMaxHp;
+                        return (
+                          <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-2.5 py-1 text-[11px] font-mono flex-wrap">
+                            <span className="text-sm">{bConfig?.icon || '🛡️'}</span>
+                            <span className="font-bold text-white truncate">{activeTileData.buildingName || bConfig?.name}</span>
+                            <span className="text-slate-400">|</span>
+                            <span className={isDamaged ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                              HP {bHp.toLocaleString()} / {bMaxHp.toLocaleString()}
+                            </span>
+                            {activeTileData.builtByName && (
+                              <span className="text-slate-500 text-[10px] hidden sm:inline">
+                                (ผู้สร้าง: {activeTileData.builtByName})
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Close Button at top-right */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTile(null)}
+                    className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                    title="ปิดกล่องข้อมูล"
+                  >
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+                </div>
+
+                {/* TIER 2: Action Buttons Toolbar */}
+                <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between sm:justify-end gap-2 flex-wrap">
+                  {/* GM Action Buttons */}
+                  {isGmUser && activeTileData && activeTileData.type !== 'empty' && (
+                    <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-amber-500/30 mr-auto sm:mr-0">
+                      <span className="text-[10px] font-mono text-amber-400 font-bold px-1 hidden sm:inline">[GM]</span>
+                      <button
+                        type="button"
+                        onClick={() => handleGmFullHealTile(`${selectedTile.x},${selectedTile.y}`)}
+                        className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-lg text-[11px] font-mono font-bold bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 transition-all active:scale-95 shadow-sm"
+                        title="[GM] ฮีลเลือดฐานและสิ่งปลูกสร้างเต็ม 100%"
+                      >
+                        💖 ฮีลเต็ม
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => isShieldedTile(activeTileData) ? handleGmRemoveShield(`${selectedTile.x},${selectedTile.y}`) : handleGmGrantShield(`${selectedTile.x},${selectedTile.y}`, 24)}
+                        className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-lg text-[11px] font-mono font-bold bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 transition-all active:scale-95 shadow-sm"
+                        title={isShieldedTile(activeTileData) ? "[GM] ปลดบาเรีย" : "[GM] มอบบาเรีย 24 ชม."}
+                      >
+                        {isShieldedTile(activeTileData) ? '🔓 ปลดบาเรีย' : '🛡️ ให้บาเรีย'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleGmResetTile(`${selectedTile.x},${selectedTile.y}`)}
+                        className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-lg text-[11px] font-mono font-bold bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-300 transition-all active:scale-95 shadow-sm"
+                        title="[GM] รีเซ็ตช่องนี้ให้กลับเป็นช่องว่าง"
+                      >
+                        🧹 ล้างช่อง
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Player Action Buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+                    {/* Build Defense Wall Button (On own tile or guild tile, non-citadel, non-outpost) */}
+                    {(isMyTile || isGuildTile) && 
+                      !activeTileData?.isCitadel && 
+                      !activeTileData?.isOutpost && 
+                      !activeTileData?.buildingType && (
+                      <button
+                        type="button"
+                        onClick={() => setShowBuildModal(true)}
+                        className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.5)] active:scale-95 transition-all cursor-pointer"
+                        title="สร้างกำแพงหรือสิ่งปลูกสร้างป้องกันอาณาเขต"
+                      >
+                        <Shield className="w-4 h-4 text-slate-950" />
+                        <span>🏗️ สร้างสิ่งป้องกัน</span>
+                      </button>
+                    )}
+
+                    {/* Repair Wall Button (When building is damaged) */}
+                    {(isMyTile || isGuildTile) && 
+                      activeTileData?.buildingType && 
+                      (activeTileData.buildingHp || 0) < (activeTileData.maxBuildingHp || 1000) && (
+                      <button
+                        type="button"
+                        disabled={repairingInProgress || (appUser.exp || 0) < (DEFENSE_STRUCTURES[activeTileData.buildingType]?.repairCostExp || 50)}
+                        onClick={handleRepairDefenseStructure}
+                        className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.5)] active:scale-95 transition-all disabled:opacity-50"
+                        title={`ซ่อมแซมสิ่งก่อสร้าง (ใช้ ${DEFENSE_STRUCTURES[activeTileData.buildingType]?.repairCostExp || 50} EXP)`}
+                      >
+                        <Sparkles className="w-4 h-4 text-slate-950" />
+                        <span>🔨 ซ่อม ({DEFENSE_STRUCTURES[activeTileData.buildingType]?.repairCostExp || 50} EXP)</span>
+                      </button>
+                    )}
+
+                    {/* Guild Leader: Establish Citadel Button */}
+                    {appUser?.guildId &&
+                      guilds[appUser.guildId]?.leaderUid === appUser.uid &&
+                      !guilds[appUser.guildId]?.citadelCoord &&
+                      (!guilds[appUser.guildId]?.citadelCoords || guilds[appUser.guildId]?.citadelCoords?.length === 0) &&
+                      (activeTileData?.guildId === appUser.guildId || activeTileData?.ownerUid === appUser.uid || isGuildTile) &&
+                      !activeTileData?.isCitadel &&
+                      !activeTileData?.isOutpost &&
+                      !isCentralVaultZone(selectedTile.x, selectedTile.y) && (
+                        <button
+                          type="button"
+                          onClick={() => handleEstablishCitadel(`${selectedTile.x},${selectedTile.y}`)}
+                          className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.6)] active:scale-95 transition-all"
+                          title="สถาปนานครหลวงกิลด์ 4 ช่อง (2x2 บล็อก) ณ บริเวณนี้"
+                        >
+                          <Building2 className="w-4 h-4 text-slate-950" />
+                          <span>🏛️ สถาปนานครหลวง (4 ช่อง)</span>
+                        </button>
+                    )}
+
+                    {/* Harvest Outpost / Shielded / Attack */}
+                    {isMyTile && (activeTileData?.isOutpost || activeTileData?.type === 'outpost') ? (
+                      (() => {
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        const hasClaimedToday = activeTileData.lastClaimedDate === todayStr;
+                        return (
+                          <button
+                            type="button"
+                            disabled={hasClaimedToday || claimingOutpost}
+                            onClick={() => handleClaimDailyExp(`${selectedTile.x},${selectedTile.y}`)}
+                            className={`h-9 sm:h-10 px-3 sm:px-5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all ${
+                              hasClaimedToday
+                                ? 'bg-slate-800 text-emerald-400/60 border border-emerald-900/40 cursor-default'
+                                : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)] active:scale-95'
+                            }`}
+                          >
+                            <Zap className={`w-4 h-4 ${hasClaimedToday ? 'text-emerald-500/60' : 'text-slate-950 fill-current'}`} />
+                            <span>{hasClaimedToday ? 'รับแล้ว' : '🌾 เก็บเกี่ยว (+100 EXP)'}</span>
+                          </button>
+                        );
+                      })()
+                    ) : isShieldedTile(activeTileData) ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0 bg-slate-800 text-cyan-400 border border-cyan-500/40 cursor-not-allowed shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-cyan-400 animate-pulse" />
+                        <span>ติดบาเรีย ({Math.max(1, Math.ceil((new Date(activeTileData?.shieldUntil!).getTime() - Date.now()) / (3600 * 1000)))} ชม.)</span>
+                      </button>
+                    ) : !isMyTile && (
+                      <button
+                        type="button"
+                        disabled={!canInfect || (stats.myCount > 0 && !dailyEmpireInfo.canAttack)}
+                        onClick={handleAction}
+                        className={`h-9 sm:h-10 px-4 sm:px-6 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all ${
+                          canInfect && (stats.myCount === 0 || dailyEmpireInfo.canAttack)
+                            ? stats.myCount === 0
+                              ? 'bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow-[0_0_15px_rgba(52,211,153,0.6)] active:scale-95'
+                              : (activeTileData?.type === 'outpost' || activeTileData?.isOutpost)
+                              ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)] active:scale-95'
+                              : activeTileData?.type === 'boss'
+                              ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] active:scale-95'
+                              : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.5)] active:scale-95'
+                            : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        }`}
+                      >
+                        {canInfect && (stats.myCount === 0 || dailyEmpireInfo.canAttack) ? (
+                          <>
+                            {stats.myCount === 0 ? (
+                              <>
+                                <Rocket className="w-4 h-4 text-slate-950 animate-bounce" />
+                                <span>{activeTileData?.type === 'empty' ? '🚀 สถาปนาฐานแรก' : '🚀 ทิ้งดิ่งชิงฐาน'}</span>
+                              </>
+                            ) : (activeTileData?.type === 'outpost' || activeTileData?.isOutpost) ? (
+                              <>
+                                <Radio className="w-4 h-4 text-slate-950 animate-pulse" />
+                                <span>ยึดป้อม (+100 EXP)</span>
+                              </>
+                            ) : activeTileData?.type === 'boss' ? (
+                              <>
+                                <Swords className="w-4 h-4" />
+                                <span>ตีบอส</span>
+                              </>
+                            ) : (
+                              <>
+                                <Swords className="w-4 h-4" />
+                                <span>บุกรุก</span>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-3.5 h-3.5" />
+                            <span className="text-[11px] whitespace-nowrap">
+                              {stats.myCount > 0 && !dailyEmpireInfo.canAttack
+                                ? `โควตาหมด (${dailyEmpireInfo.attacksToday}/${DAILY_EMPIRE_ATTACK_LIMIT})`
+                                : stats.myCount === 0
+                                ? 'เลือกช่องเพื่อส่ง Drop Pod'
+                                : 'ต้องติดกับเขตคุณ'}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="pointer-events-auto bg-slate-900/90 border border-slate-800/80 rounded-2xl px-4 py-2.5 shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 text-xs font-mono">
@@ -2474,24 +3014,49 @@ export default function EmpireMap() {
         )}
       </div>
 
-      {/* 5. Stats Overview Modal */}
+      {/* 5. Stats Overview Modal (Responsive Container & Clean Back Navigation) */}
       {showStatsModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2 text-cyan-400 font-bold">
-                <BarChart3 className="w-5 h-5" />
-                <h2 className="text-base font-black uppercase tracking-wider text-white">
-                  ภาพรวมสมรภูมิ (Empire Statistics)
-                </h2>
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            
+            {/* Header with Prominent Back Button */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowStatsModal(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
+                  title="ย้อนกลับ"
+                >
+                  <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                  <span>ย้อนกลับ</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                    <BarChart3 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
+                      ภาพรวมสมรภูมิ (Empire Statistics)
+                    </h2>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      ข้อมูลสถิติการยึดครองพื้นที่และโควตารายวัน
+                    </p>
+                  </div>
+                </div>
               </div>
               <button 
+                type="button"
                 onClick={() => setShowStatsModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                title="ปิดหน้าต่าง"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Scrollable Content Body */}
+            <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
 
             <div className="grid grid-cols-2 gap-2.5">
               {/* Card 1: ของคุณ */}
@@ -2542,38 +3107,143 @@ export default function EmpireMap() {
               </div>
             </div>
 
-            <div className="pt-2 text-center">
+            {/* GM Only: Live Territory Directory by Player & Guild */}
+            {isGmUser && (() => {
+              const playerTerritories: Record<string, { ownerUid: string; ownerName: string; guildName?: string; guildId?: string; ownerFamily?: string; count: number; firstCoord: { x: number; y: number } }> = {};
+              Object.values(tiles).forEach((t) => {
+                if (t.type === 'player' && t.ownerUid) {
+                  if (!playerTerritories[t.ownerUid]) {
+                    playerTerritories[t.ownerUid] = {
+                      ownerUid: t.ownerUid,
+                      ownerName: t.ownerName || 'ไม่ระบุชื่อ',
+                      guildName: t.guildName,
+                      guildId: t.guildId,
+                      ownerFamily: t.ownerFamily,
+                      count: 0,
+                      firstCoord: { x: t.x, y: t.y },
+                    };
+                  }
+                  playerTerritories[t.ownerUid].count++;
+                }
+              });
+
+              const list = Object.values(playerTerritories).sort((a, b) => b.count - a.count);
+
+              return (
+                <div className="bg-slate-950/80 border border-amber-500/40 rounded-2xl p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-mono font-bold text-amber-300">
+                    <span className="flex items-center gap-1.5">
+                      <Eye className="w-4 h-4 text-amber-400" /> ทำเนียบผู้เล่นและอาณาเขต (GM Directory)
+                    </span>
+                    <span className="text-[10px] text-slate-400">{list.length} ผู้เล่นมีดินแดน</span>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
+                    {list.length === 0 ? (
+                      <div className="text-center py-4 text-xs font-mono text-slate-500">
+                        ยังไม่มีผู้เล่นคนใดครอบครองดินแดน
+                      </div>
+                    ) : (
+                      list.map((p) => (
+                        <div
+                          key={p.ownerUid}
+                          className="flex items-center justify-between p-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono"
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span 
+                              className="w-3 h-3 rounded-full shrink-0 shadow-sm"
+                              style={{
+                                backgroundColor: p.guildId && guilds[p.guildId]?.color
+                                  ? guilds[p.guildId].color
+                                  : getPlayerUniqueColor(p.ownerUid, false)
+                              }}
+                            />
+                            <div className="min-w-0 truncate">
+                              <span className="font-bold text-white truncate block">{p.ownerName}</span>
+                              <span className="text-[10px] text-slate-400">
+                                {p.guildName ? `[${p.guildName}]` : 'ไม่มีกิลด์'} • {p.ownerFamily || 'ไวรัส'} • {p.count} เซกเตอร์
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowStatsModal(false);
+                              jumpToTile(p.firstCoord.x, p.firstCoord.y);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-[11px] transition-all shrink-0 active:scale-95 border border-amber-500/40"
+                            title={`วาร์ปไปดูฐานพิกัด [${p.firstCoord.x}, ${p.firstCoord.y}]`}
+                          >
+                            🎯 ส่องฐาน [{p.firstCoord.x},{p.firstCoord.y}]
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            </div>
+
+            {/* Footer with Prominent Back Button */}
+            <div className="pt-2 text-center border-t border-slate-800 shrink-0">
               <button 
                 type="button"
                 onClick={() => setShowStatsModal(false)}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs uppercase transition-all"
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs uppercase transition-all flex items-center justify-center gap-1.5 active:scale-95"
               >
-                ปิดหน้าต่าง
+                <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                <span>กลับสู่แผนที่ (Back to Map)</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 6. Guild / Alliance Modal */}
+      {/* 6. Guild / Alliance Modal (Spacious Container & Prominent Back Button) */}
       {showGuildModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
             
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2 text-amber-400 font-bold">
-                <Users className="w-5 h-5" />
-                <h2 className="text-base font-black uppercase tracking-wider text-white">
-                  ระบบพันธมิตรกิลด์ (Alliance)
-                </h2>
+            {/* Header with Prominent Back Button */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowGuildModal(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
+                  title="ย้อนกลับ"
+                >
+                  <ArrowLeft className="w-4 h-4 text-amber-400" />
+                  <span>ย้อนกลับ</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
+                      ระบบพันธมิตรกิลด์ (Alliance)
+                    </h2>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      ร่วมมือกับเพื่อน ขยายอาณาเขต และพัฒนาเมืองหลวง
+                    </p>
+                  </div>
+                </div>
               </div>
               <button 
+                type="button"
                 onClick={() => setShowGuildModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                title="ปิดหน้าต่าง"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Scrollable Content Body */}
+            <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
 
             {/* Current Guild Status */}
             {appUser?.guildId ? (
@@ -3030,12 +3700,17 @@ export default function EmpireMap() {
               </div>
             )}
 
-            <div className="pt-2 text-center">
+            </div>
+
+            {/* Footer with Prominent Back Button */}
+            <div className="pt-2 text-center border-t border-slate-800 shrink-0">
               <button 
+                type="button"
                 onClick={() => setShowGuildModal(false)}
-                className="text-xs font-mono text-slate-400 hover:text-white"
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs uppercase transition-all flex items-center justify-center gap-1.5 active:scale-95"
               >
-                ปิดหน้าต่าง
+                <ArrowLeft className="w-4 h-4 text-amber-400" />
+                <span>กลับสู่แผนที่ (Back to Map)</span>
               </button>
             </div>
 
@@ -3043,24 +3718,44 @@ export default function EmpireMap() {
         </div>
       )}
 
-      {/* 4. War Rules & Guidelines Modal */}
+      {/* 4. War Rules & Guidelines Modal (Full Screen Ready & Clean Back Navigation) */}
       {showRulesModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-3xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
             
-            {/* Header */}
+            {/* Header with Prominent Back Button */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
-              <div className="flex items-center gap-2 text-indigo-400 font-bold">
-                <BookOpen className="w-5 h-5 text-indigo-400" />
-                <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
-                  กฎและกติกาสมรภูมิอาณาจักร (Empire Warfare Rules)
-                </h2>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowRulesModal(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
+                  title="ย้อนกลับ"
+                >
+                  <ArrowLeft className="w-4 h-4 text-indigo-400" />
+                  <span>ย้อนกลับ</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
+                      กฎและกติกาสมรภูมิอาณาจักร (Empire Warfare Rules)
+                    </h2>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      คู่มือยุทธศาสตร์ กลไกการขยายดินแดน และการป้องกันฐาน
+                    </p>
+                  </div>
+                </div>
               </div>
               <button 
+                type="button"
                 onClick={() => setShowRulesModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                title="ปิดหน้าต่าง"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -3184,9 +3879,10 @@ export default function EmpireMap() {
               <button 
                 type="button"
                 onClick={() => setShowRulesModal(false)}
-                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider text-xs sm:text-sm shadow-md transition-all active:scale-95"
+                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
               >
-                เข้าใจแล้ว เข้าสู่สมรภูมิ!
+                <ArrowLeft className="w-4 h-4 text-white" />
+                <span>เข้าใจแล้ว กลับสู่แผนที่ (Back to Map)</span>
               </button>
             </div>
 
@@ -3194,27 +3890,41 @@ export default function EmpireMap() {
         </div>
       )}
 
-      {/* 8. Scout Drone Quiz Modal (Bio-Radar Question Modal) */}
+      {/* 8. Scout Drone Quiz Modal (Full Screen Ready & Prominent Back Button) */}
       {showScoutModal && scoutTarget && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-slate-900 border border-cyan-500/50 rounded-3xl max-w-lg w-full p-4 sm:p-6 shadow-[0_0_50px_rgba(6,182,212,0.3)] space-y-4 animate-in fade-in zoom-in-95 duration-150 relative">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="bg-slate-900 border border-cyan-500/50 rounded-3xl w-full max-w-xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(6,182,212,0.3)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
             
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-inner">
-                  <Rocket className="w-5 h-5 animate-bounce" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                    <span>🛸 โดรนสอดแนมชีวภาพ</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">
-                      พิกัด [{scoutTarget.x}, {scoutTarget.y}]
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    ตอบคำถามไวรัสวิทยาเพื่อปล่อยสัญญาณโซนาร์สแกนแผนที่ 5×5 (25 ช่อง) ถาวร
-                  </p>
+            {/* Header with Prominent Back Button */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowScoutModal(false);
+                    setScoutFeedback(null);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
+                  title="ย้อนกลับ"
+                >
+                  <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                  <span>ย้อนกลับ</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-inner shrink-0">
+                    <Rocket className="w-4 h-4 animate-bounce" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                      <span>🛸 โดรนสอดแนมชีวภาพ</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">
+                        [{scoutTarget.x}, {scoutTarget.y}]
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      ตอบคำถามสแกนหมอกถาวร 5×5 (25 เซกเตอร์)
+                    </p>
+                  </div>
                 </div>
               </div>
               <button
@@ -3223,12 +3933,15 @@ export default function EmpireMap() {
                   setShowScoutModal(false);
                   setScoutFeedback(null);
                 }}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                title="ปิด"
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                title="ปิดหน้าต่าง"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Scrollable Content Body */}
+            <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
 
             {/* Quiz Card */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
@@ -3282,10 +3995,153 @@ export default function EmpireMap() {
               )}
             </div>
 
-            {/* Footer Notice */}
-            <div className="text-[11px] text-slate-400 text-center flex items-center justify-center gap-1.5 font-mono">
-              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-              <span>เมื่อสแกนสำเร็จ หมอกจะหายไปอย่างถาวรสำหรับบัญชีของคุณ</span>
+            </div>
+
+            {/* Footer with Prominent Back Button */}
+            <div className="pt-2 text-center border-t border-slate-800 shrink-0 space-y-2">
+              <div className="text-[11px] text-slate-400 text-center flex items-center justify-center gap-1.5 font-mono">
+                <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+                <span>เมื่อสแกนสำเร็จ หมอกจะหายไปอย่างถาวรสำหรับบัญชีของคุณ</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowScoutModal(false);
+                  setScoutFeedback(null);
+                }}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs uppercase transition-all flex items-center justify-center gap-1.5 active:scale-95"
+              >
+                <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                <span>ยกเลิก / กลับสู่แผนที่ (Back to Map)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DEFENSE STRUCTURES & WALLS CONSTRUCTION MODAL ── */}
+      {showBuildModal && selectedTile && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            
+            {/* Header with Back Button */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowBuildModal(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
+                  title="ย้อนกลับ"
+                >
+                  <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                  <span>ย้อนกลับ</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
+                      สถาปัตยกรรมป้องกันฐาน & กำแพงเมือง
+                    </h2>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      เซกเตอร์ [{selectedTile.x}, {selectedTile.y}] • ใช้ EXP สถาปนาสิ่งปลูกสร้างป้องกันอาณาเขต
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowBuildModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                title="ปิดหน้าต่าง"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* User EXP Banner */}
+            <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span className="text-xs text-slate-300 font-mono">คลัง EXP ส่วนตัวของคุณ:</span>
+              </div>
+              <span className="text-base font-black font-mono text-cyan-300">
+                {Number(appUser.exp || 0).toLocaleString()} EXP
+              </span>
+            </div>
+
+            {/* List of Defense Structures */}
+            <div className="overflow-y-auto space-y-3 pr-1 custom-scrollbar flex-1">
+              {Object.values(DEFENSE_STRUCTURES).map((struct) => {
+                const canAfford = Number(appUser.exp || 0) >= struct.costExp;
+                return (
+                  <div
+                    key={struct.id}
+                    className={`p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                      canAfford 
+                        ? 'bg-slate-950/70 border-slate-700/80 hover:border-cyan-500/50' 
+                        : 'bg-slate-950/40 border-slate-800/60 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-2xl shrink-0 shadow-inner">
+                        {struct.icon}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-black text-white">{struct.name}</h4>
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${struct.badgeColor}`}>
+                            {struct.badge}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 leading-relaxed max-w-md">
+                          {struct.desc}
+                        </p>
+                        <div className="flex items-center gap-3 text-[11px] font-mono pt-0.5">
+                          <span className="text-emerald-400 font-bold">
+                            +HP {struct.bonusHp.toLocaleString()}
+                          </span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-rose-400 font-bold">
+                            +ATK สะท้อน {struct.bonusAtk}
+                          </span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-amber-400 font-bold">
+                            ซ่อม {struct.repairCostExp} EXP
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!canAfford || buildingInProgress}
+                      onClick={() => handleBuildDefenseStructure(struct.id)}
+                      className={`w-full sm:w-auto h-11 px-5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 shrink-0 transition-all active:scale-95 shadow-md ${
+                        canAfford
+                          ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-900/30'
+                          : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      }`}
+                    >
+                      <Shield className="w-4 h-4" />
+                      <span>{buildingInProgress ? 'กำลังสร้าง...' : `สร้าง (-${struct.costExp} EXP)`}</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 font-mono">
+              <span>💡 คำแนะนำ: สร้างกำแพงล้อมรอบ 4 ช่องนครหลวง เพื่อสกัดกั้นการบุกรุก</span>
+              <button
+                type="button"
+                onClick={() => setShowBuildModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold active:scale-95"
+              >
+                ปิด
+              </button>
             </div>
 
           </div>

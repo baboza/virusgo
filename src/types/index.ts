@@ -128,6 +128,19 @@ export interface EmpireTile {
   lastActive?: string;  // Last time owner was active / upkeep timestamp (ISO string)
   isCapital?: boolean;  // Mark player's primary / first city base
   isCitadel?: boolean;  // Mark guild citadel / capital fortress
+  // ── DEFENSE STRUCTURES & WALLS (EXP SINKS) ──
+  buildingType?: 'bio_wall' | 'spike_wall' | 'sentry_tower' | 'regen_depot';
+  buildingName?: string;
+  buildingHp?: number;
+  maxBuildingHp?: number;
+  buildingLevel?: number;
+  builtBy?: string;
+  builtByName?: string;
+  // ── PERSISTENT SIEGE DAMAGE & CO-OP RALLY ──
+  currentDefenderHp?: number;
+  maxDefenderHp?: number;
+  lastAttackedBy?: string;
+  lastAttackedByName?: string;
 }
 
 export interface CaseStudy {
