@@ -13,6 +13,7 @@ import { SVGVirus } from '@/components/ui/SVGVirus';
 import { sfx } from '@/utils/sound';
 import Link from 'next/link';
 import { ArrowLeft, Users, ShieldAlert, Zap, Trophy, Skull } from 'lucide-react';
+import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyExpCap';
 
 // --- Types ---
 interface PlayerState {
@@ -66,6 +67,15 @@ export default function VirusBattle() {
   const [currentQ, setCurrentQ] = useState(0);
 
   const myUid = appUser?.uid || user?.uid || '';
+  const [dailyInfo, setDailyInfo] = useState<DailyExpInfo | null>(null);
+  const [awardedExp, setAwardedExp] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (myUid) {
+      getDailyExpInfo(myUid, 'virus-battle').then(setDailyInfo).catch(console.error);
+    }
+  }, [myUid]);
+
   useLiveTracking('virus-battle', `ห้อง: ${roomData?.roomId || '-'} | สถานะ: ${roomData?.status || 'waiting'} | เลือดบอส: ${roomData?.bossHp ?? '-'}/${roomData?.maxBossHp ?? '-'}`);
 
 
@@ -234,15 +244,18 @@ export default function VirusBattle() {
   const giveRewards = async () => {
     sfx.click();
     if (roomData && roomData.bossHp <= 0) {
-      await updateDoc(doc(db, 'users', user.uid), { exp: increment(100) });
-      const { addDoc, collection } = await import('firebase/firestore');
-      await addDoc(collection(db, 'users', user.uid, 'history'), {
-        gameId: 'virus-battle',
-        gameName: 'Boss Battle (Co-op)',
-        score: roomData.players[user.uid]?.damageDealt || 0,
-        expEarned: 100,
-        playedAt: new Date().toISOString()
-      });
+      try {
+        const damage = roomData.players[user.uid]?.damageDealt || 0;
+        await awardDailyCappedExp(
+          user.uid,
+          'virus-battle',
+          'Boss Battle (Co-op)',
+          damage,
+          100
+        );
+      } catch (err) {
+        console.error('Failed to award capped exp in virus battle:', err);
+      }
     }
     setRoomId('');
     setRoomData(null);
@@ -517,8 +530,15 @@ export default function VirusBattle() {
                 ))}
               </div>
 
+              {roomData.bossHp <= 0 && dailyInfo && (
+                <div className="mb-4 text-xs text-slate-400 font-mono">
+                  โควตา Boss Raid วันนี้: <span className="text-secondary font-bold">{dailyInfo.earnedToday}</span> / {dailyInfo.cap} EXP
+                  {dailyInfo.isCapped && <span className="text-amber-400 ml-2">(ครบโควตาวันนี้แล้ว)</span>}
+                </div>
+              )}
+
               <Button onClick={giveRewards} className="w-full bg-secondary hover:bg-secondary/80 text-black font-black py-6">
-                {roomData.bossHp <= 0 ? 'รับ 100 EXP แล้วกลับหน้าหลัก' : 'กลับหน้าหลัก'}
+                {roomData.bossHp <= 0 ? (dailyInfo?.isCapped ? 'จบการต่อสู้ (โหมดฝึกฝน) แล้วกลับ' : 'รับ EXP แล้วกลับหน้าหลัก') : 'กลับหน้าหลัก'}
               </Button>
             </motion.div>
           </motion.div>

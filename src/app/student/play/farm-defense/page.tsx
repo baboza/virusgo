@@ -20,6 +20,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import { useLiveTracking } from '@/hooks/useLiveTracking';
+import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyExpCap';
 
 const DEFAULT_EVENTS = [
   { month: 1, title: "Threat Detected", text: "ฟาร์มข้างเคียงพบสุกรมีอาการซึมและไข้สูง ความเสี่ยงการติดเชื้อเริ่มก่อตัว", risk: 20 },
@@ -52,6 +53,14 @@ export default function FarmDefense() {
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [events, setEvents] = useState<any[]>(DEFAULT_EVENTS);
+  const [dailyInfo, setDailyInfo] = useState<DailyExpInfo | null>(null);
+  const [awardedExp, setAwardedExp] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (myUid) {
+      getDailyExpInfo(myUid, 'farm-defense').then(setDailyInfo).catch(console.error);
+    }
+  }, [myUid]);
 
   const currentScore = roomData?.players?.[myUid]?.score || 0;
   useLiveTracking('farm-defense', `ห้อง: ${roomData?.roomCode || '-'} | เดือน: ${roomData?.currentMonth || 1} | หมูรอด: ${roomData?.players?.[myUid]?.pigsAlive ?? 100}%`);
@@ -300,16 +309,19 @@ export default function FarmDefense() {
         const score = Math.floor(myFarm.pigs / 10); // 1 EXP per 10 pigs saved
         if (score > 0) {
           try {
-            await updateDoc(doc(db, 'users', myUid), { exp: increment(score) });
-            const { addDoc, collection } = await import('firebase/firestore');
-            await addDoc(collection(db, 'users', myUid, 'history'), {
-              gameId: 'farm-defense',
-              gameName: 'Farm Defense',
-              score: myFarm.pigs,
-              expEarned: score,
-              playedAt: new Date().toISOString()
-            });
-          } catch(e){}
+            const res = await awardDailyCappedExp(
+              myUid,
+              'farm-defense',
+              'Farm Defense',
+              myFarm.pigs,
+              score
+            );
+            setAwardedExp(res.awardedExp);
+            const fresh = await getDailyExpInfo(myUid, 'farm-defense');
+            setDailyInfo(fresh);
+          } catch(e){
+            console.error("Failed to award capped exp in farm defense", e);
+          }
         }
       };
       save();
@@ -433,7 +445,17 @@ export default function FarmDefense() {
           </div>
         </div>
 
-        <p className="text-emerald-400 font-bold text-xl">You earned {earnedExp} EXP!</p>
+        <div className="space-y-1">
+          <p className="text-emerald-400 font-bold text-xl">
+            {awardedExp !== null ? (awardedExp > 0 ? `🎉 You earned +${awardedExp} EXP!` : 'โหมดฝึกฝน (+0 EXP)') : `You earned ${earnedExp} EXP!`}
+          </p>
+          {dailyInfo && (
+            <p className="text-xs text-slate-400 font-mono">
+              โควตา Farm Defense วันนี้: <span className="text-cyan-400 font-bold">{dailyInfo.earnedToday}</span> / {dailyInfo.cap} EXP
+              {dailyInfo.isCapped && <span className="text-amber-400 ml-2">(ครบโควตาวันนี้แล้ว)</span>}
+            </p>
+          )}
+        </div>
 
         <div className="flex justify-center gap-4">
           <Button onClick={() => window.location.reload()} className="bg-slate-700 text-white font-bold uppercase tracking-widest hover:bg-slate-600">

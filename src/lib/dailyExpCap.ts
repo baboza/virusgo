@@ -2,12 +2,21 @@ import { db } from '@/lib/firebase/config';
 import { doc, getDoc, updateDoc, increment, collection, addDoc } from 'firebase/firestore';
 
 export const DAILY_EXP_CAPS: Record<string, number> = {
+  // Solo Practice & Drills
   matching: 120,        // 2 ชนะเต็มรอบ (60x2)
   'time-attack': 150,   // ~15 ข้อถูก
   identification: 150,  // ~15 ข้อถูก
   'lab-detective': 150, // 3 เคสแล็บ (50x3)
   outbreak: 150,        // 1-2 ครั้ง
   'boss-battle': 150,   // พิชิต 3 บอส (50x3)
+
+  // Multiplayer & Team / Co-op Modes
+  pvp: 200,             // ~4 ชัยชนะ หรือเข้าร่วม 13 แมตช์
+  'classroom-battle': 300, // รองรับ 2-3 แมตช์เต็มในคาบเรียน
+  'diagnosis-duel': 200,   // ~2-3 ดวลเคส
+  tournament: 300,         // ชนะแชมป์ Tournament 1 รอบ หรือเข้ารอบลึก 2 รอบ
+  'farm-defense': 200,     // ช่วยหมู 2 รอบใหญ่
+  'virus-battle': 200,     // ปราบบอส Co-op 2 รอบ (100x2)
 };
 
 export interface DailyExpInfo {

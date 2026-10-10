@@ -20,6 +20,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import { useLiveTracking } from '@/hooks/useLiveTracking';
+import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyExpCap';
 
 const BOT_NAMES = [
   "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta",
@@ -58,6 +59,14 @@ export default function TournamentMultiplayer() {
   const [loading, setLoading] = useState(false);
   const [isHostMode, setIsHostMode] = useState(false);
   const [selectedSize, setSelectedSize] = useState<8|16|32>(8);
+  const [dailyInfo, setDailyInfo] = useState<DailyExpInfo | null>(null);
+  const [awardedExp, setAwardedExp] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (myUid) {
+      getDailyExpInfo(myUid, 'tournament').then(setDailyInfo).catch(console.error);
+    }
+  }, [myUid]);
 
   useLiveTracking('tournament', `สถานะ: ${roomData?.state || 'waiting'} | ห้อง: ${roomData?.roomCode || '-'}`);
 
@@ -313,16 +322,19 @@ export default function TournamentMultiplayer() {
          sfx.levelUp();
          const save = async () => {
            try {
-             await updateDoc(doc(db, 'users', myUid), { exp: increment(300) });
-             const { addDoc, collection } = await import('firebase/firestore');
-             await addDoc(collection(db, 'users', myUid, 'history'), {
-               gameId: 'tournament',
-               gameName: 'Virus Tournament',
-               score: 300,
-               expEarned: 300,
-               playedAt: new Date().toISOString()
-             });
-           } catch(e){}
+             const res = await awardDailyCappedExp(
+               myUid,
+               'tournament',
+               'Virus Tournament',
+               300,
+               300
+             );
+             setAwardedExp(res.awardedExp);
+             const fresh = await getDailyExpInfo(myUid, 'tournament');
+             setDailyInfo(fresh);
+           } catch(e){
+             console.error("Failed to award capped exp in tournament", e);
+           }
          };
          save();
        }
@@ -558,7 +570,17 @@ export default function TournamentMultiplayer() {
             <Crown className="w-32 h-32 text-yellow-400 mx-auto animate-bounce" />
             <h1 className="text-5xl font-black text-yellow-400 uppercase tracking-widest text-glow">CHAMPION!</h1>
             <p className="text-xl text-white font-bold">You won the Tournament!</p>
-            <p className="text-yellow-400 font-bold text-2xl">+300 EXP</p>
+            <div className="space-y-1">
+              <p className="text-yellow-400 font-bold text-2xl">
+                {awardedExp !== null ? (awardedExp > 0 ? `+${awardedExp} EXP` : 'โหมดฝึกฝน (+0 EXP)') : '+300 EXP'}
+              </p>
+              {dailyInfo && (
+                <p className="text-xs text-slate-400 font-mono">
+                  โควตา Tournament วันนี้: <span className="text-cyan-400 font-bold">{dailyInfo.earnedToday}</span> / {dailyInfo.cap} EXP
+                  {dailyInfo.isCapped && <span className="text-amber-400 ml-2">(ครบโควตาวันนี้แล้ว)</span>}
+                </p>
+              )}
+            </div>
           </>
         ) : (
           <>

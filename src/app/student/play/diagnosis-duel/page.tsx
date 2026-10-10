@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import { useLiveTracking } from '@/hooks/useLiveTracking';
 import { MASTER_DIAGNOSIS_DUEL_CASES } from '@/data/veterinaryVirologyContent';
+import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyExpCap';
 
 // Master Cases
 const DEFAULT_CASES = MASTER_DIAGNOSIS_DUEL_CASES;
@@ -72,8 +73,17 @@ export default function DiagnosisDuel() {
   const [cases, setCases] = useState(DEFAULT_CASES);
   const [myAnswers, setMyAnswers] = useState({ diag: '', lab: '', treat: '', prev: '' });
   const [timeLeft, setTimeLeft] = useState(60);
-  
+  const [dailyInfo, setDailyInfo] = useState<DailyExpInfo | null>(null);
+  const [awardedExp, setAwardedExp] = useState<number | null>(null);
+
   const myUid = appUser?.uid || user?.uid || '';
+
+  useEffect(() => {
+    if (myUid) {
+      getDailyExpInfo(myUid, 'diagnosis-duel').then(setDailyInfo).catch(console.error);
+    }
+  }, [myUid]);
+
   const currentScore = roomData?.players?.[myUid]?.score || 0;
   useLiveTracking('diagnosis-duel', `ห้อง: ${roomData?.roomCode || '-'} | คะแนน: ${currentScore}`);
 
@@ -243,16 +253,19 @@ export default function DiagnosisDuel() {
        const saveExp = async () => {
          if (myAns?.score && myAns.score > 0) {
             try {
-               await updateDoc(doc(db, 'users', myUid), { exp: increment(myAns.score) });
-               const { addDoc, collection } = await import('firebase/firestore');
-               await addDoc(collection(db, 'users', myUid, 'history'), {
-                 gameId: 'diagnosis-duel',
-                 gameName: 'Diagnosis Duel',
-                 score: myAns.score,
-                 expEarned: myAns.score,
-                 playedAt: new Date().toISOString()
-               });
-            } catch(e){}
+               const res = await awardDailyCappedExp(
+                 myUid,
+                 'diagnosis-duel',
+                 'Diagnosis Duel',
+                 myAns.score,
+                 myAns.score
+               );
+               setAwardedExp(res.awardedExp);
+               const fresh = await getDailyExpInfo(myUid, 'diagnosis-duel');
+               setDailyInfo(fresh);
+            } catch(e){
+               console.error("Failed to award capped exp in diagnosis duel", e);
+            }
          }
        };
        saveExp();
@@ -384,7 +397,17 @@ export default function DiagnosisDuel() {
           <div><span className="text-slate-400 w-24 inline-block">Prevention:</span> <span className="font-bold text-white">{OPTIONS.prev.find(o=>o.id===activeCase.correct.prev)?.label}</span></div>
         </div>
 
-        <p className="text-secondary font-bold">You earned {myScore} EXP!</p>
+        <div className="space-y-1">
+          <p className="text-secondary font-bold text-lg">
+            {awardedExp !== null ? (awardedExp > 0 ? `🎉 You earned +${awardedExp} EXP!` : 'โหมดฝึกฝน (+0 EXP)') : `You earned ${myScore} EXP!`}
+          </p>
+          {dailyInfo && (
+            <p className="text-xs text-slate-400 font-mono">
+              โควตา Diagnosis Duel วันนี้: <span className="text-cyan-400 font-bold">{dailyInfo.earnedToday}</span> / {dailyInfo.cap} EXP
+              {dailyInfo.isCapped && <span className="text-amber-400 ml-2">(ครบโควตาวันนี้แล้ว)</span>}
+            </p>
+          )}
+        </div>
 
         <div className="flex justify-center gap-4">
           <Button onClick={() => window.location.reload()} className="bg-slate-700 text-white font-bold uppercase tracking-widest hover:bg-slate-600">

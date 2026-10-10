@@ -21,6 +21,7 @@ import {
 } from 'firebase/firestore';
 import { useLiveTracking } from '@/hooks/useLiveTracking';
 import { ALL_15_CHAPTER_QUESTIONS } from '@/data/veterinaryVirologyContent';
+import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyExpCap';
 
 const DEFAULT_QUESTIONS = ALL_15_CHAPTER_QUESTIONS.map(q => ({
   q: q.q,
@@ -43,6 +44,14 @@ export default function ClassroomBattle() {
   const [joinCode, setJoinCode] = useState('');
   const [roomData, setRoomData] = useState<any>(null);
   const [error, setError] = useState('');
+  const [dailyInfo, setDailyInfo] = useState<DailyExpInfo | null>(null);
+  const [awardedExp, setAwardedExp] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (myUid) {
+      getDailyExpInfo(myUid, 'classroom-battle').then(setDailyInfo).catch(console.error);
+    }
+  }, [myUid]);
   const [loading, setLoading] = useState(false);
   const [isHostMode, setIsHostMode] = useState(false);
   const [questions, setQuestions] = useState(DEFAULT_QUESTIONS);
@@ -322,15 +331,16 @@ export default function ClassroomBattle() {
              earnedExp += 25; // Perfect accuracy bonus
            }
 
-           await updateDoc(doc(db, 'users', myUid), { exp: increment(earnedExp) });
-           const { addDoc, collection } = await import('firebase/firestore');
-           await addDoc(collection(db, 'users', myUid, 'history'), {
-             gameId: 'classroom-battle',
-             gameName: 'Classroom Battle',
-             score: finalPoints,
-             expEarned: earnedExp,
-             playedAt: new Date().toISOString()
-           });
+           const res = await awardDailyCappedExp(
+             myUid,
+             'classroom-battle',
+             'Classroom Battle',
+             finalPoints,
+             earnedExp
+           );
+           setAwardedExp(res.awardedExp);
+           const fresh = await getDailyExpInfo(myUid, 'classroom-battle');
+           setDailyInfo(fresh);
          } catch(e) {
            console.error("Failed to save classroom battle reward:", e);
          }
@@ -761,6 +771,21 @@ export default function ClassroomBattle() {
             </div>
           )}
         </div>
+
+        {/* My Reward & Daily Cap Summary */}
+        {!isHostMode && (
+          <div className="mb-6 p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 max-w-md mx-auto space-y-1">
+            <div className="text-sm font-bold text-yellow-300">
+              {awardedExp !== null ? (awardedExp > 0 ? `🎉 ได้รับ +${awardedExp} EXP จากการแข่งขัน!` : 'โหมดฝึกฝน (+0 EXP)') : 'คำนวณ EXP สำเร็จ'}
+            </div>
+            {dailyInfo && (
+              <div className="text-xs text-slate-400 font-mono">
+                โควตา Classroom Battle วันนี้: <span className="text-cyan-400 font-bold">{dailyInfo.earnedToday}</span> / {dailyInfo.cap} EXP
+                {dailyInfo.isCapped && <span className="text-amber-400 ml-2">(รับครบโควตาวันนี้แล้ว)</span>}
+              </div>
+            )}
+          </div>
+        )}
 
         <Link href="/student/play" className="inline-block mt-4">
           <Button variant="outline" className="border-slate-600 text-slate-300 py-4 px-12 font-bold uppercase tracking-widest hover:bg-slate-800 rounded-2xl shadow-lg">

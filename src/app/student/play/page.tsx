@@ -135,7 +135,7 @@ export default function StageSelect() {
       bg: 'bg-rose-500/10',
       badgeBg: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
       href: '/student/play/pvp',
-      exp: '+50 EXP / ชนะ (+15 ร่วมแข่ง)',
+      exp: '+50 EXP / ชนะ (โควตา 200/วัน)',
       tag: 'ดวลสด 1v1',
       stage: 'PVP'
     },
@@ -150,7 +150,7 @@ export default function StageSelect() {
       bg: 'bg-yellow-500/10',
       badgeBg: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
       href: '/student/play/classroom-battle',
-      exp: '50 - 175 EXP (ตามอันดับ)',
+      exp: '50 - 175 EXP (โควตา 300/วัน)',
       tag: 'แข่งสดทั้งห้อง',
       stage: 'LIVE'
     }

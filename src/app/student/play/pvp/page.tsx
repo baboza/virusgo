@@ -25,6 +25,7 @@ import {
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 import { ALL_15_CHAPTER_QUESTIONS } from '@/data/veterinaryVirologyContent';
 import { getEffectivePetStats } from '@/lib/petBalance';
+import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyExpCap';
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
   ssr: false,
@@ -108,6 +109,14 @@ export default function PvpDuel() {
   const [timeLeft, setTimeLeft] = useState(15);
   const [showDmgEffect, setShowDmgEffect] = useState<{ target: string; amount: number; isCrit: boolean } | null>(null);
   const rewardClaimedRef = useRef(false);
+  const [dailyInfo, setDailyInfo] = useState<DailyExpInfo | null>(null);
+  const [awardedExpState, setAwardedExpState] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (myUid) {
+      getDailyExpInfo(myUid, 'pvp').then(setDailyInfo).catch(console.error);
+    }
+  }, [myUid]);
 
   // Calculate my pet combat stats with Hard Cap & Balance System (Approach 1)
   const pet = appUser?.pet;
@@ -420,10 +429,25 @@ export default function PvpDuel() {
     const isWinner = roomData.winnerUid === myUid;
     const expBonus = isWinner ? 50 : 15;
 
-    updateDoc(doc(db, 'users', myUid), {
-      exp: increment(expBonus),
-      score: increment(expBonus),
-    }).catch(console.error);
+    // Use awardDailyCappedExp to enforce daily cap for PVP
+    const processRewards = async () => {
+      try {
+        const res = await awardDailyCappedExp(
+          myUid,
+          'pvp',
+          '1v1 Virus Duel (PvP)',
+          isWinner ? 100 : 30,
+          expBonus
+        );
+        setAwardedExpState(res.awardedExp);
+        const freshDaily = await getDailyExpInfo(myUid, 'pvp');
+        setDailyInfo(freshDaily);
+      } catch (err) {
+        console.error('Failed to award capped EXP for PvP:', err);
+      }
+    };
+
+    processRewards();
 
     if (isWinner) sfx.levelUp();
     else sfx.wrong();
@@ -793,8 +817,16 @@ export default function PvpDuel() {
               <p className="text-slate-300 font-bold">
                 คุณเอาชนะคู่ต่อสู้ในการดวลไวรัส 1v1 ได้สำเร็จ!
               </p>
-              <div className="text-xl font-black text-yellow-300 bg-amber-950/60 border border-amber-500/50 py-2.5 px-6 rounded-2xl shadow-inner inline-block">
-                🎉 +50 EXP และคะแนนเกียรติยศ PvP!
+              <div className="space-y-2">
+                <div className="text-xl font-black text-yellow-300 bg-amber-950/60 border border-amber-500/50 py-2.5 px-6 rounded-2xl shadow-inner inline-block">
+                  🎉 {awardedExpState !== null ? (awardedExpState > 0 ? `+${awardedExpState} EXP` : 'เข้าสู่โหมดฝึกฝน (+0 EXP)') : '+50 EXP'} และคะแนนเกียรติยศ PvP!
+                </div>
+                {dailyInfo && (
+                  <div className="text-xs text-slate-400 font-mono">
+                    โควตา PvP วันนี้: <span className="text-cyan-400 font-bold">{dailyInfo.earnedToday}</span> / {dailyInfo.cap} EXP
+                    {dailyInfo.isCapped && <span className="text-amber-400 ml-2">(รับครบโควตาวันนี้แล้ว)</span>}
+                  </div>
+                )}
               </div>
             </>
           ) : (
@@ -808,8 +840,15 @@ export default function PvpDuel() {
               <p className="text-slate-400">
                 คุณพ่ายแพ้ในการดวลรอบนี้ พัฒนาสเตตัสในห้องเพาะเลี้ยงแล้วลองใหม่อีกครั้ง!
               </p>
-              <div className="text-sm font-bold text-slate-400 bg-slate-950 py-2 px-4 rounded-xl border border-slate-800 inline-block">
-                +15 EXP (รางวัลการเข้าร่วม)
+              <div className="space-y-2">
+                <div className="text-sm font-bold text-slate-400 bg-slate-950 py-2 px-4 rounded-xl border border-slate-800 inline-block">
+                  {awardedExpState !== null ? (awardedExpState > 0 ? `+${awardedExpState} EXP` : 'โหมดฝึกฝน (+0 EXP)') : '+15 EXP'} (รางวัลการเข้าร่วม)
+                </div>
+                {dailyInfo && (
+                  <div className="text-xs text-slate-400 font-mono">
+                    โควตา PvP วันนี้: <span className="text-cyan-400 font-bold">{dailyInfo.earnedToday}</span> / {dailyInfo.cap} EXP
+                  </div>
+                )}
               </div>
             </>
           )}
