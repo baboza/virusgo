@@ -88,16 +88,16 @@ function BattleContent() {
       if (snap.exists() && snap.data().questions?.length > 0) {
         const mapped: QuizItem[] = snap.data().questions.map((q: any) => ({
           q: q.q,
-          choices: q.opts || [],
+          choices: shuffle(q.opts || []),
           answer: q.opts ? q.opts[q.ans] : ''
         }));
         setQuestionsBank(shuffle(mapped));
       } else {
-        setQuestionsBank(shuffle([...FALLBACK_QUIZ]));
+        setQuestionsBank(shuffle(FALLBACK_QUIZ.map((q) => ({ ...q, choices: shuffle(q.choices) }))));
       }
     }).catch((e) => {
       console.error(e);
-      setQuestionsBank(shuffle([...FALLBACK_QUIZ]));
+      setQuestionsBank(shuffle(FALLBACK_QUIZ.map((q) => ({ ...q, choices: shuffle(q.choices) }))));
     });
   }, []);
 

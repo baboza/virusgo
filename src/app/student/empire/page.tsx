@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { familyToVirusType } from '@/components/ui/SVGVirus';
 import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString, getDailyScoutDroneInfo, DAILY_SCOUT_DRONE_LIMIT } from '@/lib/dailyExpCap';
+import { ALL_15_CHAPTER_QUESTIONS } from '@/data/veterinaryVirologyContent';
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
   ssr: false,
@@ -243,54 +244,139 @@ export const DEFENSE_STRUCTURES: Record<string, DefenseStructureConfig> = {
 };
 
 // Bio-Radar Scout Drone Question Pool (Virology & Bio-Defense)
+// Correct answers are evenly distributed across choices (0, 1, 2, 3) and dynamically shuffled upon drone launch
 export const SCOUT_FALLBACK_QUIZ = [
   {
     q: "ไวรัสที่มีสารพันธุกรรมเป็น RNA สายเดี่ยว แบบบวก (ssRNA(+)) สามารถทำหน้าที่ใดได้โดยตรงเมื่อเข้าสู่เซลล์โฮสต์?",
-    options: ["เป็น mRNA ให้ไรโบโซมสังเคราะห์โปรตีนได้ทันที", "ต้องแปลงเป็น DNA ก่อนเสมอ", "จำลองตัวเองโดยไม่อาศัยเอนไซม์ใดๆ", "ไม่สามารถเข้าสู่ไซโทพลาสซึมได้"],
-    ans: 0,
+    options: [
+      "ต้องแปลงเป็น DNA ก่อนเสมอ",
+      "ไม่สามารถเข้าสู่ไซโทพลาสซึมได้",
+      "เป็น mRNA ให้ไรโบโซมสังเคราะห์โปรตีนได้ทันที",
+      "จำลองตัวเองโดยไม่อาศัยเอนไซม์ใดๆ"
+    ],
+    ans: 2,
     explanation: "RNA สายเดี่ยวแบบ Positive-sense (+) ทำหน้าที่เสมือน mRNA ที่ไรโบโซมของโฮสต์สามารถจับและแปลรหัส (Translate) โปรตีนได้ทันที"
   },
   {
     q: "โครงสร้างใดของไวรัสที่มีหน้าที่สำคัญในการยึดเกาะกับตัวรับ (Receptor) บนผิวเซลล์โฮสต์?",
-    options: ["Glycoprotein Spikes บน Envelope หรือ Capsid", "Capsomere ภายในแกนกลาง", "Reverse Transcriptase", "Poly-A tail"],
-    ans: 0,
+    options: [
+      "Capsomere ภายในแกนกลาง",
+      "Glycoprotein Spikes บน Envelope หรือ Capsid",
+      "Reverse Transcriptase",
+      "Poly-A tail"
+    ],
+    ans: 1,
     explanation: "Spike Glycoprotein ทำหน้าที่เสมือนกุญแจจับกับ Receptor บนผิวเซลล์โฮสต์เพื่อเหนี่ยวนำการเข้าสู่เซลล์"
   },
   {
     q: "Envelope (เยื่อหุ้ม) ของไวรัสมักได้มาจากแหล่งใด?",
-    options: ["เยื่อหุ้มเซลล์หรือเยื่อหุ้มออร์แกเนลล์ของเซลล์โฮสต์", "สังเคราะห์ขึ้นใหม่จากกรดอะมิโนอิสระ", "ผนังเซลล์ของแบคทีเรีย", "สร้างขึ้นโดยไมโตคอนเดรียของไวรัส"],
-    ans: 0,
+    options: [
+      "สังเคราะห์ขึ้นใหม่จากกรดอะมิโนอิสระ",
+      "ผนังเซลล์ของแบคทีเรีย",
+      "สร้างขึ้นโดยไมโตคอนเดรียของไวรัส",
+      "เยื่อหุ้มเซลล์หรือเยื่อหุ้มออร์แกเนลล์ของเซลล์โฮสต์ระหว่างการแตกหน่อ (Budding)"
+    ],
+    ans: 3,
     explanation: "Viral Envelope ได้มาจาก Lipid bilayer ของเยื่อหุ้มเซลล์โฮสต์ในระหว่างกระบวนการแตกหน่อ (Budding)"
   },
   {
     q: "การทดสอบใดใช้ตรวจหาสารพันธุกรรมของไวรัสที่มีความไวและความจำเพาะสูงที่สุดในการวินิจฉัยระดับโมเลกุล?",
-    options: ["RT-PCR / Real-time PCR", "Gram Stain", "ELISA Antigen test อย่างเดียว", "การเพาะเลี้ยงในจานอาหารวุ้นสังเคราะห์"],
+    options: [
+      "RT-PCR / Real-time PCR",
+      "Gram Stain",
+      "ELISA Antigen test อย่างเดียว",
+      "การเพาะเลี้ยงในจานอาหารวุ้นสังเคราะห์"
+    ],
     ans: 0,
     explanation: "RT-PCR / Real-time PCR เป็น Gold standard ในการเพิ่มจำนวนและตรวจจับสารพันธุกรรมของไวรัสที่มีความแม่นยำสูงมาก"
   },
   {
     q: "ไวรัสที่มีเยื่อหุ้ม (Enveloped virus) มักถูกทำลายได้ง่ายกว่า Non-enveloped virus ด้วยสารใด?",
-    options: ["แอลกอฮอล์ 70% และสบู่/ผงซักฟอก", "น้ำเปล่าอุณหภูมิห้อง", "เกลือแกงความเข้มข้นต่ำ", "แสงแดดอ่อนๆ เพียง 1 วินาที"],
-    ans: 0,
+    options: [
+      "น้ำเปล่าอุณหภูมิห้อง",
+      "เกลือแกงความเข้มข้นต่ำ",
+      "แอลกอฮอล์ 70% และสบู่/ผงซักฟอก",
+      "แสงแดดอ่อนๆ เพียง 1 วินาที"
+    ],
+    ans: 2,
     explanation: "สารลดแรงตึงผิว (สบู่) และแอลกอฮอล์สามารถละลาย Lipid envelope ทำให้โปรตีนหนามหลุดและสูญเสียความสามารถในการติดเชื้อ"
   },
   {
     q: "Bacteriophage คือไวรัสที่มีเป้าหมายในการติดเชื้อสิ่งมีชีวิตกลุ่มใด?",
-    options: ["แบคทีเรีย", "สัตว์เลี้ยงลูกด้วยนม", "พืชดอก", "ราและยีสต์"],
-    ans: 0,
+    options: [
+      "สัตว์เลี้ยงลูกด้วยนม",
+      "แบคทีเรีย",
+      "พืชดอก",
+      "ราและยีสต์"
+    ],
+    ans: 1,
     explanation: "Bacteriophage เป็นกลุ่มไวรัสที่ติดเชื้อเฉพาะเซลล์แบคทีเรียเท่านั้น"
   },
   {
     q: "เซลล์เม็ดเลือดขาวชนิดใดมีบทบาทหลักในการสร้างแอนติบอดี (Antibodies) เพื่อทำลายไวรัส?",
-    options: ["B Cells (Plasma Cells)", "Neutrophils", "Eosinophils", "Erythrocytes"],
-    ans: 0,
+    options: [
+      "Neutrophils",
+      "Eosinophils",
+      "Erythrocytes",
+      "B Cells (Plasma Cells)"
+    ],
+    ans: 3,
     explanation: "B lymphocytes เมื่อถูกกระตุ้นจะเจริญเป็น Plasma cells และหลั่ง Specific Antibodies เพื่อต่อต้านเชื้อ"
   },
   {
     q: "กลไกใดของเซลล์โฮสต์ที่ทำหน้าที่หลั่งไซโตไคน์เตือนเซลล์ข้างเคียงให้ต้านทานการติดเชื้อไวรัส?",
-    options: ["Interferon response (IFN)", "Histamine release", "Insulin signaling", "Hemoglobin synthesis"],
+    options: [
+      "Interferon response (IFN)",
+      "Histamine release",
+      "Insulin signaling",
+      "Hemoglobin synthesis"
+    ],
     ans: 0,
     explanation: "Interferons (IFN-α, IFN-β) เป็นโปรตีนไซโตไคน์ที่เซลล์หลั่งออกมาเมื่อติดเชื้อไวรัสเพื่อกระตุ้นสถานะ Antiviral state แก่เซลล์ข้างเคียง"
+  },
+  {
+    q: "ไวรัสพิษสุนัขบ้า (Rabies virus) มีลักษณะทางสัณฐานวิทยาและสารพันธุกรรมแบบใด?",
+    options: [
+      "ทรงลูกบาศก์ 20 หน้า และ dsDNA",
+      "รูปกระสุนปืน (Bullet-shaped) และ ssRNA(-)",
+      "เส้นใยยาวคดเคี้ยว และ ssRNA(+)",
+      "ทรงกลมไม่มีเยื่อหุ้ม และ dsRNA"
+    ],
+    ans: 1,
+    explanation: "Rabies virus ในตระกูล Rhabdoviridae มีลักษณะจำเพาะเป็นทรงกระสุนปืน (Bullet-shaped) มีเยื่อหุ้ม และมีจีโนมเป็น ssRNA(-)"
+  },
+  {
+    q: "Negri bodies เป็น Inclusion body ในเซลล์ประสาทสมอง ที่พบเฉพาะในโรคใด?",
+    options: [
+      "Canine Parvovirus",
+      "Feline Panleukopenia",
+      "Rabies (โรคพิษสุนัขบ้า)",
+      "Canine Distemper"
+    ],
+    ans: 2,
+    explanation: "Negri bodies คือ Eosinophilic intracytoplasmic inclusion bodies ในเซลล์ Purkinje ของสมองน้อยหรือเซลล์ Pyramidal ในฮิปโปแคมปัส ซึ่งเป็นพยาธิสภาพจำเพาะของโรคพิษสุนัขบ้า"
+  },
+  {
+    q: "เอนไซม์ใดที่ Retrovirus ต้องใช้ในการเปลี่ยน RNA จีโนมให้เป็น DNA ก่อนรวมเข้ากับโฮสต์?",
+    options: [
+      "DNA Helicase",
+      "RNA Polymerase II",
+      "Taq Polymerase",
+      "Reverse Transcriptase"
+    ],
+    ans: 3,
+    explanation: "Reverse Transcriptase เป็นเอนไซม์จำเพาะของ Retrovirus ที่ใช้สังเคราะห์ DNA จากแม่แบบ RNA (Reverse transcription)"
+  },
+  {
+    q: "สัตว์เศรษฐกิจชนิดใดต่อไปนี้ที่ **ไม่ติดเชื้อ** ไวรัสโรคปากและเท้าเปื่อย (FMDV)?",
+    options: [
+      "ม้า (Horse)",
+      "โค (Cattle)",
+      "สุกร (Swine)",
+      "แพะและแกะ (Goat & Sheep)"
+    ],
+    ans: 0,
+    explanation: "FMDV ติดเชื้อเฉพาะในสัตว์กีบคู่ (Cloven-hoofed animals) เท่านั้น แต่ม้าเป็นสัตว์กีบคี่ (Odd-toed) จึงไม่ติดโรค FMD"
   }
 ];
 
@@ -418,6 +504,12 @@ export default function EmpireMap() {
   const [scoutTarget, setScoutTarget] = useState<{ x: number; y: number } | null>(null);
   const [scoutQuestions, setScoutQuestions] = useState(SCOUT_FALLBACK_QUIZ);
   const [scoutQIndex, setScoutQIndex] = useState(0);
+  const [activeScoutQuiz, setActiveScoutQuiz] = useState<{
+    q: string;
+    options: string[];
+    ans: number;
+    explanation: string;
+  } | null>(null);
   const [isScouting, setIsScouting] = useState(false);
   const [scoutFeedback, setScoutFeedback] = useState<{ isCorrect: boolean; text: string } | null>(null);
 
@@ -1557,7 +1649,33 @@ export default function EmpireMap() {
     }
 
     setScoutTarget({ x, y });
-    setScoutQIndex(Math.floor(Math.random() * scoutQuestions.length));
+
+    // Pool questions from curriculum bank or fallback
+    const questionPool = (ALL_15_CHAPTER_QUESTIONS && ALL_15_CHAPTER_QUESTIONS.length > 0)
+      ? ALL_15_CHAPTER_QUESTIONS.map((q) => ({
+          q: q.q,
+          options: [...q.choices],
+          ans: q.choices.indexOf(q.answer) !== -1 ? q.choices.indexOf(q.answer) : 0,
+          explanation: q.explanation || ''
+        }))
+      : SCOUT_FALLBACK_QUIZ;
+
+    const randomIndex = Math.floor(Math.random() * questionPool.length);
+    const chosen = questionPool[randomIndex];
+
+    // DYNAMIC OPTION SHUFFLING:
+    // Shuffle the options array so the correct answer is NEVER in a fixed/predictable slot
+    const correctText = chosen.options[chosen.ans] || chosen.options[0];
+    const shuffledOptions = [...chosen.options].sort(() => Math.random() - 0.5);
+    const newAns = shuffledOptions.indexOf(correctText);
+
+    setActiveScoutQuiz({
+      q: chosen.q,
+      options: shuffledOptions,
+      ans: newAns >= 0 ? newAns : 0,
+      explanation: chosen.explanation,
+    });
+
     setScoutFeedback(null);
     setShowScoutModal(true);
     sfx.click();
@@ -1584,7 +1702,7 @@ export default function EmpireMap() {
 
   // Handle Scout Drone Quiz Answer submission
   const handleAnswerScoutQuiz = async (selectedOptionIndex: number) => {
-    if (!appUser || !scoutTarget || isScouting) return;
+    if (!appUser || !scoutTarget || isScouting || !activeScoutQuiz) return;
 
     if (!dailyScoutInfo.canScout) {
       alert(`⛔ โควตาสอดแนมสำหรับวันนี้หมดแล้ว (${DAILY_SCOUT_DRONE_LIMIT}/${DAILY_SCOUT_DRONE_LIMIT})`);
@@ -1592,12 +1710,11 @@ export default function EmpireMap() {
       return;
     }
 
-    const currentQuiz = scoutQuestions[scoutQIndex];
-    if (selectedOptionIndex !== currentQuiz.ans) {
+    if (selectedOptionIndex !== activeScoutQuiz.ans) {
       sfx.wrong();
       setScoutFeedback({
         isCorrect: false,
-        text: `❌ ยังไม่ถูกต้อง! คำอธิบาย: ${currentQuiz.explanation}`
+        text: `❌ ยังไม่ถูกต้อง! คำอธิบาย: ${activeScoutQuiz.explanation}`
       });
       return;
     }
@@ -1607,7 +1724,7 @@ export default function EmpireMap() {
     sfx.correct();
     setScoutFeedback({
       isCorrect: true,
-      text: `🎉 ตอบถูกต้อง! ${currentQuiz.explanation}`
+      text: `🎉 ตอบถูกต้อง! ${activeScoutQuiz.explanation}`
     });
 
     try {
@@ -3961,12 +4078,12 @@ export default function EmpireMap() {
 
               {/* Question Text */}
               <p className="text-sm sm:text-base font-semibold text-white leading-relaxed">
-                {scoutQuestions[scoutQIndex]?.q}
+                {activeScoutQuiz?.q}
               </p>
 
               {/* Multiple Choice Options */}
               <div className="space-y-2 pt-1">
-                {scoutQuestions[scoutQIndex]?.options.map((opt, idx) => (
+                {activeScoutQuiz?.options.map((opt, idx) => (
                   <button
                     key={idx}
                     type="button"
@@ -3974,7 +4091,12 @@ export default function EmpireMap() {
                     onClick={() => handleAnswerScoutQuiz(idx)}
                     className="w-full text-left p-3 sm:p-3.5 rounded-xl bg-slate-900/90 hover:bg-cyan-950/60 border border-slate-700/80 hover:border-cyan-500/60 text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-all flex items-center justify-between group active:scale-[0.99] disabled:opacity-50"
                   >
-                    <span>{opt}</span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-mono font-bold text-cyan-400 group-hover:border-cyan-500 group-hover:bg-cyan-500/20 shrink-0">
+                        {String.fromCharCode(65 + idx)}
+                      </span>
+                      <span>{opt}</span>
+                    </div>
                     <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
                   </button>
                 ))}
