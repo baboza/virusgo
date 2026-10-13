@@ -631,7 +631,7 @@ export default function Leaderboard() {
                   <div className="text-right shrink-0">
                     <div className="flex items-center gap-1.5 text-emerald-400 font-black text-xl sm:text-3xl font-mono justify-end">
                       <span>{Number(g.totalTiles || 0).toLocaleString()}</span>
-                      <Map className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" />
+                      <MapPin className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" />
                     </div>
                     <p className="text-[10px] sm:text-xs text-slate-400 font-mono uppercase tracking-wider mt-0.5">
                       เซกเตอร์ที่ครอบครอง

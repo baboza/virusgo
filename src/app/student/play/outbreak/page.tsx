@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Map, Activity, AlertTriangle, ShieldCheck, RefreshCw, Layers } from 'lucide-react';
+import { ArrowLeft, Map as MapIcon, Activity, AlertTriangle, ShieldCheck, RefreshCw, Layers } from 'lucide-react';
 import Link from 'next/link';
 import { sfx } from '@/utils/sound';
 import { useAuth } from '@/contexts/AuthContext';
@@ -756,7 +756,7 @@ export default function OutbreakSim() {
           </Button>
         </Link>
         <div className="font-bold text-accent text-glow-accent flex items-center gap-2 tracking-widest uppercase">
-          <Map className="w-5 h-5 animate-pulse" /> Outbreak Simulator
+          <MapIcon className="w-5 h-5 animate-pulse" /> Outbreak Simulator
         </div>
         <div className="flex items-center gap-3">
           {dailyInfo && (

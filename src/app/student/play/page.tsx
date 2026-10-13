@@ -6,7 +6,7 @@ import { motion, Variants } from 'framer-motion';
 import { 
   ScanSearch, 
   GitMerge, 
-  Map, 
+  Map as MapIcon, 
   Microscope, 
   Timer, 
   Swords, 
@@ -127,7 +127,7 @@ export default function StageSelect() {
       title: 'Outbreak Sim',
       titleTh: 'จำลองควบคุมโรคระบาดในฟาร์ม',
       description: 'รับบทสัตวแพทย์ควบคุมโรคระบาดในฟาร์ม ตัดสินใจตามหลักระบาดวิทยา และระบบ Biosecurity',
-      icon: Map,
+      icon: MapIcon,
       color: 'text-emerald-400',
       glowColor: 'group-hover:border-emerald-500/60 group-hover:shadow-[0_0_30px_rgba(16,185,129,0.18)]',
       border: 'border-emerald-500/30',
@@ -487,7 +487,7 @@ export default function StageSelect() {
             <div className="p-5 rounded-3xl bg-slate-900/70 border border-cyan-500/30 hover:border-cyan-400 transition-all group flex items-center justify-between shadow-lg hover:shadow-[0_0_25px_rgba(6,182,212,0.15)] backdrop-blur-xl">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0 group-hover:scale-110 transition-transform">
-                  <Map className="w-6 h-6" />
+                  <MapIcon className="w-6 h-6" />
                 </div>
                 <div>
                   <div className="text-[10px] font-mono text-cyan-400 font-bold uppercase tracking-wider">

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { motion } from 'framer-motion';
-import { ArrowLeft, RefreshCw, CheckCircle2, AlertTriangle, Shield, User, Flame, TrendingDown, Sparkles, Map, Trash2 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, CheckCircle2, AlertTriangle, Shield, User, Flame, TrendingDown, Sparkles, Map as MapIcon, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function RecalcPage() {
@@ -119,7 +119,7 @@ export default function RecalcPage() {
         <Card className="glass p-6 text-center border-emerald-500/30 flex flex-col justify-between space-y-4">
           <div className="space-y-2">
             <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
-              <Map className="w-6 h-6" />
+              <MapIcon className="w-6 h-6" />
             </div>
             <h3 className="text-base font-bold text-white">ล้างข้อมูล Virus Empire</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
