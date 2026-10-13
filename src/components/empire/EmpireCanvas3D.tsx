@@ -1183,11 +1183,11 @@ function CameraRig({
       controlsRef.current.target.set(worldX, 0, worldZ);
 
       if (cameraMode === 'iso') {
-        const elevation = isMobile ? 18 : 24;
-        const zOffset = isMobile ? 10 : 24;
+        const elevation = isMobile ? 18 : 20;
+        const zOffset = isMobile ? 12 : 14;
         camera.position.set(worldX, elevation, worldZ + zOffset);
       } else {
-        const elevation = isMobile ? 24 : 36;
+        const elevation = isMobile ? 24 : 32;
         camera.position.set(worldX, elevation, worldZ + 0.1);
       }
       controlsRef.current.update();
@@ -1199,15 +1199,15 @@ function CameraRig({
       ref={controlsRef}
       enableDamping
       dampingFactor={0.08}
-      maxPolarAngle={cameraMode === 'top' ? 0.05 : (isMobile ? Math.PI / 2.9 : Math.PI / 2.6)}
-      minPolarAngle={0}
-      minDistance={isMobile ? 5 : 6}
-      maxDistance={isMobile ? 38 : 65}
+      maxPolarAngle={cameraMode === 'top' ? 0.05 : Math.PI / 3.4}
+      minPolarAngle={cameraMode === 'top' ? 0 : 0.15}
+      minDistance={isMobile ? 8 : 10}
+      maxDistance={isMobile ? 38 : 55}
       panSpeed={isMobile ? 1.2 : 1.0}
       zoomSpeed={isMobile ? 1.2 : 1.1}
       touches={{
         ONE: THREE.TOUCH.PAN,
-        TWO: THREE.TOUCH.DOLLY_ROTATE
+        TWO: THREE.TOUCH.DOLLY_PAN
       }}
     />
   );

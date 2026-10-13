@@ -127,8 +127,6 @@ export default function StudentEmpirePage() {
   const [repairingInProgress, setRepairingInProgress] = useState(false);
   const [claimingOutpost, setClaimingOutpost] = useState(false);
 
-  // Initial focus ref
-  const initialFocusDone = useRef(false);
 
   // GM Privilege Check (Full legacy whitelist)
   const isGmUser = useMemo(() => {
@@ -181,17 +179,6 @@ export default function StudentEmpirePage() {
     };
   }, []);
 
-  // ── 2.1 Auto-focus on Player Base or Center on Load ───────────────
-  useEffect(() => {
-    if (initialFocusDone.current || loading || !appUser) return;
-    const myTile = Object.values(tiles).find((t) => t.ownerUid === appUser.uid);
-    if (myTile) {
-      setTargetFocus({ x: myTile.x, y: myTile.y });
-    } else {
-      setTargetFocus({ x: 25, y: 25 });
-    }
-    initialFocusDone.current = true;
-  }, [loading, appUser, tiles]);
 
   // ── 2.2 Calculate Explored Fog of War ─────────────────────────────
   const exploredTiles = useMemo(() => {
