@@ -87,7 +87,8 @@ const tempColor = new THREE.Color();
 const tempMatrix = new THREE.Matrix4();
 const tempPosition = new THREE.Vector3();
 const tempScale = new THREE.Vector3();
-const tempQuaternion = new THREE.Quaternion();
+const IDENTITY_QUAT = new THREE.Quaternion(); // Permanently (0,0,0,1) for ground hexes
+const DECAL_ROTATION_QUAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
 
 // ── 3D Landmark: Sleek Low-Profile Boss Virus ───────────────────────
 function BossVirusMesh({ position }: { position: [number, number, number] }) {
@@ -582,10 +583,9 @@ function VirusArchetypeDecalMesh({
     items.forEach((item, idx) => {
       const { worldX, worldZ } = getHexWorldPos(item.x, item.y);
       tempPosition.set(worldX, item.topY + 0.003, worldZ);
-      tempQuaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
       const s = item.isMine ? 1.08 : 0.96;
       tempScale.set(s, s, 1);
-      tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
+      tempMatrix.compose(tempPosition, DECAL_ROTATION_QUAT, tempScale);
       meshRef.current!.setMatrixAt(idx, tempMatrix);
       tempColor.set(item.color);
       meshRef.current!.setColorAt(idx, tempColor);
@@ -981,7 +981,7 @@ function HexInstancedBoard({
         const { worldX, worldZ } = getHexWorldPos(x, y);
         tempPosition.set(worldX, elevation / 2, worldZ);
         tempScale.set(1, scaleY, 1);
-        tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
+        tempMatrix.compose(tempPosition, IDENTITY_QUAT, tempScale);
 
         meshRef.current.setMatrixAt(idx, tempMatrix);
         meshRef.current.setColorAt(idx, tempColor);
@@ -1178,20 +1178,24 @@ function CameraRig({
 
   useEffect(() => {
     if (!controlsRef.current) return;
-    if (targetFocus) {
-      const { worldX, worldZ } = getHexWorldPos(targetFocus.x, targetFocus.y);
-      controlsRef.current.target.set(worldX, 0, worldZ);
+    const targetX = targetFocus ? targetFocus.x : 25;
+    const targetY = targetFocus ? targetFocus.y : 25;
+    const { worldX, worldZ } = getHexWorldPos(targetX, targetY);
 
-      if (cameraMode === 'iso') {
-        const elevation = isMobile ? 18 : 20;
-        const zOffset = isMobile ? 12 : 14;
-        camera.position.set(worldX, elevation, worldZ + zOffset);
-      } else {
-        const elevation = isMobile ? 24 : 32;
-        camera.position.set(worldX, elevation, worldZ + 0.1);
-      }
-      controlsRef.current.update();
+    controlsRef.current.target.set(worldX, 0, worldZ);
+
+    if (cameraMode === 'iso') {
+      const elevation = isMobile ? 18 : 20;
+      const zOffset = isMobile ? 12 : 14;
+      camera.position.set(worldX, elevation, worldZ + zOffset);
+    } else {
+      // 2D Tactical View: Steep 85-degree top-down bird's eye view
+      const elevation = isMobile ? 26 : 34;
+      camera.position.set(worldX, elevation, worldZ + 2.5);
     }
+    camera.up.set(0, 1, 0);
+    camera.lookAt(worldX, 0, worldZ);
+    controlsRef.current.update();
   }, [targetFocus, cameraMode, camera, isMobile]);
 
   return (
@@ -1199,8 +1203,7 @@ function CameraRig({
       ref={controlsRef}
       enableDamping
       dampingFactor={0.08}
-      maxPolarAngle={cameraMode === 'top' ? 0.05 : Math.PI / 3.4}
-      minPolarAngle={cameraMode === 'top' ? 0 : 0.15}
+      enableRotate={false}
       minDistance={isMobile ? 8 : 10}
       maxDistance={isMobile ? 38 : 55}
       panSpeed={isMobile ? 1.2 : 1.0}
