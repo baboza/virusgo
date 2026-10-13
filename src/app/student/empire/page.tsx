@@ -6,7 +6,7 @@ import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, doc, setDoc, updateDoc, increment, arrayUnion, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { EmpireTile, Guild, User } from '@/types';
 import { SVGVirus } from '@/components/ui/SVGVirus';
-import { Loader2, ArrowLeft, Swords, Crosshair, AlertTriangle, Shield, Lock, Home, Target, Flame, Sparkles, Users, Plus, Check, Crown, Gift, Radio, Building2, Zap, Rocket, ShieldCheck, BookOpen, ZoomIn, ZoomOut, Compass, X, BarChart3, Eye, CloudFog, ChevronRight } from 'lucide-react';
+import { Loader2, ArrowLeft, Swords, Crosshair, AlertTriangle, Shield, Lock, Home, Target, Flame, Sparkles, Users, Plus, Check, Crown, Gift, Radio, Building2, Zap, Rocket, ShieldCheck, BookOpen, ZoomIn, ZoomOut, Compass, X, BarChart3, Eye, CloudFog, ChevronRight, Map as MapIcon, MapPin } from 'lucide-react';
 import { sfx } from '@/utils/sound';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -739,6 +739,7 @@ export default function EmpireMap() {
     let enemyCount = 0;
     let bossCount = 0;
     let outpostCount = 0;
+    let guildCount = 0;
 
     Object.values(tiles).forEach((t) => {
       if (t.isOutpost || t.type === 'outpost') outpostCount++;
@@ -746,11 +747,15 @@ export default function EmpireMap() {
       else if (t.type === 'player') {
         if (t.ownerUid === appUser?.uid) myCount++;
         else enemyCount++;
+
+        if (appUser?.guildId && t.guildId === appUser.guildId) {
+          guildCount++;
+        }
       }
     });
 
-    return { myCount, enemyCount, bossCount, outpostCount };
-  }, [tiles, appUser?.uid]);
+    return { myCount, enemyCount, bossCount, outpostCount, guildCount };
+  }, [tiles, appUser?.uid, appUser?.guildId]);
 
   // Pre-calculated Set of all tiles currently protected by a Guild Citadel Aura
   const citadelAuraTileIds = useMemo(() => {
@@ -1957,16 +1962,22 @@ export default function EmpireMap() {
             <span className="hidden sm:inline">นำทาง</span>
           </button>
 
-          {/* Quick Stats Pill */}
+          {/* Occupied Sectors Badge */}
           <button
             type="button"
             onClick={() => setShowStatsModal(true)}
-            className="px-2 sm:px-2.5 py-1 rounded-xl text-xs font-mono font-bold bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-300 transition-all flex items-center gap-1 shadow-sm active:scale-95"
-            title="ดูสถิติดินแดนทั้งแผนที่"
+            className="px-2 sm:px-2.5 py-1 rounded-xl text-xs font-mono font-bold bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shadow-[0_0_10px_rgba(6,182,212,0.25)] cursor-pointer"
+            title={`เซกเตอร์ที่คุณครอบครอง: ${stats.myCount} ช่อง${appUser?.guildId && stats.guildCount > 0 ? ` (กิลด์ครอบครองรวม ${stats.guildCount} ช่อง)` : ''} (คลิกดูสถิติทั้งหมด)`}
           >
-            <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-cyan-300 font-black">{stats.myCount}</span>
-            <span className="text-slate-500 text-[10px] hidden sm:inline">/ 2,500</span>
+            <MapIcon className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="text-slate-400 hidden xs:inline">ครอง:</span>
+            <span className="text-white font-black">{stats.myCount}</span>
+            <span className="text-cyan-300 text-[10px]">ช่อง</span>
+            {appUser?.guildId && stats.guildCount > 0 && (
+              <span className="text-[10px] text-amber-300 bg-amber-950/70 border border-amber-500/40 px-1.5 py-0.2 rounded-md hidden md:inline font-semibold">
+                กิลด์: {stats.guildCount}
+              </span>
+            )}
           </button>
 
           {/* Guild Button (with truncation to prevent overflow) */}
@@ -2022,6 +2033,16 @@ export default function EmpireMap() {
               >
                 —
               </button>
+            </div>
+
+            {/* Occupied Sectors Status in PC Menu */}
+            <div className="bg-slate-950/80 border border-cyan-500/30 rounded-xl px-2 py-1.5 text-[11px] font-mono flex items-center justify-between">
+              <span className="text-slate-400 flex items-center gap-1">
+                <MapIcon className="w-3 h-3 text-cyan-400" /> ครอบครอง:
+              </span>
+              <span className="text-cyan-300 font-bold">
+                {stats.myCount} ช่อง
+              </span>
             </div>
 
             {/* If 0 bases: Magic Auto-Find Landing Site Button */}
@@ -2874,6 +2895,9 @@ export default function EmpireMap() {
                             )}
                             <span className="truncate">{activeTileData.ownerName}</span>
                             <span className="text-[10px] text-slate-400 font-normal shrink-0">({activeTileData.ownerFamily})</span>
+                            <span className="text-[10px] text-cyan-300 font-mono font-semibold shrink-0">
+                              • ครอง {Object.values(tiles).filter((t) => t.ownerUid === activeTileData.ownerUid).length} เซกเตอร์
+                            </span>
                           </>
                         ) : (
                           <span className="text-slate-400">เซลล์ว่างเปล่า (ยังไม่มีเจ้าของ)</span>
@@ -3175,22 +3199,39 @@ export default function EmpireMap() {
             {/* Scrollable Content Body */}
             <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className={`grid ${appUser?.guildId ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2'} gap-2.5`}>
               {/* Card 1: ของคุณ */}
-              <div className="bg-cyan-950/70 border border-cyan-500/40 rounded-2xl p-3 flex items-center gap-3 shadow-[0_0_12px_rgba(6,182,212,0.15)]">
-                <span className="w-3 h-3 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] shrink-0" />
-                <div>
-                  <div className="text-[10px] font-mono text-cyan-300/80">ของคุณ</div>
-                  <div className="text-xl font-black text-cyan-200">{stats.myCount} เขต</div>
+              <div className="bg-cyan-950/70 border border-cyan-500/40 rounded-2xl p-3.5 flex items-center gap-3 shadow-[0_0_12px_rgba(6,182,212,0.15)]">
+                <span className="w-3.5 h-3.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[10px] font-mono text-cyan-300/80">เซกเตอร์ที่คุณครอบครอง</div>
+                  <div className="text-xl sm:text-2xl font-black text-cyan-200">{stats.myCount} เซกเตอร์</div>
+                  <div className="text-[10px] text-slate-400 font-mono">
+                    {((stats.myCount / (MAP_SIZE * MAP_SIZE)) * 100).toFixed(2)}% ของแผนที่
+                  </div>
                 </div>
               </div>
 
-              {/* Card 2: ศัตรู */}
-              <div className="bg-purple-950/70 border border-purple-500/40 rounded-2xl p-3 flex items-center gap-3 shadow-[0_0_12px_rgba(168,85,247,0.15)]">
-                <span className="w-3 h-3 rounded-full bg-purple-400 shadow-[0_0_8px_#c084fc] shrink-0" />
-                <div>
-                  <div className="text-[10px] font-mono text-purple-300/80">ผู้เล่นอื่น</div>
-                  <div className="text-xl font-black text-purple-200">{stats.enemyCount} เขต</div>
+              {/* Card 2: กิลด์ของคุณ (ถ้ามี) */}
+              {appUser?.guildId && (
+                <div className="bg-amber-950/70 border border-amber-500/40 rounded-2xl p-3.5 flex items-center gap-3 shadow-[0_0_12px_rgba(245,158,11,0.15)]">
+                  <span className="w-3.5 h-3.5 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b] shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-mono text-amber-300/80 truncate">กิลด์ [{appUser.guildName}]</div>
+                    <div className="text-xl sm:text-2xl font-black text-amber-200">{stats.guildCount} เซกเตอร์</div>
+                    <div className="text-[10px] text-slate-400 font-mono">
+                      {((stats.guildCount / (MAP_SIZE * MAP_SIZE)) * 100).toFixed(2)}% ของแผนที่
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Card 3: ผู้เล่นอื่น */}
+              <div className="bg-purple-950/70 border border-purple-500/40 rounded-2xl p-3.5 flex items-center gap-3 shadow-[0_0_12px_rgba(168,85,247,0.15)]">
+                <span className="w-3.5 h-3.5 rounded-full bg-purple-400 shadow-[0_0_8px_#c084fc] shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[10px] font-mono text-purple-300/80">ผู้เล่นอื่นในแผนที่</div>
+                  <div className="text-xl sm:text-2xl font-black text-purple-200">{stats.enemyCount} เซกเตอร์</div>
                 </div>
               </div>
 

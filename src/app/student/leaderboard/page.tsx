@@ -5,7 +5,7 @@ import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/fire
 import { db } from '@/lib/firebase/config';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { 
   Trophy, 
   ShieldAlert, 
@@ -17,7 +17,6 @@ import {
   Medal, 
   Flame, 
   Sparkles, 
-  Map, 
   ChevronRight,
   Shield,
   Activity,
@@ -36,6 +35,11 @@ import { Guild } from '@/types';
 import { getEffectivePetStats } from '@/lib/petBalance';
 import { ACHIEVEMENTS } from '@/app/student/profile/page';
 import dynamic from 'next/dynamic';
+import { sfx } from '@/utils/sound';
+
+const AmbientBioCanvas3D = dynamic(() => import('@/components/ui/AmbientBioCanvas3D'), {
+  ssr: false,
+});
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
   ssr: false,
@@ -60,24 +64,8 @@ export default function Leaderboard() {
         const q = query(collection(db, 'users'), where('role', '==', 'student'));
         const snapshot = await getDocs(q);
         const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        // 2. Map Students with fast in-memory Solo/Team EXP breakdown (Eliminates N+1 Subcollection History Query!)
-        const enrichedUsers = users.map((u: any) => {
-          const validGlobalExp = Number(u.exp || 0);
-          const savedSolo = typeof u.soloExp === 'number' ? u.soloExp : Math.round(validGlobalExp * 0.7);
-          const savedTeam = typeof u.teamExp === 'number' ? u.teamExp : Math.round(validGlobalExp * 0.3);
 
-          return {
-            ...u,
-            globalExp: validGlobalExp,
-            soloExp: Math.min(savedSolo, validGlobalExp),
-            teamExp: Math.min(savedTeam, validGlobalExp)
-          };
-        });
-        
-        setLeaders(enrichedUsers);
-
-        // 3. Fetch Guilds and Empire Tiles for Accurate Real-Time Sector Counts
+        // 2. Fetch Guilds and Empire Tiles for Accurate Real-Time Sector Counts
         try {
           const [guildSnap, tilesSnap] = await Promise.all([
             getDocs(collection(db, 'guilds')),
@@ -96,17 +84,40 @@ export default function Leaderboard() {
             }
           });
 
-          // Count tiles accurately for each guild from live empire_tiles
+          // Count tiles accurately for each user and guild from live empire_tiles
           const guildTilesCount: Record<string, number> = {};
+          const userTilesCount: Record<string, number> = {};
           tilesSnap.forEach((tDoc) => {
             const t = tDoc.data();
             if (t.type === 'player') {
+              if (t.ownerUid) {
+                userTilesCount[t.ownerUid] = (userTilesCount[t.ownerUid] || 0) + 1;
+              }
               const gId = t.guildId || (t.ownerUid ? userGuildMap[t.ownerUid] : undefined);
               if (gId) {
                 guildTilesCount[gId] = (guildTilesCount[gId] || 0) + 1;
               }
             }
           });
+
+          // Map Students with Solo/Team EXP and accurate conquered sectors count
+          const enrichedUsers = users.map((u: any) => {
+            const validGlobalExp = Number(u.exp || 0);
+            const savedSolo = typeof u.soloExp === 'number' ? u.soloExp : Math.round(validGlobalExp * 0.7);
+            const savedTeam = typeof u.teamExp === 'number' ? u.teamExp : Math.round(validGlobalExp * 0.3);
+            const uUid = u.uid || u.id;
+
+            return {
+              ...u,
+              globalExp: validGlobalExp,
+              soloExp: Math.min(savedSolo, validGlobalExp),
+              teamExp: Math.min(savedTeam, validGlobalExp),
+              conqueredTiles: userTilesCount[uUid] || 0,
+              guildTiles: u.guildId ? (guildTilesCount[u.guildId] || 0) : 0
+            };
+          });
+
+          setLeaders(enrichedUsers);
 
           const gList: Guild[] = [];
           guildSnap.forEach((d) => {
@@ -135,6 +146,18 @@ export default function Leaderboard() {
           setGuilds(gList);
         } catch(ge) {
           console.error("Error fetching guilds and tiles:", ge);
+          // Fallback if tiles fail
+          const enrichedFallback = users.map((u: any) => {
+            const validGlobalExp = Number(u.exp || 0);
+            return {
+              ...u,
+              globalExp: validGlobalExp,
+              soloExp: Math.round(validGlobalExp * 0.7),
+              teamExp: Math.round(validGlobalExp * 0.3),
+              conqueredTiles: 0
+            };
+          });
+          setLeaders(enrichedFallback);
         }
 
       } catch (error) {
@@ -176,7 +199,7 @@ export default function Leaderboard() {
     setSelectedProfile(profile);
   };
 
-  const container = {
+  const container: Variants = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
@@ -184,7 +207,7 @@ export default function Leaderboard() {
     }
   };
 
-  const item = {
+  const item: Variants = {
     hidden: { opacity: 0, y: 15 },
     show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 120 } }
   };
@@ -257,6 +280,10 @@ export default function Leaderboard() {
               </span>
               <span className="text-xs px-3 py-1.5 rounded-xl bg-amber-950/90 text-amber-300 border border-amber-500/40 font-mono font-bold shadow-sm">
                 {pExp.toLocaleString()} EXP
+              </span>
+              <span className="text-xs px-3 py-1.5 rounded-xl bg-cyan-900/60 text-cyan-200 border border-cyan-400/40 font-mono font-bold shadow-sm flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                ครอง {selectedProfile.conqueredTiles || 0} เซกเตอร์
               </span>
               <span className={`text-xs px-3 py-1.5 rounded-xl border font-bold flex items-center gap-1.5 shadow-sm ${rTitle.bg} ${rTitle.border} ${rTitle.color}`}>
                 <span>{rTitle.icon}</span> {rTitle.title} ({rTitle.subtitle})
@@ -430,31 +457,65 @@ export default function Leaderboard() {
   }
 
   return (
-    <div className="space-y-8 pb-24 pt-4 px-2 max-w-5xl mx-auto">
+    <div className="relative min-h-screen space-y-8 pb-28 pt-2 px-2 sm:px-4 max-w-5xl mx-auto">
       
-      {/* ── HEADER ───────────────────────────────────────────────────────────── */}
-      <div className="text-center relative py-6">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-amber-500/15 blur-[90px] -z-10 rounded-full" />
-        
-        <motion.div 
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="inline-flex items-center justify-center p-3.5 rounded-3xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mb-4 shadow-[0_0_30px_rgba(245,158,11,0.3)]"
-        >
-          <Trophy className="w-10 h-10 drop-shadow-[0_0_15px_rgba(245,158,11,0.6)]" />
-        </motion.div>
+      {/* 3D Bio-Capsid Ambient Background */}
+      <AmbientBioCanvas3D />
 
-        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-wider text-glow-accent uppercase mb-2">
-          Leaderboard & Hall of Fame
-        </h1>
-        <p className="text-amber-400 font-mono text-xs sm:text-sm uppercase tracking-widest flex items-center justify-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-400" /> ทำเนียบเกียรติยศยอดนักไวรัสวิทยาและพันธมิตรกิลด์
-        </p>
+      {/* ── TOP NAVIGATION & HEADER HUD ──────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5 pt-2">
+        <div className="flex items-center gap-3.5">
+          <Link
+            href="/student"
+            onClick={() => sfx.click()}
+            className="p-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/50 text-slate-300 hover:text-amber-400 transition-all shrink-0 shadow-md group"
+            title="กลับหน้าหลัก Dashboard"
+          >
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-widest font-bold shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+                HALL OF FAME
+              </span>
+              <span className="text-xs text-slate-400 font-mono hidden sm:inline">
+                ทำเนียบเกียรติยศยอดนักไวรัสวิทยา
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-wide mt-1 flex items-center gap-2">
+              <span>ตารางอันดับเกียรติยศ</span>
+              <span className="text-xs sm:text-sm font-mono px-2 py-0.5 rounded-lg bg-slate-800/80 text-amber-400 border border-slate-700 font-semibold">
+                LEADERBOARD
+              </span>
+            </h1>
+          </div>
+        </div>
+
+        {/* Telemetry Status Pills */}
+        <div className="flex items-center gap-2.5 overflow-x-auto py-1">
+          <div className="px-3.5 py-2 rounded-2xl bg-slate-900/80 border border-slate-800/80 flex items-center gap-2 text-xs font-mono">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-slate-400">นิสิตในระบบ:</span>
+            <span className="text-white font-bold">{leaders.length} นาย</span>
+          </div>
+          <div className="px-3.5 py-2 rounded-2xl bg-slate-900/80 border border-slate-800/80 flex items-center gap-2 text-xs font-mono">
+            <Shield className="w-4 h-4 text-emerald-400" />
+            <span className="text-slate-400">กิลด์:</span>
+            <span className="text-emerald-300 font-bold">{guilds.length} พันธมิตร</span>
+          </div>
+          <div className="px-3.5 py-2 rounded-2xl bg-slate-900/80 border border-slate-800/80 flex items-center gap-2 text-xs font-mono">
+            <MapPin className="w-4 h-4 text-cyan-400" />
+            <span className="text-slate-400">เซกเตอร์ครองรวม:</span>
+            <span className="text-cyan-300 font-bold">
+              {leaders.reduce((sum, l) => sum + (l.conqueredTiles || 0), 0)} ช่อง
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* ── CATEGORY TABS ────────────────────────────────────────────────────── */}
       <div className="flex justify-center">
-        <div className="bg-slate-900/80 p-1.5 rounded-2xl border border-slate-700/60 inline-flex flex-wrap justify-center gap-1 shadow-lg">
+        <div className="bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800/90 inline-flex flex-wrap justify-center gap-1.5 shadow-xl backdrop-blur-md">
           {[
             { id: 'global', label: 'ทั้งหมด (Global)', icon: Globe },
             { id: 'solo', label: 'โหมดเดี่ยว (Solo)', icon: UserIcon },
@@ -463,11 +524,14 @@ export default function Leaderboard() {
           ].map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => {
+                sfx.click();
+                setActiveTab(tab.id as any);
+              }}
               className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 ${
                 activeTab === tab.id 
-                  ? 'bg-amber-400 text-slate-950 shadow-[0_0_20px_rgba(245,158,11,0.5)] font-black' 
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-[0_0_20px_rgba(245,158,11,0.4)] font-black scale-[1.02]' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -648,6 +712,18 @@ export default function Leaderboard() {
                   </div>
                 </div>
                 <div className="text-center sm:text-right">
+                  <div className="text-xs text-slate-400 font-mono">ดินแดนที่ครอบครอง</div>
+                  <div className="text-xs font-bold text-cyan-300 font-mono flex items-center justify-center sm:justify-end gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{myLeaderData.conqueredTiles || 0} เซกเตอร์</span>
+                  </div>
+                  {myLeaderData.guildId && (
+                    <div className="text-[10px] text-amber-300/80 font-mono">
+                      (กิลด์: {myLeaderData.guildTiles || 0} ช่อง)
+                    </div>
+                  )}
+                </div>
+                <div className="text-center sm:text-right">
                   <div className="text-xl sm:text-2xl font-black text-accent font-mono">
                     {activeTab === 'global' ? myLeaderData.globalExp : activeTab === 'solo' ? myLeaderData.soloExp : myLeaderData.teamExp} EXP
                   </div>
@@ -692,6 +768,10 @@ export default function Leaderboard() {
                   <p className="text-[10px] sm:text-xs font-mono font-bold text-slate-300">
                     {activeTab === 'global' ? topThree[1].globalExp : activeTab === 'solo' ? topThree[1].soloExp : topThree[1].teamExp} EXP
                   </p>
+                  <div className="flex items-center gap-1 text-[10px] font-mono text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded-full border border-cyan-500/30 mt-0.5 shadow-sm">
+                    <MapPin className="w-3 h-3 text-cyan-400" />
+                    <span>ครอง {topThree[1].conqueredTiles || 0} เซกเตอร์</span>
+                  </div>
 
                   {/* 2nd Place Pet & Pet Rank */}
                   {topThree[1].pet && (() => {
@@ -757,6 +837,10 @@ export default function Leaderboard() {
                   <p className="text-xs sm:text-sm font-mono font-black text-yellow-400">
                     {activeTab === 'global' ? topThree[0].globalExp : activeTab === 'solo' ? topThree[0].soloExp : topThree[0].teamExp} EXP
                   </p>
+                  <div className="flex items-center gap-1 text-[10px] sm:text-xs font-mono text-cyan-300 bg-cyan-950/60 px-2.5 py-0.5 rounded-full border border-cyan-500/40 mt-0.5 shadow-sm">
+                    <MapPin className="w-3 h-3 text-cyan-400" />
+                    <span>ครอง {topThree[0].conqueredTiles || 0} เซกเตอร์</span>
+                  </div>
 
                   {/* 1st Place Pet & Pet Rank */}
                   {topThree[0].pet && (() => {
@@ -822,6 +906,10 @@ export default function Leaderboard() {
                   <p className="text-[10px] sm:text-xs font-mono font-bold text-amber-500">
                     {activeTab === 'global' ? topThree[2].globalExp : activeTab === 'solo' ? topThree[2].soloExp : topThree[2].teamExp} EXP
                   </p>
+                  <div className="flex items-center gap-1 text-[10px] font-mono text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded-full border border-cyan-500/30 mt-0.5 shadow-sm">
+                    <MapPin className="w-3 h-3 text-cyan-400" />
+                    <span>ครอง {topThree[2].conqueredTiles || 0} เซกเตอร์</span>
+                  </div>
 
                   {/* 3rd Place Pet & Pet Rank */}
                   {topThree[2].pet && (() => {
@@ -945,6 +1033,11 @@ export default function Leaderboard() {
                             <span className="text-slate-600">•</span>
                             <span className={`text-[11px] sm:text-xs font-bold flex items-center gap-1 ${rankInfo.color}`}>
                               <span>{rankInfo.icon}</span> {rankInfo.title}
+                            </span>
+                            <span className="text-slate-600">•</span>
+                            <span className="text-[10px] sm:text-[11px] font-mono text-cyan-300 flex items-center gap-1 bg-cyan-950/40 px-2 py-0.5 rounded-md border border-cyan-500/20">
+                              <MapPin className="w-3 h-3 text-cyan-400 shrink-0" />
+                              <span>ครอง {leader.conqueredTiles || 0} เซกเตอร์</span>
                             </span>
                           </div>
                         </div>

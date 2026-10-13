@@ -34,6 +34,20 @@ import {
 import Link from 'next/link';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
+import dynamic from 'next/dynamic';
+
+const AmbientBioCanvas3D = dynamic(() => import('@/components/ui/AmbientBioCanvas3D'), {
+  ssr: false,
+});
+
+const StudentPetHologram3D = dynamic(() => import('@/components/ui/StudentPetHologram3D'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full min-h-[260px] rounded-3xl bg-slate-900/60 border border-slate-800 animate-pulse flex items-center justify-center text-xs font-mono text-slate-500">
+      Loading 3D Chamber...
+    </div>
+  ),
+});
 
 // ── Achievement definitions (Aligned with Leaderboard) ────────────────────
 const ACHIEVEMENTS = [
@@ -164,132 +178,154 @@ export default function PlayerHub() {
   };
 
   return (
-    <div className="space-y-8 px-2 pb-16">
+    <div className="space-y-8 px-2 pb-16 relative">
       
-      {/* ── 1. HUD COMMAND HEADER ──────────────────────────────────────────────── */}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="glass-neon p-6 md:p-8 rounded-3xl border-primary/40 relative overflow-hidden shadow-[0_0_40px_rgba(59,130,246,0.15)]"
-      >
-        <div className="scanlines" />
+      {/* 3D Ambient Cybernetic Background Particles */}
+      <AmbientBioCanvas3D />
+
+      {/* ── 1. HUD COMMAND HEADER & 3D PET HOLOGRAM CHAMBER ───────────────────── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch relative z-10">
         
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-6 relative z-10">
+        {/* Left: Player Profile & Operations Header (2 cols on xl) */}
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="xl:col-span-2 glass-neon p-6 md:p-8 rounded-3xl border-primary/40 relative overflow-hidden shadow-[0_0_40px_rgba(59,130,246,0.15)] flex flex-col justify-between"
+        >
+          <div className="scanlines" />
           
-          {/* Avatar & Player Profile */}
-          <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left w-full lg:w-auto">
-            <div className="relative group shrink-0">
-              <div 
-                className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-primary via-blue-900 to-slate-900 flex items-center justify-center border-2 border-primary/60 shadow-[0_0_25px_rgba(59,130,246,0.5)] overflow-hidden"
-              >
-                {appUser.photoURL
-                  ? <img src={appUser.photoURL} alt={appUser.fullname} className="w-full h-full object-cover" />
-                  : <ShieldAlert className="w-12 h-12 text-blue-300" />
-                }
-              </div>
-              <div className="absolute -bottom-2 -right-2 bg-accent text-slate-950 font-black px-3 py-0.5 rounded-full border-2 border-slate-900 shadow-lg text-xs font-mono">
-                LV.{currentLevel}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                <h1 className="text-2xl sm:text-3xl font-black text-white text-glow tracking-wide uppercase">
-                  {appUser.fullname}
-                </h1>
-                {appUser.studentID && (
-                  <span className="text-xs font-mono text-slate-400 bg-slate-800/80 px-2.5 py-0.5 rounded-md border border-slate-700">
-                    ID: {appUser.studentID}
-                  </span>
-                )}
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-6 relative z-10">
+            
+            {/* Avatar & Player Profile */}
+            <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left w-full lg:w-auto">
+              <div className="relative group shrink-0">
+                <div 
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-primary via-blue-900 to-slate-900 flex items-center justify-center border-2 border-primary/60 shadow-[0_0_25px_rgba(59,130,246,0.5)] overflow-hidden"
+                >
+                  {appUser.photoURL
+                    ? <img src={appUser.photoURL} alt={appUser.fullname} className="w-full h-full object-cover" />
+                    : <ShieldAlert className="w-12 h-12 text-blue-300" />
+                  }
+                </div>
+                <div className="absolute -bottom-2 -right-2 bg-accent text-slate-950 font-black px-3 py-0.5 rounded-full border-2 border-slate-900 shadow-lg text-xs font-mono">
+                  LV.{currentLevel}
+                </div>
               </div>
 
-              {/* Ranks & Guild Tags */}
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
-                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border ${currentRank.bg} ${currentRank.color} ${currentRank.border}`}>
-                  <span>{currentRank.emoji}</span>
-                  <span>{currentRank.title}</span>
-                  <span className="opacity-70 text-[11px]">({currentRank.subtitle})</span>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <h1 className="text-2xl sm:text-3xl font-black text-white text-glow tracking-wide uppercase">
+                    {appUser.fullname}
+                  </h1>
+                  {appUser.studentID && (
+                    <span className="text-xs font-mono text-slate-400 bg-slate-800/80 px-2.5 py-0.5 rounded-md border border-slate-700">
+                      ID: {appUser.studentID}
+                    </span>
+                  )}
                 </div>
 
-                {appUser.guildName ? (
-                  <Link href="/student/empire" className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 transition-colors">
-                    <Users className="w-3.5 h-3.5" />
-                    <span>กิลด์: {appUser.guildName}</span>
-                  </Link>
-                ) : (
-                  <Link href="/student/empire" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800/70 text-slate-400 border border-slate-700 hover:border-slate-500 transition-colors">
-                    <Users className="w-3 h-3 text-slate-500" />
-                    <span>ยังไม่มีกิลด์ (ค้นหาใน Empire)</span>
-                  </Link>
+                {/* Ranks & Guild Tags */}
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border ${currentRank.bg} ${currentRank.color} ${currentRank.border}`}>
+                    <span>{currentRank.emoji}</span>
+                    <span>{currentRank.title}</span>
+                    <span className="opacity-70 text-[11px]">({currentRank.subtitle})</span>
+                  </div>
+
+                  {appUser.guildName ? (
+                    <Link href="/student/empire" className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 transition-colors">
+                      <Users className="w-3.5 h-3.5" />
+                      <span>กิลด์: {appUser.guildName}</span>
+                    </Link>
+                  ) : (
+                    <Link href="/student/empire" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800/70 text-slate-400 border border-slate-700 hover:border-slate-500 transition-colors">
+                      <Users className="w-3 h-3 text-slate-500" />
+                      <span>ยังไม่มีกิลด์ (ค้นหาใน Empire)</span>
+                    </Link>
+                  )}
+                </div>
+
+                {/* Pet Quick Info */}
+                {appUser.pet && (
+                  <p className="text-xs text-purple-300 flex items-center justify-center sm:justify-start gap-1.5 pt-1">
+                    <Heart className="w-3.5 h-3.5 text-pink-400 fill-pink-400 animate-pulse" />
+                    <span>Pet: <strong>{appUser.pet.virusName}</strong> (ขั้นที่ {appUser.pet.stage || 1})</span>
+                  </p>
                 )}
               </div>
+            </div>
 
-              {/* Pet Quick Info */}
-              {appUser.pet && (
-                <p className="text-xs text-purple-300 flex items-center justify-center sm:justify-start gap-1.5 pt-1">
-                  <Heart className="w-3.5 h-3.5 text-pink-400 fill-pink-400 animate-pulse" />
-                  <span>Pet: <strong>{appUser.pet.virusName}</strong> (ขั้นที่ {appUser.pet.stage || 1})</span>
-                </p>
-              )}
+            {/* EXP Progress Gauge */}
+            <div className="w-full lg:w-80 bg-slate-900/80 p-4 rounded-2xl border border-primary/20 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-mono text-slate-400 flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5 text-accent" /> ระดับประสบการณ์ (EXP)
+                </span>
+                <span className="font-mono font-bold text-accent">
+                  {currentExp.toLocaleString()} / {nextLevelExp.toLocaleString()} EXP
+                </span>
+              </div>
+
+              <div className="w-full bg-slate-950 rounded-full h-3 border border-slate-800 relative overflow-hidden">
+                <motion.div 
+                  className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-primary via-cyan-400 to-accent rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 1.2, ease: "easeOut" }}
+                />
+              </div>
+
+              <div className="flex justify-between items-center text-[11px] text-slate-500 font-mono">
+                <span>ความคืบหน้า: {Math.round(progress)}%</span>
+                {nextRank ? (
+                  <span>อีก {(nextRank.reqExp - currentExp).toLocaleString()} EXP → {nextRank.title}</span>
+                ) : (
+                  <span className="text-yellow-400 font-bold">MAX RANK ACHIEVED</span>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Quick Operational Stats Counters */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 mt-6 border-t border-slate-800/80 relative z-10">
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/70 text-center">
+              <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">บทเรียนที่อ่านแล้ว</div>
+              <div className="text-xl font-black text-cyan-400 font-mono">{completedLessonsCount} / 15 <span className="text-xs text-slate-500">บท</span></div>
+            </div>
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/70 text-center">
+              <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">ภารกิจที่เล่นแล้ว</div>
+              <div className="text-xl font-black text-purple-400 font-mono">{history.length} <span className="text-xs text-slate-500">ครั้ง</span></div>
+            </div>
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/70 text-center">
+              <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">โหมดเกมที่ทดสอบ</div>
+              <div className="text-xl font-black text-emerald-400 font-mono">{uniqueGamesPlayed} / 7 <span className="text-xs text-slate-500">โหมด</span></div>
+            </div>
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/70 text-center">
+              <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">สถานะอาณาจักร</div>
+              <div className="text-xl font-black text-amber-400 font-mono">
+                {isEmpireUnlocked ? 'Active' : 'Locked (1,000 EXP)'}
+              </div>
             </div>
           </div>
 
-          {/* EXP Progress Gauge */}
-          <div className="w-full lg:w-80 bg-slate-900/80 p-4 rounded-2xl border border-primary/20 space-y-2">
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-mono text-slate-400 flex items-center gap-1">
-                <Flame className="w-3.5 h-3.5 text-accent" /> ระดับประสบการณ์ (EXP)
-              </span>
-              <span className="font-mono font-bold text-accent">
-                {currentExp.toLocaleString()} / {nextLevelExp.toLocaleString()} EXP
-              </span>
-            </div>
+        </motion.div>
 
-            <div className="w-full bg-slate-950 rounded-full h-3 border border-slate-800 relative overflow-hidden">
-              <motion.div 
-                className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-primary via-cyan-400 to-accent rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 1.2, ease: "easeOut" }}
-              />
-            </div>
+        {/* Right: Interactive 3D Pet Hologram Chamber (1 col on xl) */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.05 }}
+          className="xl:col-span-1 flex flex-col"
+        >
+          <StudentPetHologram3D
+            pet={appUser.pet}
+            currentExp={currentExp}
+            className="h-full"
+          />
+        </motion.div>
 
-            <div className="flex justify-between items-center text-[11px] text-slate-500 font-mono">
-              <span>ความคืบหน้า: {Math.round(progress)}%</span>
-              {nextRank ? (
-                <span>อีก {(nextRank.reqExp - currentExp).toLocaleString()} EXP → {nextRank.title}</span>
-              ) : (
-                <span className="text-yellow-400 font-bold">MAX RANK ACHIEVED</span>
-              )}
-            </div>
-          </div>
-
-        </div>
-
-        {/* Quick Operational Stats Counters */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 mt-6 border-t border-slate-800/80 relative z-10">
-          <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/70 text-center">
-            <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">บทเรียนที่อ่านแล้ว</div>
-            <div className="text-xl font-black text-cyan-400 font-mono">{completedLessonsCount} / 15 <span className="text-xs text-slate-500">บท</span></div>
-          </div>
-          <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/70 text-center">
-            <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">ภารกิจที่เล่นแล้ว</div>
-            <div className="text-xl font-black text-purple-400 font-mono">{history.length} <span className="text-xs text-slate-500">ครั้ง</span></div>
-          </div>
-          <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/70 text-center">
-            <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">โหมดเกมที่ทดสอบ</div>
-            <div className="text-xl font-black text-emerald-400 font-mono">{uniqueGamesPlayed} / 7 <span className="text-xs text-slate-500">โหมด</span></div>
-          </div>
-          <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/70 text-center">
-            <div className="text-slate-400 text-[10px] font-mono uppercase tracking-wider mb-0.5">สถานะอาณาจักร</div>
-            <div className="text-xl font-black text-amber-400 font-mono">
-              {isEmpireUnlocked ? 'Active' : 'Locked (1,000 EXP)'}
-            </div>
-          </div>
-        </div>
-
-      </motion.div>
+      </div>
 
 
       {/* ── 2. FEATURED CURRICULUM BANNER ───────────────────────────────────────── */}
