@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Sparkles, Heart, ChevronRight, Box, Stethoscope, RotateCcw } from 'lucide-react';
 import { VirusPetData } from '@/types';
 import { familyToVirusType, SVGVirus } from '@/components/ui/SVGVirus';
-import { familyToColor } from '@/app/student/empire/page';
+import { familyToColor } from '@/lib/empireConstants';
 
 // Dynamically import VirusViewer3D with SSR disabled to ensure smooth client-only rendering
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {

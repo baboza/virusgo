@@ -21,24 +21,26 @@ interface SVGVirusProps {
   type?: VirusType;
   className?: string;
   glowColor?: string;
+  style?: React.CSSProperties;
 }
 
 /** Map a virus family string → VirusType */
-export function familyToVirusType(family: string): VirusType {
+export function familyToVirusType(family?: string): VirusType {
+  if (!family) return 'parvo';
   const f = family.toLowerCase();
-  if (f.includes('rhabdo'))     return 'rabies';
-  if (f.includes('parvo'))      return 'parvo';
-  if (f.includes('corona'))     return 'corona';
-  if (f.includes('retro'))      return 'retro';
-  if (f.includes('paramyxo'))   return 'paramyxo';
-  if (f.includes('arteri'))     return 'arterivirus';
-  if (f.includes('picorna'))    return 'picorna';
-  if (f.includes('asfar'))      return 'asfar';
-  if (f.includes('flavi'))      return 'flavi';
-  if (f.includes('orthomyxo'))  return 'orthomyxo';
-  if (f.includes('birna'))      return 'birna';
-  if (f.includes('herpes'))     return 'herpes';
-  if (f.includes('reo'))        return 'reo';
+  if (f.includes('rhabdo') || f.includes('rabies')) return 'rabies';
+  if (f.includes('parvo'))                          return 'parvo';
+  if (f.includes('corona'))                         return 'corona';
+  if (f.includes('retro'))                          return 'retro';
+  if (f.includes('paramyxo'))                       return 'paramyxo';
+  if (f.includes('arteri'))                         return 'arterivirus';
+  if (f.includes('picorna'))                        return 'picorna';
+  if (f.includes('asfar'))                          return 'asfar';
+  if (f.includes('flavi'))                          return 'flavi';
+  if (f.includes('orthomyxo') || f.includes('flu')) return 'orthomyxo';
+  if (f.includes('birna'))                          return 'birna';
+  if (f.includes('herpes'))                         return 'herpes';
+  if (f.includes('reo'))                            return 'reo';
   return 'default';
 }
 
@@ -46,8 +48,9 @@ export const SVGVirus: React.FC<SVGVirusProps> = ({
   type = 'default',
   className = 'w-24 h-24',
   glowColor = 'rgba(59,130,246,0.5)',
+  style,
 }) => {
-  const s = { filter: `drop-shadow(0 0 10px ${glowColor})` };
+  const s = { filter: `drop-shadow(0 0 10px ${glowColor})`, ...style };
 
   switch (type) {
 

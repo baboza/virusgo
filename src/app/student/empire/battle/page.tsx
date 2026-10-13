@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc, setDoc, updateDoc, increment, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { EmpireTile, User } from '@/types';
+import { EmpireTile, User, Guild } from '@/types';
 import { familyToColor, isDecayedTile, isShieldedTile, isCentralVaultZone } from '@/app/student/empire/page';
 import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString } from '@/lib/dailyExpCap';
 import { getEffectivePetStats } from '@/lib/petBalance';
@@ -452,7 +452,7 @@ function BattleContent() {
             const gData = gDoc.data() as Guild;
             const cList = gData.citadelCoords || (gData.citadelCoord ? [gData.citadelCoord] : []);
             // Clear isCitadel flag on all citadel tiles of this defeated guild
-            const clearPromises = cList.map((cid) =>
+            const clearPromises = cList.map((cid: string) =>
               updateDoc(doc(db, 'empire_tiles', cid), { isCitadel: false }).catch(() => {})
             );
             await Promise.all(clearPromises);

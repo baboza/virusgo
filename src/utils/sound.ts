@@ -42,6 +42,10 @@ class SoundFX {
     this.playTone(1200, 'square', 0.1, 0.05);
   }
 
+  countdown() {
+    this.playTone(600, 'sine', 0.08, 0.04);
+  }
+
   // Game Sounds
   correct() {
     this.init();
@@ -118,6 +122,10 @@ class SoundFX {
     notes.forEach((freq, idx) => {
       setTimeout(() => this.playTone(freq, 'triangle', 0.25, 0.1), idx * 120);
     });
+  }
+
+  defeat() {
+    this.wrong();
   }
 }
 

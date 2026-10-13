@@ -1,1198 +1,730 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, doc, setDoc, updateDoc, increment, arrayUnion, getDoc, getDocs, writeBatch } from 'firebase/firestore';
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc,
+  updateDoc, 
+  increment, 
+  arrayUnion, 
+  getDoc,
+  deleteDoc
+} from 'firebase/firestore';
 import { EmpireTile, Guild, User } from '@/types';
-import { SVGVirus } from '@/components/ui/SVGVirus';
-import { Loader2, ArrowLeft, Swords, Crosshair, AlertTriangle, Shield, Lock, Home, Target, Flame, Sparkles, Users, Plus, Check, Crown, Gift, Radio, Building2, Zap, Rocket, ShieldCheck, BookOpen, ZoomIn, ZoomOut, Compass, X, BarChart3, Eye, CloudFog, ChevronRight, Map as MapIcon, MapPin } from 'lucide-react';
+import { 
+  Loader2, 
+  ArrowLeft, 
+  Swords, 
+  Crosshair, 
+  Shield, 
+  Sparkles, 
+  Users, 
+  Crown, 
+  Radio, 
+  Building2, 
+  Compass, 
+  X, 
+  BarChart3, 
+  Eye, 
+  EyeOff,
+  CloudFog,
+  MapPin, 
+  Maximize2,
+  RefreshCw,
+  Flame,
+  CheckCircle2,
+  AlertTriangle,
+  Hammer,
+  Wrench,
+  HelpCircle,
+  ShieldAlert,
+  Coins,
+  Heart
+} from 'lucide-react';
 import { sfx } from '@/utils/sound';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
-import { familyToVirusType } from '@/components/ui/SVGVirus';
-import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString, getDailyScoutDroneInfo, DAILY_SCOUT_DRONE_LIMIT } from '@/lib/dailyExpCap';
+import { 
+  getDailyEmpireInfo, 
+  DAILY_EMPIRE_ATTACK_LIMIT, 
+  getTodayDateString, 
+  getDailyScoutDroneInfo, 
+  DAILY_SCOUT_DRONE_LIMIT 
+} from '@/lib/dailyExpCap';
 import { ALL_15_CHAPTER_QUESTIONS } from '@/data/veterinaryVirologyContent';
+import { 
+  MAP_SIZE, 
+  isSanctuaryZone, 
+  isCentralVaultZone, 
+  isShieldedTile,
+  isDecayedTile,
+  getCitadel2x2Coords,
+  isCitadelInfluenceZone,
+  DEFENSE_STRUCTURES, 
+  DefenseStructureConfig,
+  SCOUT_FALLBACK_QUIZ,
+  getPlayerUniqueColor
+} from '@/lib/empireConstants';
+import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 
-const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
+export * from '@/lib/empireConstants';
+
+// Dynamically import Three.js Tactical Canvas (no SSR)
+const EmpireCanvas3D = dynamic(() => import('@/components/empire/EmpireCanvas3D'), {
   ssr: false,
-  loading: () => <div className="w-full h-full flex items-center justify-center text-slate-500 font-mono text-[9px]">3D...</div>
+  loading: () => (
+    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 text-cyan-400 space-y-4">
+      <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+      <div className="text-sm font-mono tracking-widest uppercase">
+        กำลังโหลดระบบแผนที่ยุทธการ 3D (TACTICAL WAR ROOM)...
+      </div>
+    </div>
+  )
 });
 
-export const MAP_SIZE = 50; // Expanded to 50x50 = 2,500 tiles!
-
-// Helper: 4-Rim Sanctuary Zone for New Players
-export const isSanctuaryZone = (x: number, y: number): boolean => {
-  return x < 4 || x >= MAP_SIZE - 4 || y < 4 || y >= MAP_SIZE - 4;
-};
-
-// Helper: Central Vault & Guardian Core Zone
-export const isCentralVaultZone = (x: number, y: number): boolean => {
-  return x >= 22 && x <= 27 && y >= 22 && y <= 27;
-};
-
-// Helper: Check if tile has active beginner shield
-export const isShieldedTile = (tile?: EmpireTile | null): boolean => {
-  if (!tile?.shieldUntil) return false;
-  return new Date(tile.shieldUntil).getTime() > Date.now();
-};
-
-// Helper: Calculate the 4-tile 2x2 cluster coordinates for a given top-left anchor (x,y)
-export const getCitadel2x2Coords = (x: number, y: number): string[] => {
-  return [
-    `${x},${y}`,
-    `${x + 1},${y}`,
-    `${x},${y + 1}`,
-    `${x + 1},${y + 1}`
-  ];
-};
-
-// Helper: Check if tile is within 2 tiles of any cell in a Guild Citadel (Zone of Influence)
-export const isCitadelInfluenceZone = (
-  x: number, 
-  y: number, 
-  citadelCoord?: string | null, 
-  citadelCoords?: string[] | null
-): boolean => {
-  const coords: string[] = [];
-  if (Array.isArray(citadelCoords) && citadelCoords.length > 0) {
-    coords.push(...citadelCoords);
-  } else if (citadelCoord) {
-    coords.push(citadelCoord);
-  }
-  if (coords.length === 0) return false;
-
-  return coords.some((c) => {
-    const [cx, cy] = c.split(',').map(Number);
-    return Math.abs(x - cx) <= 2 && Math.abs(y - cy) <= 2;
-  });
-};
-
-// Helper: Check if territory is decayed (>72 hours inactive, immune if inside Citadel Influence Zone)
-export const isDecayedTile = (
-  tile?: EmpireTile | null, 
-  guildCitadelCoord?: string | null,
-  guildCitadelCoords?: string[] | null
-): boolean => {
-  if (!tile || tile.type !== 'player' || tile.isOutpost || tile.isCitadel) return false;
-  // If territory is within the protection zone of its guild's Citadel, it is immune to decay!
-  if (isCitadelInfluenceZone(tile.x, tile.y, guildCitadelCoord, guildCitadelCoords)) return false;
-  const lastActiveTime = tile.lastActive 
-    ? new Date(tile.lastActive).getTime() 
-    : tile.lastAttacked 
-    ? new Date(tile.lastAttacked).getTime() 
-    : 0;
-  if (!lastActiveTime) return false;
-  return Date.now() - lastActiveTime > 72 * 3600 * 1000;
-};
-
-// Map virus family to color (used across empire & battle pages)
-export const familyToColor = (family: string) => {
-  const f = family.toLowerCase();
-  if (f.includes('rabies')) return '#ef4444';
-  if (f.includes('parvo')) return '#3b82f6';
-  if (f.includes('corona')) return '#10b981';
-  if (f.includes('retro')) return '#a855f7';
-  if (f.includes('paramyxo')) return '#f97316';
-  if (f.includes('arteri')) return '#ec4899';
-  if (f.includes('picorna')) return '#eab308';
-  if (f.includes('asfar')) return '#6366f1';
-  if (f.includes('flavi')) return '#84cc16';
-  if (f.includes('orthomyxo')) return '#14b8a6';
-  return '#06b6d4';
-};
-
-// 12 Distinct Neon/Vibrant Tactical Colors for Students
-const PLAYER_PALETTE = [
-  '#a855f7', // Purple
-  '#f59e0b', // Amber
-  '#ec4899', // Pink
-  '#10b981', // Emerald
-  '#3b82f6', // Blue
-  '#f97316', // Orange
-  '#8b5cf6', // Violet
-  '#14b8a6', // Teal
-  '#eab308', // Yellow
-  '#6366f1', // Indigo
-  '#84cc16', // Lime
-  '#d946ef', // Fuchsia
-];
-
-export const getPlayerUniqueColor = (uid: string, isCurrentPlayer: boolean) => {
-  // Current player is ALWAYS Cyan (#06b6d4) for instant recognition
-  if (isCurrentPlayer) return '#06b6d4';
-  
-  // Consistent deterministic hash for other students
-  let hash = 0;
-  for (let i = 0; i < uid.length; i++) {
-    hash = uid.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const index = Math.abs(hash) % PLAYER_PALETTE.length;
-  return PLAYER_PALETTE[index];
-};
-
-// Generates clean, readable 2-3 character initials for tactical map view
-export const getOwnerMonogram = (name?: string): string => {
-  if (!name) return '?';
-  const trimmed = name.trim();
-  if (!trimmed) return '?';
-
-  // English name: e.g. "John Doe" -> "JD", "Admin" -> "AD"
-  if (/^[A-Za-z]/.test(trimmed)) {
-    const words = trimmed.split(/[\s_-]+/);
-    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-    return trimmed.slice(0, 2).toUpperCase();
-  }
-
-  // Thai leading vowels (เ, แ, โ, ใ, ไ) -> take 3 chars (e.g. "เอก", "ไชย")
-  if (/^[\u0E40-\u0E44]/.test(trimmed)) {
-    return trimmed.slice(0, 3);
-  }
-
-  // Thai 2nd char is upper/lower vowel (e.g. ิ in "ชิน", า in "วาร", ุ in "ดุษ") -> take 3 chars ("ชิน", "วาร")
-  if (trimmed.length >= 3 && /[\u0E30-\u0E39]/.test(trimmed[1])) {
-    return trimmed.slice(0, 3);
-  }
-
-  // Default 2 characters (e.g. "ณภ", "สม", "ปก")
-  return trimmed.slice(0, 2);
-};
-
-export const getVaultGuardianCoords = (): string[] => {
-  const coords: string[] = [];
-  // 50x50 central vault perimeter (22..27, excluding 24,24..25,25)
-  for (let gx = 22; gx <= 27; gx++) {
-    for (let gy = 22; gy <= 27; gy++) {
-      if ((gx === 24 || gx === 25) && (gy === 24 || gy === 25)) continue;
-      coords.push(`${gx},${gy}`);
-    }
-  }
-  // Include legacy coordinates if any
-  for (let gx = 12; gx <= 17; gx++) {
-    for (let gy = 12; gy <= 17; gy++) {
-      if ((gx === 14 || gx === 15) && (gy === 14 || gy === 15)) continue;
-      coords.push(`${gx},${gy}`);
-    }
-  }
-  return coords;
-};
-
-// ── DEFENSE STRUCTURES & WALLS SPECIFICATIONS (EXP SINKS) ──
-export interface DefenseStructureConfig {
-  id: 'bio_wall' | 'spike_wall' | 'sentry_tower' | 'regen_depot';
-  name: string;
-  icon: string;
-  costExp: number;
-  repairCostExp: number;
-  bonusHp: number;
-  bonusAtk: number;
-  desc: string;
-  badge: string;
-  badgeColor: string;
-}
-
-export const DEFENSE_STRUCTURES: Record<string, DefenseStructureConfig> = {
-  bio_wall: {
-    id: 'bio_wall',
-    name: 'กำแพงชีวภาพคัดหลั่ง (Bio-Wall)',
-    icon: '🛡️',
-    costExp: 250,
-    repairCostExp: 50,
-    bonusHp: 1500,
-    bonusAtk: 15,
-    desc: 'กำแพงด่านหน้า เพิ่ม HP ป้องกัน +1,500 และสะท้อน ATK +15 ป้องกันเมืองหลวงและเส้นทาง',
-    badge: 'กำแพง Lv.1',
-    badgeColor: 'border-cyan-400 text-cyan-300 bg-cyan-950/80',
-  },
-  spike_wall: {
-    id: 'spike_wall',
-    name: 'กำแพงหนามไกลโคโปรตีน (Spike Wall)',
-    icon: '🧱',
-    costExp: 600,
-    repairCostExp: 100,
-    bonusHp: 3500,
-    bonusAtk: 30,
-    desc: 'กำแพงหนาพิเศษชั้นใน เพิ่ม HP ป้องกัน +3,500 และสะท้อน ATK +30 ทนทานต่อการโจมตีสูงมาก',
-    badge: 'กำแพงหนา Lv.2',
-    badgeColor: 'border-amber-400 text-amber-300 bg-amber-950/80',
-  },
-  sentry_tower: {
-    id: 'sentry_tower',
-    name: 'ป้อมแอนติบอดีคอยยิงสวน (Antibody Sentry)',
-    icon: '🏹',
-    costExp: 450,
-    repairCostExp: 75,
-    bonusHp: 1800,
-    bonusAtk: 45,
-    desc: 'ป้อมชีวภาพยิงสวน เพิ่ม HP +1,800 และมี ATK สวนกลับสูง +45 ช่วยหยุดยั้งศัตรู',
-    badge: 'ป้อมยิงโจมตี',
-    badgeColor: 'border-rose-400 text-rose-300 bg-rose-950/80',
-  },
-  regen_depot: {
-    id: 'regen_depot',
-    name: 'สถานีฟื้นฟูชีวะ (Regen Bio-Depot)',
-    icon: '💚',
-    costExp: 350,
-    repairCostExp: 60,
-    bonusHp: 1200,
-    bonusAtk: 10,
-    desc: 'สถานีฟื้นฟูแนวรบ เพิ่ม HP +1,200 และช่วยเพิ่มขวัญกำลังใจให้กองกำลังในกิลด์',
-    badge: 'สถานีฟื้นฟู',
-    badgeColor: 'border-emerald-400 text-emerald-300 bg-emerald-950/80',
-  },
-};
-
-// Bio-Radar Scout Drone Question Pool (Virology & Bio-Defense)
-// Correct answers are evenly distributed across choices (0, 1, 2, 3) and dynamically shuffled upon drone launch
-export const SCOUT_FALLBACK_QUIZ = [
-  {
-    q: "ไวรัสที่มีสารพันธุกรรมเป็น RNA สายเดี่ยว แบบบวก (ssRNA(+)) สามารถทำหน้าที่ใดได้โดยตรงเมื่อเข้าสู่เซลล์โฮสต์?",
-    options: [
-      "ต้องแปลงเป็น DNA ก่อนเสมอ",
-      "ไม่สามารถเข้าสู่ไซโทพลาสซึมได้",
-      "เป็น mRNA ให้ไรโบโซมสังเคราะห์โปรตีนได้ทันที",
-      "จำลองตัวเองโดยไม่อาศัยเอนไซม์ใดๆ"
-    ],
-    ans: 2,
-    explanation: "RNA สายเดี่ยวแบบ Positive-sense (+) ทำหน้าที่เสมือน mRNA ที่ไรโบโซมของโฮสต์สามารถจับและแปลรหัส (Translate) โปรตีนได้ทันที"
-  },
-  {
-    q: "โครงสร้างใดของไวรัสที่มีหน้าที่สำคัญในการยึดเกาะกับตัวรับ (Receptor) บนผิวเซลล์โฮสต์?",
-    options: [
-      "Capsomere ภายในแกนกลาง",
-      "Glycoprotein Spikes บน Envelope หรือ Capsid",
-      "Reverse Transcriptase",
-      "Poly-A tail"
-    ],
-    ans: 1,
-    explanation: "Spike Glycoprotein ทำหน้าที่เสมือนกุญแจจับกับ Receptor บนผิวเซลล์โฮสต์เพื่อเหนี่ยวนำการเข้าสู่เซลล์"
-  },
-  {
-    q: "Envelope (เยื่อหุ้ม) ของไวรัสมักได้มาจากแหล่งใด?",
-    options: [
-      "สังเคราะห์ขึ้นใหม่จากกรดอะมิโนอิสระ",
-      "ผนังเซลล์ของแบคทีเรีย",
-      "สร้างขึ้นโดยไมโตคอนเดรียของไวรัส",
-      "เยื่อหุ้มเซลล์หรือเยื่อหุ้มออร์แกเนลล์ของเซลล์โฮสต์ระหว่างการแตกหน่อ (Budding)"
-    ],
-    ans: 3,
-    explanation: "Viral Envelope ได้มาจาก Lipid bilayer ของเยื่อหุ้มเซลล์โฮสต์ในระหว่างกระบวนการแตกหน่อ (Budding)"
-  },
-  {
-    q: "การทดสอบใดใช้ตรวจหาสารพันธุกรรมของไวรัสที่มีความไวและความจำเพาะสูงที่สุดในการวินิจฉัยระดับโมเลกุล?",
-    options: [
-      "RT-PCR / Real-time PCR",
-      "Gram Stain",
-      "ELISA Antigen test อย่างเดียว",
-      "การเพาะเลี้ยงในจานอาหารวุ้นสังเคราะห์"
-    ],
-    ans: 0,
-    explanation: "RT-PCR / Real-time PCR เป็น Gold standard ในการเพิ่มจำนวนและตรวจจับสารพันธุกรรมของไวรัสที่มีความแม่นยำสูงมาก"
-  },
-  {
-    q: "ไวรัสที่มีเยื่อหุ้ม (Enveloped virus) มักถูกทำลายได้ง่ายกว่า Non-enveloped virus ด้วยสารใด?",
-    options: [
-      "น้ำเปล่าอุณหภูมิห้อง",
-      "เกลือแกงความเข้มข้นต่ำ",
-      "แอลกอฮอล์ 70% และสบู่/ผงซักฟอก",
-      "แสงแดดอ่อนๆ เพียง 1 วินาที"
-    ],
-    ans: 2,
-    explanation: "สารลดแรงตึงผิว (สบู่) และแอลกอฮอล์สามารถละลาย Lipid envelope ทำให้โปรตีนหนามหลุดและสูญเสียความสามารถในการติดเชื้อ"
-  },
-  {
-    q: "Bacteriophage คือไวรัสที่มีเป้าหมายในการติดเชื้อสิ่งมีชีวิตกลุ่มใด?",
-    options: [
-      "สัตว์เลี้ยงลูกด้วยนม",
-      "แบคทีเรีย",
-      "พืชดอก",
-      "ราและยีสต์"
-    ],
-    ans: 1,
-    explanation: "Bacteriophage เป็นกลุ่มไวรัสที่ติดเชื้อเฉพาะเซลล์แบคทีเรียเท่านั้น"
-  },
-  {
-    q: "เซลล์เม็ดเลือดขาวชนิดใดมีบทบาทหลักในการสร้างแอนติบอดี (Antibodies) เพื่อทำลายไวรัส?",
-    options: [
-      "Neutrophils",
-      "Eosinophils",
-      "Erythrocytes",
-      "B Cells (Plasma Cells)"
-    ],
-    ans: 3,
-    explanation: "B lymphocytes เมื่อถูกกระตุ้นจะเจริญเป็น Plasma cells และหลั่ง Specific Antibodies เพื่อต่อต้านเชื้อ"
-  },
-  {
-    q: "กลไกใดของเซลล์โฮสต์ที่ทำหน้าที่หลั่งไซโตไคน์เตือนเซลล์ข้างเคียงให้ต้านทานการติดเชื้อไวรัส?",
-    options: [
-      "Interferon response (IFN)",
-      "Histamine release",
-      "Insulin signaling",
-      "Hemoglobin synthesis"
-    ],
-    ans: 0,
-    explanation: "Interferons (IFN-α, IFN-β) เป็นโปรตีนไซโตไคน์ที่เซลล์หลั่งออกมาเมื่อติดเชื้อไวรัสเพื่อกระตุ้นสถานะ Antiviral state แก่เซลล์ข้างเคียง"
-  },
-  {
-    q: "ไวรัสพิษสุนัขบ้า (Rabies virus) มีลักษณะทางสัณฐานวิทยาและสารพันธุกรรมแบบใด?",
-    options: [
-      "ทรงลูกบาศก์ 20 หน้า และ dsDNA",
-      "รูปกระสุนปืน (Bullet-shaped) และ ssRNA(-)",
-      "เส้นใยยาวคดเคี้ยว และ ssRNA(+)",
-      "ทรงกลมไม่มีเยื่อหุ้ม และ dsRNA"
-    ],
-    ans: 1,
-    explanation: "Rabies virus ในตระกูล Rhabdoviridae มีลักษณะจำเพาะเป็นทรงกระสุนปืน (Bullet-shaped) มีเยื่อหุ้ม และมีจีโนมเป็น ssRNA(-)"
-  },
-  {
-    q: "Negri bodies เป็น Inclusion body ในเซลล์ประสาทสมอง ที่พบเฉพาะในโรคใด?",
-    options: [
-      "Canine Parvovirus",
-      "Feline Panleukopenia",
-      "Rabies (โรคพิษสุนัขบ้า)",
-      "Canine Distemper"
-    ],
-    ans: 2,
-    explanation: "Negri bodies คือ Eosinophilic intracytoplasmic inclusion bodies ในเซลล์ Purkinje ของสมองน้อยหรือเซลล์ Pyramidal ในฮิปโปแคมปัส ซึ่งเป็นพยาธิสภาพจำเพาะของโรคพิษสุนัขบ้า"
-  },
-  {
-    q: "เอนไซม์ใดที่ Retrovirus ต้องใช้ในการเปลี่ยน RNA จีโนมให้เป็น DNA ก่อนรวมเข้ากับโฮสต์?",
-    options: [
-      "DNA Helicase",
-      "RNA Polymerase II",
-      "Taq Polymerase",
-      "Reverse Transcriptase"
-    ],
-    ans: 3,
-    explanation: "Reverse Transcriptase เป็นเอนไซม์จำเพาะของ Retrovirus ที่ใช้สังเคราะห์ DNA จากแม่แบบ RNA (Reverse transcription)"
-  },
-  {
-    q: "สัตว์เศรษฐกิจชนิดใดต่อไปนี้ที่ **ไม่ติดเชื้อ** ไวรัสโรคปากและเท้าเปื่อย (FMDV)?",
-    options: [
-      "ม้า (Horse)",
-      "โค (Cattle)",
-      "สุกร (Swine)",
-      "แพะและแกะ (Goat & Sheep)"
-    ],
-    ans: 0,
-    explanation: "FMDV ติดเชื้อเฉพาะในสัตว์กีบคู่ (Cloven-hoofed animals) เท่านั้น แต่ม้าเป็นสัตว์กีบคี่ (Odd-toed) จึงไม่ติดโรค FMD"
-  }
-];
-
-export default function EmpireMap() {
-  const { appUser } = useAuth();
+export default function StudentEmpirePage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const [appUser, setAppUser] = useState<User | null>(null);
+
+  // Live Firestore State
   const [tiles, setTiles] = useState<Record<string, EmpireTile>>({});
-  const [loading, setLoading] = useState(true);
-  const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
-
-  // Daily Empire Attack Quota Info
-  const dailyEmpireInfo = useMemo(() => getDailyEmpireInfo(appUser), [appUser]);
-
-  // Daily Scout Drone Quota Info (5 missions per day)
-  const dailyScoutInfo = useMemo(() => getDailyScoutDroneInfo(appUser), [appUser]);
-
-  // Drag-to-pan state (Smooth Mouse & Touch Dragging)
-  const mapRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
-  const startPos = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
-  const hasMoved = useRef(false);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!mapRef.current) return;
-    isDragging.current = true;
-    hasMoved.current = false;
-    startPos.current = {
-      x: e.clientX,
-      y: e.clientY,
-      scrollLeft: mapRef.current.scrollLeft,
-      scrollTop: mapRef.current.scrollTop,
-    };
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current || !mapRef.current) return;
-    const dx = e.clientX - startPos.current.x;
-    const dy = e.clientY - startPos.current.y;
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-      hasMoved.current = true;
-    }
-    mapRef.current.scrollLeft = startPos.current.scrollLeft - dx;
-    mapRef.current.scrollTop = startPos.current.scrollTop - dy;
-  };
-
-  const handleMouseUp = () => {
-    isDragging.current = false;
-    if (hasMoved.current) {
-      setTimeout(() => {
-        hasMoved.current = false;
-      }, 100);
-    }
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (!mapRef.current) return;
-    isDragging.current = true;
-    hasMoved.current = false;
-    const touch = e.touches[0];
-    startPos.current = {
-      x: touch.clientX,
-      y: touch.clientY,
-      scrollLeft: mapRef.current.scrollLeft,
-      scrollTop: mapRef.current.scrollTop,
-    };
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging.current || !mapRef.current) return;
-    const touch = e.touches[0];
-    const dx = touch.clientX - startPos.current.x;
-    const dy = touch.clientY - startPos.current.y;
-    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
-      hasMoved.current = true;
-    }
-    mapRef.current.scrollLeft = startPos.current.scrollLeft - dx;
-    mapRef.current.scrollTop = startPos.current.scrollTop - dy;
-  };
-
-  const handleTouchEnd = () => {
-    isDragging.current = false;
-    if (hasMoved.current) {
-      setTimeout(() => {
-        hasMoved.current = false;
-      }, 150);
-    }
-  };
-
-  // Guild / Alliance States
   const [guilds, setGuilds] = useState<Record<string, Guild>>({});
-  const [showGuildModal, setShowGuildModal] = useState(false);
-  const [showRulesModal, setShowRulesModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Tactical Controls & Selection
+  const [selectedCoord, setSelectedCoord] = useState<string | null>(null);
+  const [targetFocus, setTargetFocus] = useState<{ x: number; y: number } | null>({ x: 25, y: 25 });
+  const [cameraMode, setCameraMode] = useState<'iso' | 'top'>('iso');
+
+  // Modals
   const [showStatsModal, setShowStatsModal] = useState(false);
-  const [showNavMenu, setShowNavMenu] = useState(false);
-  const [isPcMenuMinimized, setIsPcMenuMinimized] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
-  const [newGuildName, setNewGuildName] = useState('');
-  const [newGuildTag, setNewGuildTag] = useState('');
-  const [newGuildColor, setNewGuildColor] = useState(PLAYER_PALETTE[0]);
-  const [isCreatingGuild, setIsCreatingGuild] = useState(false);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [previewGuildId, setPreviewGuildId] = useState<string | null>(null);
-
-  // Defense Structures & Wall Construction State
-  const [showBuildModal, setShowBuildModal] = useState(false);
-  const [buildingInProgress, setBuildingInProgress] = useState(false);
-  const [repairingInProgress, setRepairingInProgress] = useState(false);
-
-  // Fog of War & GM View States
-  const isGmUser = useMemo(() => {
-    return (
-      appUser?.email === 'never.away@gmail.com' ||
-      appUser?.role === 'instructor' ||
-      appUser?.role === 'admin' ||
-      Boolean(appUser?.email?.includes('instructor')) ||
-      Boolean(appUser?.email?.includes('admin'))
-    );
-  }, [appUser?.email, appUser?.role]);
-
-  // GM View Mode: 'all' = God-mode view (sees all tiles), 'fog' = simulate player fog view
-  const [gmViewMode, setGmViewMode] = useState<'all' | 'fog'>('all');
-
-  // Scout Drone States
+  const [showRulesModal, setShowRulesModal] = useState(false);
   const [showScoutModal, setShowScoutModal] = useState(false);
-  const [scoutTarget, setScoutTarget] = useState<{ x: number; y: number } | null>(null);
-  const [scoutQuestions, setScoutQuestions] = useState(SCOUT_FALLBACK_QUIZ);
-  const [scoutQIndex, setScoutQIndex] = useState(0);
-  const [activeScoutQuiz, setActiveScoutQuiz] = useState<{
+  const [showBuildModal, setShowBuildModal] = useState(false);
+
+  // Action Drawer Messages & Feedback
+  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+
+  // Scout Quiz State
+  const [scoutQuestion, setScoutQuestion] = useState<{
     q: string;
     options: string[];
-    ans: number;
-    explanation: string;
+    answer: number;
+    explanation?: string;
   } | null>(null);
+  const [scoutChoice, setScoutChoice] = useState<number | null>(null);
+  const [scoutFeedback, setScoutFeedback] = useState<string | null>(null);
   const [isScouting, setIsScouting] = useState(false);
-  const [scoutFeedback, setScoutFeedback] = useState<{ isCorrect: boolean; text: string } | null>(null);
 
+  // Build & Repair State
+  const [buildingInProgress, setBuildingInProgress] = useState(false);
+  const [repairingInProgress, setRepairingInProgress] = useState(false);
+  const [claimingOutpost, setClaimingOutpost] = useState(false);
 
+  // Initial focus ref
+  const initialFocusDone = useRef(false);
+
+  // GM Privilege Check (Full legacy whitelist)
+  const isGmUser = useMemo(() => {
+    return Boolean(
+      appUser?.email === 'never.away@gmail.com' ||
+      appUser?.email === 'admin@virusgo.com' ||
+      appUser?.role === 'instructor' ||
+      appUser?.role === 'admin' ||
+      appUser?.email?.includes('instructor') ||
+      appUser?.email?.includes('admin')
+    );
+  }, [appUser]);
+
+  // GM View Mode: 'all' = sees all tiles, 'fog' = simulate player fog view
+  const [gmViewMode, setGmViewMode] = useState<'all' | 'fog'>('all');
+
+  // ── 1. Fetch User Data & Profile ──────────────────────────────────
   useEffect(() => {
-    if (!appUser) return;
-    if ((appUser.exp || 0) < 1000) {
-      router.push('/student');
-      return;
-    }
-
-    // 1. Subscribe to Empire Tiles
-    const qTiles = query(collection(db, 'empire_tiles'));
-    const unsubTiles = onSnapshot(qTiles, (snap) => {
-      const newTiles: Record<string, EmpireTile> = {};
-      let bossCount = 0;
-      snap.forEach((d) => {
-        const t = d.data() as EmpireTile;
-        newTiles[d.id] = t;
-        if (t.type === 'boss') bossCount++;
-      });
-      setTiles(newTiles);
-      setLoading(false);
-
-      const hasOutpost = Object.values(newTiles).some((t) => t.isOutpost || t.type === 'outpost');
-      // Only seed bosses & outposts if the database is newly created and completely uninitialized
-      if (snap.size > 0 && bossCount < 5 && !hasOutpost && appUser?.role === 'instructor') {
-        distributeBosses(newTiles);
+    if (!user) return;
+    const unsub = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        setAppUser(docSnap.data() as User);
       }
     });
+    return () => unsub();
+  }, [user]);
 
-    // 2. Subscribe to Guilds
-    const qGuilds = query(collection(db, 'guilds'));
-    const unsubGuilds = onSnapshot(qGuilds, (snap) => {
+  // ── 2. Real-time Subscription to Empire Tiles & Guilds ─────────────
+  useEffect(() => {
+    const unsubTiles = onSnapshot(collection(db, 'empire_tiles'), (snapshot) => {
+      const tileMap: Record<string, EmpireTile> = {};
+      snapshot.forEach((docSnap) => {
+        tileMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() } as EmpireTile;
+      });
+      setTiles(tileMap);
+      setLoading(false);
+    });
+
+    const unsubGuilds = onSnapshot(collection(db, 'guilds'), (snapshot) => {
       const gMap: Record<string, Guild> = {};
-      snap.forEach((d) => {
-        gMap[d.id] = d.data() as Guild;
+      snapshot.forEach((docSnap) => {
+        gMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() } as Guild;
       });
       setGuilds(gMap);
     });
-
-    // 3. Load Guild Members on-demand (Replaces heavy onSnapshot across all users!)
-    getDocs(query(collection(db, 'users'))).then((snap) => {
-      const uList: User[] = [];
-      snap.forEach((d) => {
-        uList.push(d.data() as User);
-      });
-      setAllUsers(uList);
-    }).catch(console.error);
 
     return () => {
       unsubTiles();
       unsubGuilds();
     };
-  }, [appUser, router]);
+  }, []);
 
-  const currentGuildMembers = useMemo(() => {
-    if (!appUser?.guildId) return [];
-    return allUsers.filter((u) => u.guildId === appUser.guildId);
-  }, [allUsers, appUser?.guildId]);
-
-  // Auto-award Exploration & Conquest Badges (Option A: Guild Conquered + Personal Drone Scouts)
-  // Ensures ALL members of any guild with >= 625 conquered sectors receive 🥉 Junior Explorer immediately!
-  const hasAutoAwardedRef = useRef<Set<string>>(new Set());
-
+  // ── 2.1 Auto-focus on Player Base or Center on Load ───────────────
   useEffect(() => {
-    if (Object.keys(tiles).length === 0 || allUsers.length === 0) return;
-
-    // 1. Group conquered tiles by guild
-    const guildTileCoords: Record<string, string[]> = {};
-    Object.values(tiles).forEach((t) => {
-      if (t.guildId) {
-        if (!guildTileCoords[t.guildId]) guildTileCoords[t.guildId] = [];
-        guildTileCoords[t.guildId].push(`${t.x},${t.y}`);
-      }
-    });
-
-    // 2. Scope target users: Instructors can sync all users; students only update their own profile (strictly complies with Firestore security rules)
-    const isInstructor = appUser?.role === 'instructor' || appUser?.role === 'admin';
-    const usersToAward = isInstructor ? allUsers : allUsers.filter((u) => u.uid === appUser?.uid);
-
-    usersToAward.forEach((u) => {
-      if (!u.uid) return;
-      const uBadges = Array.isArray(u.badges) ? u.badges : [];
-      const gCoords = u.guildId ? (guildTileCoords[u.guildId] || []) : [];
-      const pExplored = Array.isArray(u.exploredTiles) ? u.exploredTiles : [];
-
-      // Effective explored set = Union of personal drone scouts + guild conquered sectors
-      const effectiveSet = new Set<string>([...pExplored, ...gCoords]);
-      const effectiveCount = effectiveSet.size;
-
-      const badgesToGive: string[] = [];
-      if (effectiveCount >= (MAP_SIZE * MAP_SIZE * 0.25) && !uBadges.includes('Junior Explorer')) {
-        badgesToGive.push('Junior Explorer');
-      }
-      if (effectiveCount >= (MAP_SIZE * MAP_SIZE * 0.5) && !uBadges.includes('Master Cartographer')) {
-        badgesToGive.push('Master Cartographer');
-      }
-      if (effectiveCount >= (MAP_SIZE * MAP_SIZE) && !uBadges.includes('Grand Conqueror')) {
-        badgesToGive.push('Grand Conqueror');
-      }
-
-      // Filter badges not yet processed for this user in this session
-      const pendingBadges = badgesToGive.filter((b) => !hasAutoAwardedRef.current.has(`${u.uid}_${b}`));
-
-      if (pendingBadges.length > 0) {
-        pendingBadges.forEach((b) => hasAutoAwardedRef.current.add(`${u.uid}_${b}`));
-        const userRef = doc(db, 'users', u.uid);
-        updateDoc(userRef, {
-          badges: arrayUnion(...pendingBadges),
-        }).then(() => {
-          if (u.uid === appUser?.uid) {
-            setClaimSuccessMsg(
-              `🎖️ ยินดีด้วย! กิลด์ของคุณครอบครอง/สำรวจดินแดนเกิน 25% (625 ช่อง) สมาชิกทุกคนปลดล็อคเหรียญตรา 🥉 Junior Explorer สำเร็จ!`
-            );
-            setTimeout(() => setClaimSuccessMsg(null), 5000);
-          }
-        }).catch((err) => console.error(`Failed to auto-award badge to ${u.uid}:`, err));
-      }
-    });
-  }, [tiles, allUsers, appUser?.uid, appUser?.role]);
-
-  // Distribute bosses and 4 farm outposts across grid sectors
-  const distributeBosses = async (currentTiles: Record<string, EmpireTile>) => {
-    // 1. Fortress Bosses: 2 concentric layers of Guardian Bosses around central vault perimeter (perimeter of [22..27], [22..27] = 28 guardians)
-    const guardianCoords: { x: number; y: number }[] = [];
-    for (let gx = 22; gx <= 27; gx++) {
-      for (let gy = 22; gy <= 27; gy++) {
-        // Exclude the 4 center cells
-        if ((gx === 24 || gx === 25) && (gy === 24 || gy === 25)) continue;
-        guardianCoords.push({ x: gx, y: gy });
-      }
+    if (initialFocusDone.current || loading || !appUser) return;
+    const myTile = Object.values(tiles).find((t) => t.ownerUid === appUser.uid);
+    if (myTile) {
+      setTargetFocus({ x: myTile.x, y: myTile.y });
+    } else {
+      setTargetFocus({ x: 25, y: 25 });
     }
+    initialFocusDone.current = true;
+  }, [loading, appUser, tiles]);
 
-    for (const g of guardianCoords) {
-      const gId = `${g.x},${g.y}`;
-      if (!currentTiles[gId] || currentTiles[gId].type === 'empty') {
-        const isInnerRing = (g.x >= 23 && g.x <= 26 && g.y >= 23 && g.y <= 26);
-        const guardianBoss: EmpireTile = {
-          id: gId,
-          x: g.x,
-          y: g.y,
-          type: 'boss',
-          bossHp: isInnerRing ? 2000 : 1400,
-          maxBossHp: isInnerRing ? 2000 : 1400,
-          ownerName: isInnerRing ? 'ผู้พิทักษ์สมบัติชั้นใน (Vault Elite Guardian)' : 'ผู้พิทักษ์สมบัติชั้นนอก (Perimeter Guardian)',
-          ownerFamily: ['corona', 'rabies', 'parvo', 'retro', 'orthomyxo'][Math.floor(Math.random() * 5)],
-        };
-        await setDoc(doc(db, 'empire_tiles', gId), guardianBoss);
-      }
-    }
+  // ── 2.2 Calculate Explored Fog of War ─────────────────────────────
+  const exploredTiles = useMemo(() => {
+    const set = new Set<string>();
 
-    // 3. Regular Zone Bosses: Place 1 boss in each 5x5 zone (excluding the central vault zones)
-    const zoneSize = 5;
-    const zonesPerRow = MAP_SIZE / zoneSize; // 10 zones for 50x50
-
-    for (let zx = 0; zx < zonesPerRow; zx++) {
-      for (let zy = 0; zy < zonesPerRow; zy++) {
-        // Skip central zones that contain the fortress vault (zones 4 & 5)
-        if ((zx === 4 || zx === 5) && (zy === 4 || zy === 5)) continue;
-
-        let zoneHasBoss = false;
-        for (let ox = 0; ox < zoneSize; ox++) {
-          for (let oy = 0; oy < zoneSize; oy++) {
-            const checkId = `${zx * zoneSize + ox},${zy * zoneSize + oy}`;
-            if (currentTiles[checkId]?.type === 'boss') {
-              zoneHasBoss = true;
-              break;
-            }
-          }
-          if (zoneHasBoss) break;
-        }
-
-        if (!zoneHasBoss) {
-          const rx = zx * zoneSize + 1 + Math.floor(Math.random() * (zoneSize - 2));
-          const ry = zy * zoneSize + 1 + Math.floor(Math.random() * (zoneSize - 2));
-          const bossId = `${rx},${ry}`;
-
-          if (!currentTiles[bossId] || currentTiles[bossId].type === 'empty') {
-            const bossTile: EmpireTile = {
-              id: bossId,
-              x: rx,
-              y: ry,
-              type: 'boss',
-              bossHp: 900,
-              maxBossHp: 900,
-              ownerName: 'Immune System Boss',
-              ownerFamily: ['corona', 'rabies', 'parvo', 'retro', 'orthomyxo'][Math.floor(Math.random() * 5)],
-            };
-            await setDoc(doc(db, 'empire_tiles', bossId), bossTile);
-          }
-        }
-      }
-    }
-
-    // 4. Bio-Farm Outposts: 4 Strategic Outposts across the 4 quadrants (gives 100 EXP/day)
-    const outpostCoords = [
-      { x: 10, y: 10, name: 'ป้อมฟาร์มวิจัยตะวันตกเฉียงเหนือ (NW Outpost)' },
-      { x: 39, y: 10, name: 'ป้อมฟาร์มวิจัยตะวันออกเฉียงเหนือ (NE Outpost)' },
-      { x: 10, y: 39, name: 'ป้อมฟาร์มวิจัยตะวันตกเฉียงใต้ (SW Outpost)' },
-      { x: 39, y: 39, name: 'ป้อมฟาร์มวิจัยตะวันออกเฉียงใต้ (SE Outpost)' },
-    ];
-
-    for (const o of outpostCoords) {
-      const oId = `${o.x},${o.y}`;
-      if (!currentTiles[oId] || currentTiles[oId].type === 'empty') {
-        const outpostTile: EmpireTile = {
-          id: oId,
-          x: o.x,
-          y: o.y,
-          type: 'outpost',
-          isOutpost: true,
-          dailyExp: 100,
-          bossHp: 800,
-          maxBossHp: 800,
-          ownerName: o.name,
-          ownerFamily: 'corona',
-        };
-        await setDoc(doc(db, 'empire_tiles', oId), outpostTile);
-      }
-    }
-  };
-
-  // Fast pre-calculated statistics
-  const stats = useMemo(() => {
-    let myCount = 0;
-    let enemyCount = 0;
-    let bossCount = 0;
-    let outpostCount = 0;
-    let guildCount = 0;
-
-    Object.values(tiles).forEach((t) => {
-      if (t.isOutpost || t.type === 'outpost') outpostCount++;
-      if (t.type === 'boss') bossCount++;
-      else if (t.type === 'player') {
-        if (t.ownerUid === appUser?.uid) myCount++;
-        else enemyCount++;
-
-        if (appUser?.guildId && t.guildId === appUser.guildId) {
-          guildCount++;
-        }
-      }
-    });
-
-    return { myCount, enemyCount, bossCount, outpostCount, guildCount };
-  }, [tiles, appUser?.uid, appUser?.guildId]);
-
-  // Pre-calculated Set of all tiles currently protected by a Guild Citadel Aura
-  const citadelAuraTileIds = useMemo(() => {
-    const auraSet = new Set<string>();
-    Object.values(guilds).forEach((g) => {
-      const coords = g.citadelCoords || (g.citadelCoord ? [g.citadelCoord] : []);
-      coords.forEach((c) => {
-        const [cx, cy] = c.split(',').map(Number);
-        for (let dx = -2; dx <= 2; dx++) {
-          for (let dy = -2; dy <= 2; dy++) {
-            const ax = cx + dx;
-            const ay = cy + dy;
-            if (ax >= 0 && ax < MAP_SIZE && ay >= 0 && ay < MAP_SIZE) {
-              auraSet.add(`${ax},${ay}`);
-            }
-          }
-        }
-      });
-    });
-    return auraSet;
-  }, [guilds]);
-
-  // Fog of War: Pre-calculated Set of tiles visible to the current player
-  // Sanctuary border zone, central vault, bosses, outposts, player bases, and scouted tiles
-  const visibleTileSet = useMemo(() => {
-    // 1. If GM in 'all' mode: All tiles on the 50x50 map are visible
-    if (isGmUser && gmViewMode === 'all') {
-      return new Set<string>(); // Special handling: handled in isTileVisible or filled below
-    }
-
-    const vSet = new Set<string>();
-
-    // 2. Sanctuary zone (rim of 4 tiles around map) is always visible
+    // Rim of 4 tiles around map is always visible (Sanctuary)
     for (let x = 0; x < MAP_SIZE; x++) {
       for (let y = 0; y < MAP_SIZE; y++) {
         if (isSanctuaryZone(x, y)) {
-          vSet.add(`${x},${y}`);
+          set.add(`${x},${y}`);
         }
       }
     }
 
-    // 3. Central Vault zone is always visible (22..27, 22..27)
-    for (let x = 22; x <= 27; x++) {
-      for (let y = 22; y <= 27; y++) {
-        vSet.add(`${x},${y}`);
-      }
+    if (!appUser) return set;
+
+    // Add user's scouted tiles from profile
+    if (Array.isArray(appUser.exploredTiles)) {
+      appUser.exploredTiles.forEach((coord) => set.add(coord));
     }
 
-    // 4. Strategic Beacons: Bosses & Outposts are visible beacons on radar
+    // Add tiles around user's owned tiles (+1 radius)
     Object.values(tiles).forEach((t) => {
-      if (t.type === 'boss' || t.isOutpost || t.type === 'outpost') {
-        vSet.add(t.id);
-      }
-    });
+      const isMyTile = t.ownerUid === appUser.uid;
+      const isMyGuildTile = appUser.guildId && t.guildId === appUser.guildId;
 
-    // 5. Player's bases & Guild bases grant vision radius of 2 tiles
-    const userGuildId = appUser?.guildId;
-    Object.values(tiles).forEach((t) => {
-      const isMyBase = t.ownerUid === appUser?.uid;
-      const isGuildBase = userGuildId && t.guildId === userGuildId;
-      if (isMyBase || isGuildBase) {
-        for (let dx = -2; dx <= 2; dx++) {
-          for (let dy = -2; dy <= 2; dy++) {
-            const vx = t.x + dx;
-            const vy = t.y + dy;
-            if (vx >= 0 && vx < MAP_SIZE && vy >= 0 && vy < MAP_SIZE) {
-              vSet.add(`${vx},${vy}`);
+      if (isMyTile || isMyGuildTile) {
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            const nx = t.x + dx;
+            const ny = t.y + dy;
+            if (nx >= 0 && nx < MAP_SIZE && ny >= 0 && ny < MAP_SIZE) {
+              set.add(`${nx},${ny}`);
             }
           }
         }
       }
     });
 
-    // 6. Permanently scouted tiles by user (stored in Firestore appUser.exploredTiles)
-    if (Array.isArray(appUser?.exploredTiles)) {
-      appUser.exploredTiles.forEach((coord) => vSet.add(coord));
-    }
+    return set;
+  }, [appUser, tiles]);
 
-    return vSet;
-  }, [isGmUser, gmViewMode, tiles, appUser?.uid, appUser?.guildId, appUser?.exploredTiles]);
-
-  // Fast helper to check tile visibility
-  const isTileVisible = useCallback((x: number, y: number): boolean => {
-    if (isGmUser && gmViewMode === 'all') return true;
-    return visibleTileSet.has(`${x},${y}`);
-  }, [isGmUser, gmViewMode, visibleTileSet]);
-
-  // Effective distinct explored count for HUD and badges (personal drone scouts + guild conquered sectors)
-  const effectiveExploredCount = useMemo(() => {
-    const exploredSet = new Set<string>(Array.isArray(appUser?.exploredTiles) ? appUser.exploredTiles : []);
-    if (appUser?.guildId) {
-      Object.values(tiles).forEach((t) => {
-        if (t.guildId === appUser.guildId) {
-          exploredSet.add(`${t.x},${t.y}`);
-        }
-      });
-    }
-    return exploredSet.size;
-  }, [appUser?.exploredTiles, appUser?.guildId, tiles]);
-
-  // Exploration percentage for UI HUD (out of 2,500 tiles, strictly aligned with Badges 25%, 50%, 100%)
-  const explorationPercent = useMemo(() => {
-    if (isGmUser && gmViewMode === 'all') return 100;
-    return Math.min(100, Math.round((effectiveExploredCount / (MAP_SIZE * MAP_SIZE)) * 100));
-  }, [isGmUser, gmViewMode, effectiveExploredCount]);
-
-
-  const activeTileData = selectedTile ? tiles[`${selectedTile.x},${selectedTile.y}`] : null;
-  const isMyTile = activeTileData?.ownerUid === appUser?.uid;
-  // Check if active tile belongs to a guild member (checks guildId or member uid)
-  const isGuildTile = Boolean(
-    appUser?.guildId &&
-      (activeTileData?.guildId === appUser.guildId ||
-        (activeTileData?.ownerUid &&
-          allUsers.some((u) => u.uid === activeTileData.ownerUid && u.guildId === appUser.guildId)))
-  );
-
-  // Player's currently owned tiles
-  const myOwnedTiles = useMemo(() => {
-    return Object.values(tiles).filter((t) => t.ownerUid === appUser?.uid);
-  }, [tiles, appUser?.uid]);
-
-  // Set of tile IDs that player can attack right now
-  const attackableTileIds = useMemo(() => {
-    const ids = new Set<string>();
-    const userGuildId = appUser?.guildId;
-
-    // 1. Drop Pod / Paratroop: If player currently has 0 tiles, they can drop pod ANYWHERE!
-    if (myOwnedTiles.length === 0) {
-      for (let x = 0; x < MAP_SIZE; x++) {
-        for (let y = 0; y < MAP_SIZE; y++) {
-          const id = `${x},${y}`;
-          const t = tiles[id];
-          // Cannot drop onto ally guild tile
-          if (userGuildId && t?.guildId === userGuildId) continue;
-          // Cannot drop onto shielded tiles
-          if (isShieldedTile(t)) continue;
-          // Cannot drop onto outposts
-          if (t?.isOutpost || t?.type === 'outpost') continue;
-          // Cannot drop onto Central Vault & Vault Guardians
-          if (isCentralVaultZone(x, y) || t?.ownerName?.includes('ผู้พิทักษ์') || t?.ownerName?.includes('Guardian')) continue;
-          
-          ids.add(id);
-        }
-      }
-      return ids;
-    }
-
-    // 2. Normal Expansion: Adjacent to player's territory OR Ally Guild's territory
-    const allianceTiles = Object.values(tiles).filter((t) => 
-      t.ownerUid === appUser?.uid || (userGuildId && t.guildId === userGuildId)
-    );
-
-    allianceTiles.forEach((t) => {
-      const neighbors = [
-        `${t.x + 1},${t.y}`,
-        `${t.x - 1},${t.y}`,
-        `${t.x},${t.y + 1}`,
-        `${t.x},${t.y - 1}`,
-      ];
-      neighbors.forEach((nid) => {
-        const [nx, ny] = nid.split(',').map(Number);
-        if (nx < 0 || nx >= MAP_SIZE || ny < 0 || ny >= MAP_SIZE) return;
-
-        const neighbor = tiles[nid];
-        // Cannot attack own tile or ally guild tile
-        const isAlly = neighbor?.ownerUid === appUser?.uid || (userGuildId && neighbor?.guildId === userGuildId);
-        if (isAlly) return;
-
-        // Cannot attack shielded tiles
-        if (isShieldedTile(neighbor)) return;
-
-        ids.add(nid);
-      });
-    });
-
-    return ids;
-  }, [tiles, appUser?.uid, appUser?.guildId, myOwnedTiles.length]);
-
-  const canInfect = useMemo(() => {
-    if (!selectedTile || isMyTile || isGuildTile) return false;
-    if (isShieldedTile(activeTileData)) return false;
-    return attackableTileIds.has(`${selectedTile.x},${selectedTile.y}`);
-  }, [selectedTile, isMyTile, isGuildTile, activeTileData, attackableTileIds]);
-
-  // Upkeep & Auto-Abandon (Territory Decay & Upkeep System)
-  const hasRefreshedUpkeepRef = useRef(false);
-  const hasCleanedAbandonRef = useRef(false);
+  // ── 2.3 Bio-Radar Minimap 2D Pixel Canvas State & Effect ─────────
+  const radarCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [showRadarMobile, setShowRadarMobile] = useState(true);
 
   useEffect(() => {
-    if (!appUser || Object.keys(tiles).length === 0) return;
+    const canvas = radarCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    // 1. Upkeep: Auto-refresh lastActive for current user's tiles if > 1 hour since last refresh (run at most ONCE per session via writeBatch)
-    if (!hasRefreshedUpkeepRef.current) {
-      const myTilesToRefresh = Object.values(tiles).filter((t) => {
-        if (t.ownerUid !== appUser.uid) return false;
-        if (!t.lastActive) return true;
-        return (Date.now() - new Date(t.lastActive).getTime()) > 3600 * 1000;
-      });
+    // Dark tactical background
+    ctx.fillStyle = '#030712';
+    ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
 
-      if (myTilesToRefresh.length > 0) {
-        hasRefreshedUpkeepRef.current = true;
-        const nowIso = new Date().toISOString();
-        const batch = writeBatch(db);
-        myTilesToRefresh.slice(0, 100).forEach((t) => {
-          batch.update(doc(db, 'empire_tiles', t.id), { lastActive: nowIso });
-        });
-        batch.commit().catch(console.error);
-      }
-    }
-
-    // 2. Auto-Abandon: Revert tiles inactive > 120h (5 days) back to empty
-    // SAFETY RULE: ONLY Instructors / Admins are permitted to run background abandon cleanup to prevent write storms
-    const isInstructor = appUser.role === 'instructor' || appUser.role === 'admin';
-    if (isInstructor && !hasCleanedAbandonRef.current) {
-      const abandonedTiles = Object.values(tiles).filter((t) => {
-        if (t.type !== 'player' || t.isOutpost || t.isCitadel) return false;
-        if (citadelAuraTileIds.has(t.id)) return false;
-        const lastTime = t.lastActive 
-          ? new Date(t.lastActive).getTime() 
-          : t.lastAttacked 
-          ? new Date(t.lastAttacked).getTime() 
-          : 0;
-        if (!lastTime) return false;
-        return (Date.now() - lastTime) > 120 * 3600 * 1000;
-      });
-
-      if (abandonedTiles.length > 0) {
-        hasCleanedAbandonRef.current = true;
-        const batch = writeBatch(db);
-        abandonedTiles.slice(0, 50).forEach((t) => {
-          batch.set(doc(db, 'empire_tiles', t.id), {
-            id: t.id,
-            x: t.x,
-            y: t.y,
-            type: 'empty'
-          });
-        });
-        batch.commit().catch(console.error);
-      }
-    }
-  }, [appUser, tiles, citadelAuraTileIds]);
-
-  const handleTileClick = useCallback((x: number, y: number) => {
-    if (hasMoved.current) return;
-    setSelectedTile({ x, y });
-  }, []);
-
-  // Quick Jump to coordinates and center on screen
-  const jumpToTile = (x: number, y: number) => {
-    setSelectedTile({ x, y });
-    if (!mapRef.current) return;
-    // Estimate tile position taking zoom into account
-    const tileW = Math.min(44, Math.max(28, window.innerWidth * 0.044));
-    const targetX = x * (tileW + 2.5) * zoomLevel;
-    const targetY = y * (tileW + 2.5) * zoomLevel;
-    mapRef.current.scrollTo({
-      left: targetX - mapRef.current.clientWidth / 2 + (tileW * zoomLevel) / 2,
-      top: targetY - mapRef.current.clientHeight / 2 + (tileW * zoomLevel) / 2,
-      behavior: 'smooth',
-    });
-  };
-
-  // Zoom Handlers
-  const handleZoomIn = () => {
-    setZoomLevel((prev) => Math.min(1.5, Math.round((prev + 0.2) * 100) / 100));
-  };
-  const handleZoomOut = () => {
-    setZoomLevel((prev) => Math.max(0.6, Math.round((prev - 0.2) * 100) / 100));
-  };
-  const handleResetZoom = () => {
-    setZoomLevel(1);
-  };
-
-  // Jump to Center of the Empire Map
-  const jumpToCenter = () => {
-    jumpToTile(25, 25);
-  };
-
-  // Auto-find safe landing site in Sanctuary Rim for new players
-  const handleAutoFindSanctuary = () => {
-    const emptySanctuaryTiles: { x: number; y: number }[] = [];
+    // Draw explored tiles & landmarks
     for (let x = 0; x < MAP_SIZE; x++) {
       for (let y = 0; y < MAP_SIZE; y++) {
-        if (!isSanctuaryZone(x, y)) continue;
-        const id = `${x},${y}`;
-        const t = tiles[id];
-        if (!t || t.type === 'empty') {
-          emptySanctuaryTiles.push({ x, y });
+        const coord = `${x},${y}`;
+        const isExplored = Boolean(isGmUser || exploredTiles.has(coord));
+        const tile = tiles[coord];
+
+        if (isExplored) {
+          if (tile?.type === 'boss') {
+            ctx.fillStyle = '#ef4444'; // Red for boss
+            ctx.fillRect(x, y, 1, 1);
+          } else if (tile?.ownerUid === appUser?.uid) {
+            ctx.fillStyle = '#06b6d4'; // Cyan for player
+            ctx.fillRect(x, y, 1, 1);
+          } else if (appUser?.guildId && tile?.guildId === appUser.guildId) {
+            ctx.fillStyle = '#f59e0b'; // Amber for player's guild
+            ctx.fillRect(x, y, 1, 1);
+          } else if (tile?.guildId && guilds[tile.guildId]?.color) {
+            ctx.fillStyle = guilds[tile.guildId].color; // Rival guild
+            ctx.fillRect(x, y, 1, 1);
+          } else if (tile?.isOutpost || tile?.type === 'outpost') {
+            ctx.fillStyle = '#10b981'; // Green for outpost
+            ctx.fillRect(x, y, 1, 1);
+          } else if (isSanctuaryZone(x, y)) {
+            ctx.fillStyle = '#075985'; // Sanctuary rim
+            ctx.fillRect(x, y, 1, 1);
+          } else {
+            ctx.fillStyle = '#1e293b'; // Explored empty
+            ctx.fillRect(x, y, 1, 1);
+          }
+        } else {
+          if (isSanctuaryZone(x, y)) {
+            ctx.fillStyle = '#0c4a6e';
+            ctx.fillRect(x, y, 1, 1);
+          }
         }
       }
     }
 
-    if (emptySanctuaryTiles.length > 0) {
-      const picked = emptySanctuaryTiles[Math.floor(Math.random() * emptySanctuaryTiles.length)];
-      jumpToTile(picked.x, picked.y);
-      sfx.click();
+    // Viewport camera target bracket
+    if (targetFocus) {
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(targetFocus.x - 2, targetFocus.y - 2, 5, 5);
+    }
+
+    // Selected tile marker
+    if (selectedCoord) {
+      const [sx, sy] = selectedCoord.split(',').map(Number);
+      ctx.fillStyle = '#22d3ee';
+      ctx.fillRect(sx, sy, 1, 1);
+    }
+  }, [tiles, guilds, exploredTiles, appUser, targetFocus, selectedCoord, isGmUser]);
+
+  // ── 4. Stats Summary & Rankings ───────────────────────────────────
+  const stats = useMemo(() => {
+    let myCount = 0;
+    let guildCount = 0;
+    const guildTileCounts: Record<string, number> = {};
+
+    Object.values(tiles).forEach((t) => {
+      if (t.ownerUid === appUser?.uid) myCount++;
+      if (appUser?.guildId && t.guildId === appUser.guildId) guildCount++;
+      if (t.guildId) {
+        guildTileCounts[t.guildId] = (guildTileCounts[t.guildId] || 0) + 1;
+      }
+    });
+
+    const exploredPercent = Math.min(
+      100,
+      Math.round((exploredTiles.size / (MAP_SIZE * MAP_SIZE)) * 100)
+    );
+
+    // Top guilds sorted by conquered territories
+    const topGuilds = Object.entries(guildTileCounts)
+      .map(([gid, count]) => ({
+        guild: guilds[gid],
+        count
+      }))
+      .filter((item) => Boolean(item.guild))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    return { myCount, guildCount, exploredPercent, topGuilds };
+  }, [tiles, appUser, exploredTiles, guilds]);
+
+  // Total sectors owned per student across the realm
+  const playerTerritories = useMemo(() => {
+    const counts: Record<string, number> = {};
+    Object.values(tiles).forEach((t) => {
+      if (t.ownerUid) {
+        counts[t.ownerUid] = (counts[t.ownerUid] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [tiles]);
+
+  // ── 5. Daily Quota Limits ──────────────────────────────────────────
+  const dailyAttackInfo = useMemo(() => {
+    return getDailyEmpireInfo(appUser);
+  }, [appUser]);
+
+  const dailyScoutInfo = useMemo(() => {
+    return getDailyScoutDroneInfo(appUser);
+  }, [appUser]);
+
+  // ── 6. Selected Tile Analysis ─────────────────────────────────────
+  const currentTile = selectedCoord ? tiles[selectedCoord] : null;
+
+  const userGuildCitadelCoord = useMemo(() => {
+    if (!appUser?.guildId) return null;
+    return (guilds[appUser.guildId] as any)?.citadelCoord || null;
+  }, [appUser, guilds]);
+
+  const isCurrentTileDecayed = useMemo(() => {
+    return isDecayedTile(currentTile, userGuildCitadelCoord);
+  }, [currentTile, userGuildCitadelCoord]);
+
+  const isCurrentTileShielded = useMemo(() => {
+    return isShieldedTile(currentTile);
+  }, [currentTile]);
+
+  // ── 7. Handlers: Camera Navigation ────────────────────────────────
+  const handleSelectCoord = useCallback((coord: string) => {
+    sfx.click();
+    setSelectedCoord(coord);
+  }, []);
+
+  const handleJumpToCenter = () => {
+    sfx.click();
+    const cx = Math.floor(MAP_SIZE / 2);
+    const cy = Math.floor(MAP_SIZE / 2);
+    setTargetFocus({ x: cx, y: cy });
+    setSelectedCoord(`${cx},${cy}`);
+  };
+
+  const handleJumpToMyBase = () => {
+    sfx.click();
+    const myTile = Object.values(tiles).find((t) => t.ownerUid === appUser?.uid);
+    if (myTile) {
+      setTargetFocus({ x: myTile.x, y: myTile.y });
+      setSelectedCoord(`${myTile.x},${myTile.y}`);
     } else {
-      const allEmpty = Object.values(tiles).filter((t) => t.type === 'empty');
-      if (allEmpty.length > 0) {
-        jumpToTile(allEmpty[0].x, allEmpty[0].y);
-      }
+      handleJumpToCenter();
     }
   };
 
-  // Jump to User's Own Base
-  const jumpToMyBase = () => {
-    const myFirst = Object.values(tiles).find((t) => t.ownerUid === appUser?.uid);
-    if (myFirst) {
-      jumpToTile(myFirst.x, myFirst.y);
+  const handleJumpToCitadel = () => {
+    sfx.click();
+    if (!appUser?.guildId) return;
+    const g = guilds[appUser.guildId] as any;
+    if (g?.citadelCoord) {
+      const [cx, cy] = g.citadelCoord.split(',').map(Number);
+      setTargetFocus({ x: cx, y: cy });
+      setSelectedCoord(g.citadelCoord);
+    } else {
+      alert('กิลด์ของคุณยังไม่ได้สถาปนานครหลวง');
     }
   };
 
-  // Jump to Nearest Boss
-  const jumpToNearestBoss = () => {
-    const myFirst = Object.values(tiles).find((t) => t.ownerUid === appUser?.uid);
-    const bossList = Object.values(tiles).filter((t) => t.type === 'boss');
-    if (bossList.length === 0) return;
+  // ── 8. Handler: Infiltrate / Attack (Routes to Battle Page) ───────
+  const handleStartAttack = () => {
+    if (!selectedCoord) return;
+    sfx.click();
 
-    if (!myFirst) {
-      jumpToTile(bossList[0].x, bossList[0].y);
+    // Check Daily Attack Limit (exempt GM)
+    if (!isGmUser && !dailyAttackInfo.canAttack) {
+      alert(`⛔ คุณใช้โควตาการบุกรุกครบ ${DAILY_EMPIRE_ATTACK_LIMIT} ครั้งสำหรับวันนี้แล้ว! (รีเซ็ตทุกเที่ยงคืน)`);
       return;
     }
 
-    // Find closest boss by Manhattan distance
-    let closest = bossList[0];
-    let minDist = 9999;
-    bossList.forEach((b) => {
-      const dist = Math.abs(b.x - myFirst.x) + Math.abs(b.y - myFirst.y);
-      if (dist < minDist) {
-        minDist = dist;
-        closest = b;
+    // Check Pet Health
+    if (appUser?.pet?.isInjured) {
+      if (confirm('🚨 ไวรัสของคุณบาดเจ็บจากการรบและพลังชีวิตหมดลง! ต้องการไปห้องเพาะเลี้ยงเพื่อรักษาและฟื้นฟู HP หรือไม่?')) {
+        router.push('/student/virus-pet');
       }
-    });
-
-    jumpToTile(closest.x, closest.y);
-  };
-
-
-  // Jump to Outpost
-  const jumpToOutpost = () => {
-    const outpostList = [
-      { x: 10, y: 10 },
-      { x: 39, y: 10 },
-      { x: 10, y: 39 },
-      { x: 39, y: 39 },
-      { x: 6, y: 6 },
-      { x: 23, y: 6 },
-      { x: 6, y: 23 },
-      { x: 23, y: 23 }
-    ];
-    const myFirst = Object.values(tiles).find((t) => t.ownerUid === appUser?.uid);
-    if (!myFirst) {
-      jumpToTile(outpostList[0].x, outpostList[0].y);
       return;
     }
-    let closest = outpostList[0];
-    let minDist = 9999;
-    outpostList.forEach((o) => {
-      const dist = Math.abs(o.x - myFirst.x) + Math.abs(o.y - myFirst.y);
-      if (dist < minDist) {
-        minDist = dist;
-        closest = o;
-      }
-    });
-    jumpToTile(closest.x, closest.y);
+
+    // Route to full 3D Battle Arena
+    router.push(`/student/empire/battle?tile=${selectedCoord}`);
   };
 
-  // Outpost Daily EXP Claim State
-  const [claimingOutpost, setClaimingOutpost] = useState(false);
-  const [claimSuccessMsg, setClaimSuccessMsg] = useState<string | null>(null);
+  // ── 8.1 Handler: Bio-Radar Minimap Interaction (Tap or Drag) ──────
+  const handleRadarInteract = (e: React.PointerEvent<HTMLDivElement | HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const py = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const tx = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(px * MAP_SIZE)));
+    const ty = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(py * MAP_SIZE)));
+    sfx.click();
+    setTargetFocus({ x: tx, y: ty });
+    setSelectedCoord(`${tx},${ty}`);
+  };
 
-  const handleClaimDailyExp = async (tileId: string) => {
-    if (!appUser || claimingOutpost) return;
-    const tileData = tiles[tileId];
-    if (!tileData || tileData.ownerUid !== appUser.uid) return;
+  // ── 9. Handler: Scout Drone Calibration & Quiz (Bio-Radar) ────────
+  const handleStartScout = (customCoord?: string) => {
+    if (!appUser) return;
 
-    const todayDate = new Date().toISOString().split('T')[0];
-    if (tileData.lastClaimedDate === todayDate) {
+    if (!isGmUser && !dailyScoutInfo.canScout) {
+      alert(`⛔ แบตเตอรี่โดรนสอดแนมหมด! คุณใช้โควตาสอดแนมครบ ${DAILY_SCOUT_DRONE_LIMIT} ครั้งสำหรับวันนี้แล้ว (รีเซ็ตทุกเที่ยงคืน)`);
+      return;
+    }
+
+    let target = customCoord || selectedCoord;
+    // If no target or target is already explored, find the nearest unexplored fog tile
+    if (!target || exploredTiles.has(target)) {
+      const fx = targetFocus?.x ?? 25;
+      const fy = targetFocus?.y ?? 25;
+      let found: string | null = null;
+      for (let r = 1; r < MAP_SIZE; r++) {
+        for (let dx = -r; dx <= r; dx++) {
+          for (let dy = -r; dy <= r; dy++) {
+            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+            const nx = fx + dx;
+            const ny = fy + dy;
+            if (nx >= 0 && nx < MAP_SIZE && ny >= 0 && ny < MAP_SIZE) {
+              const c = `${nx},${ny}`;
+              if (!exploredTiles.has(c)) {
+                found = c;
+                break;
+              }
+            }
+          }
+          if (found) break;
+        }
+        if (found) break;
+      }
+      if (found) {
+        target = found;
+        setSelectedCoord(found);
+        const [nx, ny] = found.split(',').map(Number);
+        setTargetFocus({ x: nx, y: ny });
+      } else {
+        target = `${fx},${fy}`;
+        setSelectedCoord(target);
+      }
+    }
+
+    sfx.click();
+
+    let qObj: {
+      q: string;
+      options: string[];
+      answer: number;
+      explanation?: string;
+    };
+    if (ALL_15_CHAPTER_QUESTIONS && ALL_15_CHAPTER_QUESTIONS.length > 0) {
+      const randomQ = ALL_15_CHAPTER_QUESTIONS[Math.floor(Math.random() * ALL_15_CHAPTER_QUESTIONS.length)];
+      const answerIdx = randomQ.choices.findIndex((c) => c === randomQ.answer);
+      qObj = {
+        q: randomQ.q,
+        options: randomQ.choices,
+        answer: answerIdx >= 0 ? answerIdx : 0,
+        explanation: randomQ.explanation
+      };
+    } else {
+      const randomFallback = SCOUT_FALLBACK_QUIZ[Math.floor(Math.random() * SCOUT_FALLBACK_QUIZ.length)];
+      qObj = {
+        q: randomFallback.q,
+        options: randomFallback.options,
+        answer: randomFallback.answer,
+        explanation: randomFallback.explanation
+      };
+    }
+
+    setScoutQuestion(qObj);
+    setScoutChoice(null);
+    setScoutFeedback(null);
+    setShowScoutModal(true);
+  };
+
+  const handleAnswerScout = async (choiceIndex: number) => {
+    if (!scoutQuestion || !selectedCoord || !appUser || isScouting) return;
+    setIsScouting(true);
+    setScoutChoice(choiceIndex);
+
+    const isCorrect = choiceIndex === scoutQuestion.answer;
+    if (isCorrect) {
+      sfx.victory();
+      setScoutFeedback('วิเคราะห์ความถี่คลื่นถูกต้อง! โดรนเปิดเผยหมอกในรัศมี 5×5 ช่อง (+25 EXP)');
+
+      try {
+        const [cx, cy] = selectedCoord.split(',').map(Number);
+        const revealedCoords: string[] = [];
+
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dy = -2; dy <= 2; dy++) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (nx >= 0 && nx < MAP_SIZE && ny >= 0 && ny < MAP_SIZE) {
+              revealedCoords.push(`${nx},${ny}`);
+            }
+          }
+        }
+
+        const today = getTodayDateString();
+        const currentScouts = (appUser.dailyScoutDrones?.date === today ? (Number(appUser.dailyScoutDrones?.count) || 0) : 0) + 1;
+
+        // Check badge milestones
+        const prevExplored = Array.isArray(appUser.exploredTiles) ? appUser.exploredTiles : [];
+        const combinedExplored = new Set([...prevExplored, ...revealedCoords]);
+        const currentBadges = Array.isArray(appUser.badges) ? [...appUser.badges] : [];
+        const newBadges: string[] = [];
+
+        if (combinedExplored.size >= MAP_SIZE * MAP_SIZE * 0.25 && !currentBadges.includes('Junior Explorer')) {
+          newBadges.push('Junior Explorer');
+        }
+        if (combinedExplored.size >= MAP_SIZE * MAP_SIZE * 0.5 && !currentBadges.includes('Master Cartographer')) {
+          newBadges.push('Master Cartographer');
+        }
+        if (combinedExplored.size >= MAP_SIZE * MAP_SIZE && !currentBadges.includes('Grand Conqueror')) {
+          newBadges.push('Grand Conqueror');
+        }
+
+        const userRef = doc(db, 'users', appUser.uid);
+        const updatePayload: any = {
+          exploredTiles: arrayUnion(...revealedCoords),
+          dailyScoutDrones: {
+            date: today,
+            count: currentScouts
+          },
+          exp: increment(25),
+          score: increment(25)
+        };
+
+        if (newBadges.length > 0) {
+          updatePayload.badges = arrayUnion(...newBadges);
+        }
+
+        await updateDoc(userRef, updatePayload);
+
+        setTimeout(() => {
+          setIsScouting(false);
+          setShowScoutModal(false);
+          setActionSuccessMsg(`🛸 สแกนหมอกสำเร็จ! ปลดล็อคพื้นที่ 5×5 ช่องรอบ [${selectedCoord}] (+25 EXP)`);
+          setTimeout(() => setActionSuccessMsg(null), 4000);
+        }, 1800);
+      } catch (err) {
+        console.error("Scout drone error:", err);
+        setIsScouting(false);
+      }
+    } else {
+      sfx.wrong();
+      setScoutFeedback(`สัญญาณถูกรบกวน! คำตอบที่ถูกต้องคือ: ${scoutQuestion.options[scoutQuestion.answer]}`);
+      setTimeout(() => {
+        setIsScouting(false);
+        setShowScoutModal(false);
+      }, 2500);
+    }
+  };
+
+  // ── 10. Handler: Build Defense Structure ──────────────────────────
+  const handleBuildStructure = async (structId: string) => {
+    if (!selectedCoord || !appUser || buildingInProgress) return;
+    const struct = DEFENSE_STRUCTURES[structId];
+    if (!struct) return;
+
+    const userExp = Number(appUser.exp || 0);
+    if (userExp < struct.costExp) {
+      alert(`⚠️ EXP ไม่เพียงพอ! การก่อสร้าง "${struct.name}" ต้องการ ${struct.costExp} EXP (คุณมี ${userExp} EXP)`);
+      return;
+    }
+
+    setBuildingInProgress(true);
+    try {
+      const tileRef = doc(db, 'empire_tiles', selectedCoord);
+      const userRef = doc(db, 'users', appUser.uid);
+
+      // Deduct EXP
+      await updateDoc(userRef, {
+        exp: increment(-struct.costExp)
+      });
+
+      // Update tile with structure
+      await updateDoc(tileRef, {
+        buildingType: struct.id,
+        buildingName: struct.name,
+        buildingHp: struct.bonusHp,
+        maxBuildingHp: struct.bonusHp,
+        buildingLevel: 1,
+        builtBy: appUser.uid,
+        builtByName: appUser.fullname || 'Defender'
+      });
+
+      sfx.levelUp();
+      setShowBuildModal(false);
+      setActionSuccessMsg(`🧱 สถาปนา "${struct.name}" สำเร็จ ณ เซกเตอร์ [${selectedCoord}] (-${struct.costExp} EXP)`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error("Build structure error:", err);
+      alert('เกิดข้อผิดพลาดในการสร้างสิ่งก่อสร้าง');
+    } finally {
+      setBuildingInProgress(false);
+    }
+  };
+
+  // ── 11. Handler: Repair Defense Structure ─────────────────────────
+  const handleRepairStructure = async () => {
+    if (!selectedCoord || !appUser || !currentTile || repairingInProgress) return;
+    if (!currentTile.buildingType) return;
+    const struct = DEFENSE_STRUCTURES[currentTile.buildingType];
+    if (!struct) return;
+
+    const currentHp = currentTile.buildingHp || 0;
+    const maxHp = currentTile.maxBuildingHp || struct.bonusHp;
+    if (currentHp >= maxHp) {
+      alert('🛡️ สิ่งก่อสร้างนี้มีความสมบูรณ์ 100% อยู่แล้ว');
+      return;
+    }
+
+    const userExp = Number(appUser.exp || 0);
+    if (userExp < struct.repairCostExp) {
+      alert(`⚠️ EXP ไม่เพียงพอ! การซ่อมแซมต้องการ ${struct.repairCostExp} EXP (คุณมี ${userExp} EXP)`);
+      return;
+    }
+
+    setRepairingInProgress(true);
+    try {
+      const tileRef = doc(db, 'empire_tiles', selectedCoord);
+      const userRef = doc(db, 'users', appUser.uid);
+
+      await updateDoc(userRef, {
+        exp: increment(-struct.repairCostExp)
+      });
+
+      await updateDoc(tileRef, {
+        buildingHp: maxHp,
+        currentDefenderHp: currentTile.maxDefenderHp || maxHp
+      });
+
+      sfx.victory();
+      setActionSuccessMsg(`🔨 ซ่อมแซม "${struct.name}" จนสมบูรณ์ 100% (-${struct.repairCostExp} EXP)`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error("Repair error:", err);
+      alert('เกิดข้อผิดพลาดในการซ่อมแซม');
+    } finally {
+      setRepairingInProgress(false);
+    }
+  };
+
+  // ── 12. Handler: Daily Outpost Harvest ────────────────────────────
+  const handleClaimDailyExp = async () => {
+    if (!selectedCoord || !appUser || claimingOutpost || !currentTile) return;
+    const today = getTodayDateString();
+
+    if (currentTile.lastClaimedDate === today) {
       alert('คุณได้เก็บเกี่ยวผลผลิตจากป้อมนี้ไปแล้วในวันนี้! กรุณารอวันถัดไป');
       return;
     }
 
     setClaimingOutpost(true);
     try {
-      // 1. Give +100 EXP to owner
-      await updateDoc(doc(db, 'users', appUser.uid), {
+      const tileRef = doc(db, 'empire_tiles', selectedCoord);
+      const userRef = doc(db, 'users', appUser.uid);
+
+      await updateDoc(userRef, {
         exp: increment(100),
         score: increment(100)
       });
 
-      // 2. Update tile's lastClaimedDate
-      await updateDoc(doc(db, 'empire_tiles', tileId), {
-        lastClaimedDate: todayDate
-      });
-
-      // 3. Record history
-      const { addDoc, collection: col } = await import('firebase/firestore');
-      await addDoc(col(db, 'users', appUser.uid, 'history'), {
-        gameId: 'empire-outpost-daily',
-        gameName: 'Empire Outpost Daily Farm',
-        score: 100,
-        expEarned: 100,
-        playedAt: new Date().toISOString()
+      await updateDoc(tileRef, {
+        lastClaimedDate: today
       });
 
       sfx.levelUp();
-      setClaimSuccessMsg(`🎉 เก็บเกี่ยวผลผลิตสำเร็จ! ได้รับ +100 EXP ประจำวันจากป้อมวิจัย`);
-      setTimeout(() => setClaimSuccessMsg(null), 4000);
-    } catch (e: any) {
-      console.error('Failed to claim daily exp:', e);
+      setActionSuccessMsg(`🎉 เก็บเกี่ยวผลผลิตสำเร็จ! ได้รับ +100 EXP ประจำวันจากป้อมวิจัย`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error("Claim daily exp error:", err);
     } finally {
       setClaimingOutpost(false);
     }
   };
 
-  // ── GM Administrative Tools Handlers ──
-  const handleGmResetTile = async (tileId: string) => {
-    if (!isGmUser) return;
-    if (!window.confirm(`[GM Action] ยืนยันการล้างเซกเตอร์ [${tileId}] ให้กลับเป็นช่องว่าง (Empty Tile) หรือไม่?`)) return;
-    try {
-      const [tx, ty] = tileId.split(',').map(Number);
-      await setDoc(doc(db, 'empire_tiles', tileId), {
-        id: tileId,
-        x: tx,
-        y: ty,
-        type: 'empty',
-      });
-      sfx.click();
-      setClaimSuccessMsg(`🧹 [GM] รีเซ็ตเซกเตอร์ [${tileId}] ให้เป็นช่องว่างเรียบร้อยแล้ว`);
-      setTimeout(() => setClaimSuccessMsg(null), 4000);
-    } catch (err) {
-      console.error('Failed to reset tile by GM:', err);
-      alert('เกิดข้อผิดพลาดในการล้างเซกเตอร์');
-    }
-  };
-
+  // ── 13. GM Administrative Tools Handlers ──────────────────────────
   const handleGmFullHealTile = async (tileId: string) => {
     if (!isGmUser) return;
     try {
@@ -1205,9 +737,9 @@ export default function EmpireMap() {
         updates.buildingHp = t.maxBuildingHp || 1000;
       }
       await updateDoc(doc(db, 'empire_tiles', tileId), updates);
-      sfx.success();
-      setClaimSuccessMsg(`💖 [GM] ฟื้นฟู HP 100% ให้เซกเตอร์ [${tileId}] สำเร็จ`);
-      setTimeout(() => setClaimSuccessMsg(null), 4000);
+      sfx.victory();
+      setActionSuccessMsg(`💖 [GM] ฟื้นฟู HP 100% ให้เซกเตอร์ [${tileId}] สำเร็จ`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err) {
       console.error('Failed to heal tile by GM:', err);
     }
@@ -1218,9 +750,9 @@ export default function EmpireMap() {
     try {
       const shieldUntil = new Date(Date.now() + hours * 3600 * 1000).toISOString();
       await updateDoc(doc(db, 'empire_tiles', tileId), { shieldUntil });
-      sfx.success();
-      setClaimSuccessMsg(`🛡️ [GM] มอบบาเรีย ${hours} ชั่วโมง ให้เซกเตอร์ [${tileId}] สำเร็จ`);
-      setTimeout(() => setClaimSuccessMsg(null), 4000);
+      sfx.victory();
+      setActionSuccessMsg(`🛡️ [GM] มอบบาเรีย ${hours} ชม. ให้เซกเตอร์ [${tileId}] สำเร็จ`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err) {
       console.error('Failed to grant shield by GM:', err);
     }
@@ -1231,674 +763,219 @@ export default function EmpireMap() {
     try {
       await updateDoc(doc(db, 'empire_tiles', tileId), { shieldUntil: null });
       sfx.click();
-      setClaimSuccessMsg(`🔓 [GM] ปลดบาเรียของเซกเตอร์ [${tileId}] สำเร็จ`);
-      setTimeout(() => setClaimSuccessMsg(null), 4000);
+      setActionSuccessMsg(`🔓 [GM] ปลดบาเรียของเซกเตอร์ [${tileId}] สำเร็จ`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err) {
       console.error('Failed to remove shield by GM:', err);
     }
   };
 
-  // Guild Management Handlers
-  const handleCreateGuild = async () => {
-    if (!appUser || !newGuildName.trim() || !newGuildTag.trim()) return;
-    setIsCreatingGuild(true);
+  const handleGmResetTile = async (tileId: string) => {
+    if (!isGmUser) return;
+    if (!confirm(`[GM Action] ยืนยันการล้างเซกเตอร์ [${tileId}] ให้กลับเป็นช่องว่างหรือไม่?`)) return;
+
     try {
-      const gId = `guild_${Date.now()}`;
-      const creatorTilesCount = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length;
-      const newGuild: Guild = {
-        id: gId,
-        name: newGuildName.trim(),
-        tag: newGuildTag.trim().toUpperCase(),
-        color: newGuildColor,
-        leaderUid: appUser.uid,
-        leaderName: appUser.fullname,
-        membersCount: 1,
-        totalTiles: creatorTilesCount,
-        createdAt: new Date().toISOString(),
-      };
-
-      const batch = writeBatch(db);
-      batch.set(doc(db, 'guilds', gId), newGuild);
-      batch.update(doc(db, 'users', appUser.uid), {
-        guildId: gId,
-        guildName: newGuild.name,
+      const [tx, ty] = tileId.split(',').map(Number);
+      await setDoc(doc(db, 'empire_tiles', tileId), {
+        id: tileId,
+        x: tx,
+        y: ty,
+        type: 'empty'
       });
-
-      // Update current user's tiles to reflect guild atomically
-      Object.values(tiles)
-        .filter((t) => t.ownerUid === appUser.uid)
-        .slice(0, 450)
-        .forEach((t) => {
-          batch.update(doc(db, 'empire_tiles', t.id), {
-            guildId: gId,
-            guildName: newGuild.name,
-          });
-        });
-      await batch.commit();
-
-      setNewGuildName('');
-      setNewGuildTag('');
-      setShowGuildModal(false);
+      sfx.click();
+      setActionSuccessMsg(`🧹 [GM] รีเซ็ตเซกเตอร์ [${tileId}] ให้เป็นช่องว่างเรียบร้อยแล้ว`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err) {
-      console.error("Error creating guild:", err);
-    } finally {
-      setIsCreatingGuild(false);
+      console.error("GM reset tile error:", err);
     }
   };
 
-  const handleUpdateGuildColor = async (color: string) => {
-    if (!appUser?.guildId) return;
-    const currentG = guilds[appUser.guildId];
-    if (!currentG || currentG.leaderUid !== appUser.uid) return;
+  const handleGmInstantClaim = async (tileId: string) => {
+    if (!isGmUser || !appUser) return;
     try {
-      await updateDoc(doc(db, 'guilds', currentG.id), { color });
+      await updateDoc(doc(db, 'empire_tiles', tileId), {
+        type: 'player',
+        ownerUid: appUser.uid,
+        ownerName: appUser.fullname || 'GM Admin',
+        guildId: appUser.guildId || null,
+        currentDefenderHp: 2000,
+        maxDefenderHp: 2000,
+        lastAttacked: new Date().toISOString()
+      });
+      sfx.victory();
+      setActionSuccessMsg(`👑 [GM] ยึดครองเซกเตอร์ [${tileId}] สำเร็จทันที`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err) {
-      console.error("Error updating guild color:", err);
+      console.error("GM instant claim error:", err);
     }
   };
 
-  const handleJoinGuild = async (targetGuild: Guild) => {
-    if (!appUser) return;
-    try {
-      const joiningUserTiles = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid);
-      const batch = writeBatch(db);
-
-      batch.update(doc(db, 'guilds', targetGuild.id), {
-        membersCount: (targetGuild.membersCount || 1) + 1,
-        totalTiles: (targetGuild.totalTiles || 0) + joiningUserTiles.length,
-      });
-      batch.update(doc(db, 'users', appUser.uid), {
-        guildId: targetGuild.id,
-        guildName: targetGuild.name,
-      });
-
-      // Update tiles to match new guild atomically
-      joiningUserTiles.slice(0, 450).forEach((t) => {
-        batch.update(doc(db, 'empire_tiles', t.id), {
-          guildId: targetGuild.id,
-          guildName: targetGuild.name,
-        });
-      });
-      await batch.commit();
-
-      setShowGuildModal(false);
-    } catch (err) {
-      console.error("Error joining guild:", err);
-    }
-  };
-
-  const handleLeaveGuild = async () => {
-    if (!appUser || !appUser.guildId) return;
-    const currentG = guilds[appUser.guildId];
-    try {
-      const leavingUserTiles = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid);
-      const batch = writeBatch(db);
-
-      if (currentG) {
-        batch.update(doc(db, 'guilds', currentG.id), {
-          membersCount: Math.max(1, (currentG.membersCount || 2) - 1),
-          totalTiles: Math.max(0, (currentG.totalTiles || 0) - leavingUserTiles.length),
-        });
-      }
-      batch.update(doc(db, 'users', appUser.uid), {
-        guildId: null,
-        guildName: null,
-      });
-
-      // Remove guild tag from tiles atomically
-      leavingUserTiles.slice(0, 450).forEach((t) => {
-        batch.update(doc(db, 'empire_tiles', t.id), {
-          guildId: null,
-          guildName: null,
-        });
-      });
-      await batch.commit();
-    } catch (err) {
-      console.error("Error leaving guild:", err);
-    }
-  };
-
-  // Citadel Management Handlers
-  const [donatingCitadelExp, setDonatingCitadelExp] = useState(false);
-
-  const handleEstablishCitadel = async (tileId: string) => {
-    if (!appUser?.guildId) return;
-    const currentG = guilds[appUser.guildId];
-    if (!currentG || currentG.leaderUid !== appUser.uid) {
-      alert('เฉพาะหัวหน้ากิลด์เท่านั้นที่สามารถสถาปนานครหลวงกิลด์ (Guild Citadel) ได้');
-      return;
-    }
-
-    // Lock: Cannot relocate citadel (future feature will use City Relocation Scroll)
-    const hasExistingCitadel = Boolean(currentG.citadelCoord || (currentG.citadelCoords && currentG.citadelCoords.length > 0));
-    if (hasExistingCitadel) {
-      alert('🔒 นครหลวงกิลด์ (เมืองหลวง) ถูกสถาปนาแล้วและล็อคตำแหน่งไว้ ไม่สามารถย้ายเมืองหลวงได้ในขณะนี้\n\n(ระบบย้ายเมืองหลวงด้วย "ใบย้ายเมือง" จะเปิดให้ใช้งานในอนาคต)');
-      return;
-    }
-
-    const [tx, ty] = tileId.split(',').map(Number);
-    // Find a 2x2 square containing (tx, ty) where all 4 tiles belong to the guild
-    const candidateOffsets = [
-      [0, 0],   // (tx, ty) as top-left
-      [-1, 0],  // (tx, ty) as top-right
-      [0, -1],  // (tx, ty) as bottom-left
-      [-1, -1], // (tx, ty) as bottom-right
-    ];
-
-    let validCoords: string[] | null = null;
-    let anchorCoord: string | null = null;
-
-    for (const [ox, oy] of candidateOffsets) {
-      const ax = tx + ox;
-      const ay = ty + oy;
-      if (ax < 0 || ax + 1 >= MAP_SIZE || ay < 0 || ay + 1 >= MAP_SIZE) continue;
-
-      const cluster = getCitadel2x2Coords(ax, ay);
-      const allGuildOwnedAndValid = cluster.every((cid) => {
-        const [cx, cy] = cid.split(',').map(Number);
-        if (isCentralVaultZone(cx, cy)) return false;
-        const t = tiles[cid];
-        if (!t) return false;
-        if (t.isOutpost || t.type === 'outpost') return false;
-        // Check guild ownership: either tile.guildId matches OR tile.ownerUid is a member of this guild
-        const isOwnedByGuild = t.guildId === appUser.guildId || (t.ownerUid && allUsers.some((u) => u.uid === t.ownerUid && u.guildId === appUser.guildId));
-        return isOwnedByGuild;
-      });
-
-      if (allGuildOwnedAndValid) {
-        validCoords = cluster;
-        anchorCoord = `${ax},${ay}`;
-        break;
-      }
-    }
-
-    if (!validCoords || !anchorCoord) {
-      alert(
-        'การสถาปนานครหลวงกิลด์ต้องใช้พื้นที่อาณาเขตกิลด์ขนาด 4 ช่อง (บล็อกสี่เหลี่ยม 2×2 เซกเตอร์)\n\n' +
-        'กรุณาให้สมาชิกกิลด์เข้ายึดพื้นที่รอบข้างให้เป็นกลุ่มก้อนสี่เหลี่ยม 2×2 ก่อนสถาปนา!'
-      );
-      return;
-    }
+  const handleGmResetMyQuota = async () => {
+    if (!appUser || !isGmUser) return;
+    if (!confirm('🔄 [GM Action] ยืนยันการรีเซ็ตโควตาการบุกรุกและโดรนสอดแนมของตนเองกลับเป็นเต็ม 10/10 หรือไม่?')) return;
 
     try {
-      // 1. If previous citadel existed, clear isCitadel flag on old tiles
-      const oldCoords = currentG.citadelCoords || (currentG.citadelCoord ? [currentG.citadelCoord] : []);
-      const clearPromises = oldCoords
-        .filter((cid) => tiles[cid]?.isCitadel)
-        .map((cid) => updateDoc(doc(db, 'empire_tiles', cid), { isCitadel: false }));
-      await Promise.all(clearPromises);
-
-      // 2. Set new citadel flag on all 4 tiles
-      const setPromises = validCoords.map((cid) =>
-        updateDoc(doc(db, 'empire_tiles', cid), {
-          isCitadel: true,
-          guildId: appUser.guildId,
-          guildName: currentG.name,
-        })
-      );
-      await Promise.all(setPromises);
-
-      // 3. Update guild record with 4-tile coordinates
-      const lvl = currentG.citadelLevel || 1;
-      await updateDoc(doc(db, 'guilds', currentG.id), {
-        citadelCoord: anchorCoord,
-        citadelCoords: validCoords,
-        citadelLevel: lvl,
-        citadelExp: currentG.citadelExp || 0,
-        citadelHp: lvl * 1000 + 2500,
-        maxCitadelHp: lvl * 1000 + 2500,
-      });
-
-      sfx.levelUp();
-      setClaimSuccessMsg(
-        `🏛️ สถาปนานครหลวงกิลด์ [${currentG.tag}] สำเร็จบนพื้นที่ 4 ช่อง [${validCoords.join(' , ')}]!`
-      );
-      setTimeout(() => setClaimSuccessMsg(null), 4000);
-    } catch (err) {
-      console.error('Error establishing citadel:', err);
-      alert('เกิดข้อผิดพลาดในการสถาปนานครหลวง');
-    }
-  };
-
-  const handleDonateCitadelExp = async (amount: number = 25) => {
-    if (!appUser?.guildId || donatingCitadelExp) return;
-    const currentG = guilds[appUser.guildId];
-    if (!currentG || !currentG.citadelCoord) {
-      alert('กิลด์ของคุณยังไม่มีนครหลวง กรุณาให้หัวหน้ากิลด์สถาปนานครหลวงก่อน');
-      return;
-    }
-    if ((appUser.exp || 0) < amount + 20) {
-      alert(`คุณมี EXP ไม่เพียงพอสำหรับการบริจาค (ต้องการขั้นต่ำ ${amount + 20} EXP)`);
-      return;
-    }
-
-    setDonatingCitadelExp(true);
-    try {
-      // 1. Deduct user EXP
-      await updateDoc(doc(db, 'users', appUser.uid), {
-        exp: increment(-amount),
-      });
-
-      // 2. Add to guild citadel exp and check for level up
-      const currentLevel = currentG.citadelLevel || 1;
-      const currentExp = (currentG.citadelExp || 0) + amount;
-      const neededExpForNext = currentLevel * 150; // LV1->2: 150 EXP, LV2->3: 300 EXP
-      let newLevel = currentLevel;
-      if (currentExp >= neededExpForNext && currentLevel < 5) {
-        newLevel = currentLevel + 1;
-      }
-
-      await updateDoc(doc(db, 'guilds', currentG.id), {
-        citadelExp: currentExp,
-        citadelLevel: newLevel,
-        maxCitadelHp: newLevel * 1000 + 2500,
-      });
-
-      sfx.levelUp();
-      setClaimSuccessMsg(
-        newLevel > currentLevel
-          ? `🎉 นครหลวงกิลด์เลเวลอัป! ก้าวสู่ระดับ LV.${newLevel} รัศมีคุ้มกันและพลังป้องกันเพิ่มขึ้น!`
-          : `🧪 บริจาค ${amount} EXP พัฒนานครหลวงกิลด์สำเร็จ!`
-      );
-      setTimeout(() => setClaimSuccessMsg(null), 4000);
-    } catch (err) {
-      console.error('Error donating to citadel:', err);
-    } finally {
-      setDonatingCitadelExp(false);
-    }
-  };
-
-  // ── DEFENSE STRUCTURES: BUILD & REPAIR HANDLERS (EXP SINKS) ──
-  const handleBuildDefenseStructure = async (structureId: string) => {
-    if (!appUser || !selectedTile || buildingInProgress) return;
-    const tileKey = `${selectedTile.x},${selectedTile.y}`;
-    const targetTile = tiles[tileKey];
-    const struct = DEFENSE_STRUCTURES[structureId];
-    if (!struct) return;
-
-    // Permissions: Can only build on own tile or allied guild tile
-    const isOwner = targetTile?.ownerUid === appUser.uid;
-    const isGuildMate = Boolean(appUser.guildId && targetTile?.guildId === appUser.guildId);
-    if (!isOwner && !isGuildMate) {
-      alert('⛔ คุณสามารถสร้างสิ่งก่อสร้างป้องกันได้เฉพาะในอาณาเขตของตนเองหรืออาณาเขตของกิลด์ตนเองเท่านั้น!');
-      return;
-    }
-
-    if (targetTile?.isCitadel) {
-      alert('🏛️ บริเวณนี้เป็นนครหลวงกิลด์อยู่แล้ว ไม่สามารถสร้างกำแพงทับตัวเมืองได้ (สร้างกำแพงรอบๆ นครหลวงเพื่อป้องกัน)');
-      return;
-    }
-
-    if (targetTile?.isOutpost || targetTile?.type === 'outpost') {
-      alert('🌾 บริเวณนี้เป็นป้อมฟาร์มวิจัย (Bio-Farm Outpost) ไม่สามารถสร้างกำแพงทับได้');
-      return;
-    }
-
-    const userCurrentExp = Number(appUser.exp || 0);
-    if (userCurrentExp < struct.costExp) {
-      alert(`⚠️ คุณมี EXP ไม่เพียงพอ! การก่อสร้าง "${struct.name}" ต้องการ ${struct.costExp} EXP (คุณมี ${userCurrentExp} EXP)`);
-      return;
-    }
-
-    setBuildingInProgress(true);
-    try {
-      // 1. Deduct user EXP
-      await updateDoc(doc(db, 'users', appUser.uid), {
-        exp: increment(-struct.costExp),
-      });
-
-      // 2. Set building data on empire tile
-      await updateDoc(doc(db, 'empire_tiles', tileKey), {
-        buildingType: struct.id,
-        buildingName: struct.name,
-        buildingHp: struct.bonusHp,
-        maxBuildingHp: struct.bonusHp,
-        buildingLevel: 1,
-        builtBy: appUser.uid,
-        builtByName: appUser.fullname || 'Defender',
-      });
-
-      sfx.levelUp();
-      setShowBuildModal(false);
-      setClaimSuccessMsg(`🧱 สร้าง "${struct.name}" สำเร็จ ณ เซกเตอร์ [${selectedTile.x}, ${selectedTile.y}] (-${struct.costExp} EXP)`);
-      setTimeout(() => setClaimSuccessMsg(null), 4000);
-    } catch (err) {
-      console.error('Error building defense structure:', err);
-      alert('เกิดข้อผิดพลาดในการสร้างสิ่งก่อสร้าง');
-    } finally {
-      setBuildingInProgress(false);
-    }
-  };
-
-  const handleRepairDefenseStructure = async () => {
-    if (!appUser || !selectedTile || repairingInProgress) return;
-    const tileKey = `${selectedTile.x},${selectedTile.y}`;
-    const targetTile = tiles[tileKey];
-    if (!targetTile?.buildingType) return;
-    const struct = DEFENSE_STRUCTURES[targetTile.buildingType];
-    if (!struct) return;
-
-    const currentHp = targetTile.buildingHp || 0;
-    const maxHp = targetTile.maxBuildingHp || struct.bonusHp;
-    if (currentHp >= maxHp) {
-      alert('🛡️ สิ่งก่อสร้างนี้มีความสมบูรณ์ 100% อยู่แล้ว ไม่จำเป็นต้องซ่อมแซม');
-      return;
-    }
-
-    const userCurrentExp = Number(appUser.exp || 0);
-    if (userCurrentExp < struct.repairCostExp) {
-      alert(`⚠️ คุณมี EXP ไม่เพียงพอ! การซ่อมแซมต้องการ ${struct.repairCostExp} EXP (คุณมี ${userCurrentExp} EXP)`);
-      return;
-    }
-
-    setRepairingInProgress(true);
-    try {
-      // 1. Deduct repair EXP
-      await updateDoc(doc(db, 'users', appUser.uid), {
-        exp: increment(-struct.repairCostExp),
-      });
-
-      // 2. Restore building HP and persistent defender HP to max
-      await updateDoc(doc(db, 'empire_tiles', tileKey), {
-        buildingHp: maxHp,
-        currentDefenderHp: targetTile.maxDefenderHp || maxHp,
-      });
-
-      sfx.correct();
-      setClaimSuccessMsg(`🔨 ซ่อมแซม "${struct.name}" จนสมบูรณ์ 100% (-${struct.repairCostExp} EXP)`);
-      setTimeout(() => setClaimSuccessMsg(null), 4000);
-    } catch (err) {
-      console.error('Error repairing structure:', err);
-      alert('เกิดข้อผิดพลาดในการซ่อมแซม');
-    } finally {
-      setRepairingInProgress(false);
-    }
-  };
-
-  const jumpToCitadel = () => {
-    if (!appUser?.guildId) return;
-    const currentG = guilds[appUser.guildId];
-    if (currentG?.citadelCoord) {
-      const [cx, cy] = currentG.citadelCoord.split(',').map(Number);
-      jumpToTile(cx, cy);
-      setShowNavMenu(false);
-    } else {
-      alert('กิลด์ของคุณยังไม่ได้สถาปนานครหลวง');
-    }
-  };
-
-  const handleResetMyQuota = async () => {
-    if (!appUser) return;
-    if (confirm('🔄 [สิทธิ์อาจารย์/ผู้ดูแล] ต้องการรีเซ็ตโควตาการบุกรุกของตนเองกลับเป็น 10/10 เพื่อทดสอบระบบหรือไม่?')) {
-      try {
-        const userRef = doc(db, 'users', appUser.uid);
-        await updateDoc(userRef, {
-          dailyEmpireBattles: {
-            date: getTodayDateString(),
-            count: 0
-          }
-        });
-        alert('✅ รีเซ็ตโควตาสำเร็จ! โควตากลับเป็น 10/10 แล้ว');
-      } catch (err) {
-        console.error('Failed to reset quota:', err);
-      }
-    }
-  };
-
-  // Open Scout Drone Quiz Modal for selected tile
-  const handleOpenScoutModal = (x: number, y: number) => {
-    // Check Daily Scout Drone Limit
-    if (!dailyScoutInfo.canScout) {
-      alert(`⛔ แบตเตอรี่โดรนสอดแนมหมด! คุณใช้โควตาสอดแนมครบ ${DAILY_SCOUT_DRONE_LIMIT} ครั้งสำหรับวันนี้แล้ว (รีเซ็ตทุกเที่ยงคืน)`);
-      return;
-    }
-
-    setScoutTarget({ x, y });
-
-    // Pool questions from curriculum bank or fallback
-    const questionPool = (ALL_15_CHAPTER_QUESTIONS && ALL_15_CHAPTER_QUESTIONS.length > 0)
-      ? ALL_15_CHAPTER_QUESTIONS.map((q) => ({
-          q: q.q,
-          options: [...q.choices],
-          ans: q.choices.indexOf(q.answer) !== -1 ? q.choices.indexOf(q.answer) : 0,
-          explanation: q.explanation || ''
-        }))
-      : SCOUT_FALLBACK_QUIZ;
-
-    const randomIndex = Math.floor(Math.random() * questionPool.length);
-    const chosen = questionPool[randomIndex];
-
-    // DYNAMIC OPTION SHUFFLING:
-    // Shuffle the options array so the correct answer is NEVER in a fixed/predictable slot
-    const correctText = chosen.options[chosen.ans] || chosen.options[0];
-    const shuffledOptions = [...chosen.options].sort(() => Math.random() - 0.5);
-    const newAns = shuffledOptions.indexOf(correctText);
-
-    setActiveScoutQuiz({
-      q: chosen.q,
-      options: shuffledOptions,
-      ans: newAns >= 0 ? newAns : 0,
-      explanation: chosen.explanation,
-    });
-
-    setScoutFeedback(null);
-    setShowScoutModal(true);
-    sfx.click();
-  };
-
-  // Reset Scout Drone Quota (Instructor/GM test helper)
-  const handleResetScoutQuota = async () => {
-    if (!appUser) return;
-    if (confirm('🔄 [สิทธิ์อาจารย์/ผู้ดูแล] ต้องการรีเซ็ตโควตาโดรนสอดแนมของตนเองกลับเป็น 5/5 หรือไม่?')) {
-      try {
-        const userRef = doc(db, 'users', appUser.uid);
-        await updateDoc(userRef, {
-          dailyScoutDrones: {
-            date: getTodayDateString(),
-            count: 0
-          }
-        });
-        alert('✅ รีเซ็ตโควตาโดรนสำเร็จ! แบตเตอรี่กลับเป็น 5/5 แล้ว');
-      } catch (err) {
-        console.error('Failed to reset scout quota:', err);
-      }
-    }
-  };
-
-  // Handle Scout Drone Quiz Answer submission
-  const handleAnswerScoutQuiz = async (selectedOptionIndex: number) => {
-    if (!appUser || !scoutTarget || isScouting || !activeScoutQuiz) return;
-
-    if (!dailyScoutInfo.canScout) {
-      alert(`⛔ โควตาสอดแนมสำหรับวันนี้หมดแล้ว (${DAILY_SCOUT_DRONE_LIMIT}/${DAILY_SCOUT_DRONE_LIMIT})`);
-      setShowScoutModal(false);
-      return;
-    }
-
-    if (selectedOptionIndex !== activeScoutQuiz.ans) {
-      sfx.wrong();
-      setScoutFeedback({
-        isCorrect: false,
-        text: `❌ ยังไม่ถูกต้อง! คำอธิบาย: ${activeScoutQuiz.explanation}`
-      });
-      return;
-    }
-
-    // Correct Answer: Reveal 5x5 area (up to 25 tiles) centered at target
-    setIsScouting(true);
-    sfx.correct();
-    setScoutFeedback({
-      isCorrect: true,
-      text: `🎉 ตอบถูกต้อง! ${activeScoutQuiz.explanation}`
-    });
-
-    try {
-      const revealedTiles: string[] = [];
-      for (let dx = -2; dx <= 2; dx++) {
-        for (let dy = -2; dy <= 2; dy++) {
-          const rx = scoutTarget.x + dx;
-          const ry = scoutTarget.y + dy;
-          if (rx >= 0 && rx < MAP_SIZE && ry >= 0 && ry < MAP_SIZE) {
-            revealedTiles.push(`${rx},${ry}`);
-          }
-        }
-      }
-
-      // Calculate total explored set including previous explored tiles + revealed tiles + guild conquered tiles
-      const previousExplored = Array.isArray(appUser.exploredTiles) ? appUser.exploredTiles : [];
-      const guildTiles = appUser.guildId
-        ? Object.values(tiles).filter((t) => t.guildId === appUser.guildId).map((t) => `${t.x},${t.y}`)
-        : [];
-      const totalExploredSet = new Set([...previousExplored, ...revealedTiles, ...guildTiles]);
-      const currentBadges = Array.isArray(appUser.badges) ? [...appUser.badges] : [];
-      const newBadgesToAdd: string[] = [];
-
-      // Check Badges:
-      // 🥉 Junior Explorer: สำรวจครบ 25% (>= 625 tiles)
-      if (totalExploredSet.size >= (MAP_SIZE * MAP_SIZE * 0.25) && !currentBadges.includes('Junior Explorer')) {
-        newBadgesToAdd.push('Junior Explorer');
-      }
-      // 🥈 Master Cartographer: สำรวจครบ 50% (>= 1250 tiles)
-      if (totalExploredSet.size >= (MAP_SIZE * MAP_SIZE * 0.5) && !currentBadges.includes('Master Cartographer')) {
-        newBadgesToAdd.push('Master Cartographer');
-      }
-      // 🥇 Grand Conqueror: สำรวจครบ 100% (>= 2500 tiles)
-      if (totalExploredSet.size >= (MAP_SIZE * MAP_SIZE) && !currentBadges.includes('Grand Conqueror')) {
-        newBadgesToAdd.push('Grand Conqueror');
-      }
-
-      // Save permanently to user's profile with arrayUnion, increment dailyScoutDrones count, and award +25 EXP
-      const userRef = doc(db, 'users', appUser.uid);
       const today = getTodayDateString();
-      const currentScouts = (appUser.dailyScoutDrones?.date === today ? (Number(appUser.dailyScoutDrones?.count) || 0) : 0) + 1;
-
-      const updatePayload: any = {
-        exploredTiles: arrayUnion(...revealedTiles),
-        dailyScoutDrones: {
-          date: today,
-          count: currentScouts
-        },
-        exp: increment(25),
-        score: increment(25)
-      };
-
-      if (newBadgesToAdd.length > 0) {
-        updatePayload.badges = arrayUnion(...newBadgesToAdd);
-      }
-
-      await updateDoc(userRef, updatePayload);
-
+      const userRef = doc(db, 'users', appUser.uid);
+      await updateDoc(userRef, {
+        dailyEmpireBattles: { date: today, count: 0 },
+        dailyScoutDrones: { date: today, count: 0 }
+      });
       sfx.levelUp();
-      const badgeText = newBadgesToAdd.length > 0 ? ` 🎖️ ปลดล็อคเหรียญตรา: ${newBadgesToAdd.join(', ')}!` : '';
-      setClaimSuccessMsg(`🛸 โดรนสแกนสำเร็จ! ปลดล็อคหมอก 25 เซกเตอร์ และรับ +25 EXP (เหลือโควตาวันนี้ ${Math.max(0, DAILY_SCOUT_DRONE_LIMIT - currentScouts)} ครั้ง)${badgeText}`);
-      setTimeout(() => setClaimSuccessMsg(null), 5000);
-
-      // Close modal after brief success presentation
-      setTimeout(() => {
-        setShowScoutModal(false);
-        setScoutFeedback(null);
-        setIsScouting(false);
-      }, 1500);
+      alert('✅ [GM] รีเซ็ตโควตาวันนี้สำเร็จเป็น 10/10 แล้ว!');
     } catch (err) {
-      console.error('Error scouting tiles:', err);
-      setIsScouting(false);
+      console.error("GM reset quota error:", err);
     }
-  };
-
-
-
-  const handleAction = () => {
-    if (!selectedTile || !canInfect) return;
-
-    // Check Daily Attack Limit (exempt first base placement)
-    if (stats.myCount > 0 && !dailyEmpireInfo.canAttack) {
-      alert(`⛔ คุณใช้โควตาการบุกรุกครบ ${DAILY_EMPIRE_ATTACK_LIMIT} ครั้งสำหรับวันนี้แล้ว! (รีเซ็ตทุกเที่ยงคืน)`);
-      return;
-    }
-
-    if (appUser?.pet?.isInjured) {
-      if (confirm('🚨 ไวรัสของคุณบาดเจ็บจากการรบและพลังชีวิตหมดลง! ต้องการไปห้องเพาะเลี้ยงเพื่อทำหัตถการรักษาและฟื้นฟู HP หรือไม่?')) {
-        router.push('/student/virus-pet');
-      }
-      return;
-    }
-    router.push(`/student/empire/battle?tile=${selectedTile.x},${selectedTile.y}`);
   };
 
   if (loading) {
     return (
-      <div className="flex flex-col justify-center items-center min-h-screen bg-slate-950 text-cyan-400 gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-        <span className="font-mono text-xs uppercase tracking-wider">กำลังโหลดแผนที่...</span>
+      <div className="fixed inset-0 z-50 flex flex-col justify-center items-center bg-slate-950 text-cyan-400 gap-3">
+        <Loader2 className="w-10 h-10 animate-spin text-cyan-400" />
+        <span className="font-mono text-sm uppercase tracking-widest">
+          กำลังเตรียมการระบบสมรภูมิ 3D (TACTICAL WAR ROOM)...
+        </span>
       </div>
     );
   }
 
+  const isMyTile = currentTile?.ownerUid === appUser?.uid;
+  const isGuildTile = Boolean(appUser?.guildId && currentTile?.guildId === appUser.guildId);
+  const isOutpost = Boolean(currentTile?.isOutpost || currentTile?.type === 'outpost');
+  const isBoss = Boolean(currentTile?.type === 'boss');
+  const isExplored = Boolean(isGmUser || (selectedCoord && exploredTiles.has(selectedCoord)));
+  const todayStr = getTodayDateString();
+  const hasClaimedToday = currentTile?.lastClaimedDate === todayStr;
+
   return (
-    <div className="fixed inset-0 z-40 overflow-hidden bg-slate-950 text-slate-100 flex flex-col select-none">
+    <div className="fixed inset-0 z-40 overflow-hidden bg-slate-950 font-sans select-none text-slate-100 flex flex-col">
       
-      {/* 1. Slim Modern Top Navigation Bar (HUD Style) */}
-      <header className="z-30 bg-slate-900/95 border-b border-slate-800/80 px-2 sm:px-4 py-2 backdrop-blur-md shrink-0 flex items-center justify-between gap-1 sm:gap-2 shadow-lg">
-        {/* Left: Back Arrow, Title, and Attack Quota */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-          <Link 
-            href="/student" 
-            className="p-1.5 sm:p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors shrink-0"
-            title="กลับหน้าหลัก"
+      {/* ── TOP HUD HEADER: RESPONSIVE COMPACT BAR ───────────────────────── */}
+      <header className="z-30 bg-slate-900/95 border-b border-slate-800/80 px-2.5 sm:px-5 py-2 backdrop-blur-xl shrink-0 flex items-center justify-between gap-2 shadow-2xl">
+        
+        {/* Left: Brand & Return */}
+        <div className="flex items-center gap-2 sm:gap-3 pointer-events-auto shrink-0">
+          <Link
+            href="/student"
+            onClick={() => sfx.click()}
+            className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-cyan-400 hover:text-white transition-all shadow-xl hover:scale-105 active:scale-95 cursor-pointer"
+            title="กลับแดชบอร์ดหลัก"
           >
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </Link>
-          <div className="flex items-center gap-1 shrink-0">
-            <h1 className="text-xs sm:text-base font-black text-white tracking-wide">
-              อาณาจักร
+
+          <div>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-[9px] sm:text-[10px] font-mono px-1.5 sm:px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold uppercase tracking-wider sm:tracking-widest shadow-[0_0_12px_rgba(6,182,212,0.3)]">
+                3D WAR ROOM
+              </span>
+              <span className="text-xs text-slate-400 font-mono hidden lg:inline">
+                แผนที่ยุทธการ 50×50 (2,500 เซกเตอร์)
+              </span>
+            </div>
+            <h1 className="text-sm sm:text-xl font-black text-white tracking-wide flex items-center gap-1.5 mt-0.5">
+              <span>VIRUS EMPIRE</span>
+              <span className="text-[9px] sm:text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hidden xs:inline">
+                TACTICAL 3D
+              </span>
             </h1>
-            <span className="text-[9px] sm:text-[10px] font-mono px-1 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              50×50
+          </div>
+        </div>
+
+        {/* Center: Desktop-only Telemetry Pills (md and up) */}
+        <div className="hidden md:flex items-center gap-2 pointer-events-auto">
+          {/* My Territory */}
+          <div className="px-2.5 py-1 rounded-xl bg-slate-900/90 border border-cyan-500/40 flex items-center gap-1.5 text-xs font-mono shadow-md backdrop-blur-md">
+            <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-slate-400">ฉันครอง:</span>
+            <span className="text-cyan-300 font-bold">{stats.myCount} ช่อง</span>
+          </div>
+
+          {/* Guild Territory */}
+          {appUser?.guildId && (
+            <div className="px-2.5 py-1 rounded-xl bg-slate-900/90 border border-amber-500/40 flex items-center gap-1.5 text-xs font-mono shadow-md backdrop-blur-md">
+              <Shield className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-slate-400">กิลด์:</span>
+              <span className="text-amber-300 font-bold">{stats.guildCount} ช่อง</span>
+            </div>
+          )}
+
+          {/* Fog Explored */}
+          <div className="px-2.5 py-1 rounded-xl bg-slate-900/90 border border-emerald-500/40 flex items-center gap-1.5 text-xs font-mono shadow-md backdrop-blur-md">
+            <Radio className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-slate-400">สำรวจ:</span>
+            <span className="text-emerald-300 font-bold">{stats.exploredPercent}%</span>
+          </div>
+
+          {/* Daily Attacks Remaining */}
+          <div className="px-2.5 py-1 rounded-xl bg-slate-900/90 border border-slate-700/80 flex items-center gap-1 text-xs font-mono shadow-md backdrop-blur-md">
+            <Swords className="w-3.5 h-3.5 text-rose-400" />
+            <span className="text-rose-300 font-bold">
+              {dailyAttackInfo.remainingAttacks}/{dailyAttackInfo.limit}
             </span>
           </div>
 
-          {/* Daily Quota Badge */}
+          {/* Daily Scout Drone Flights */}
           <button
             type="button"
-            onClick={appUser?.role === 'instructor' ? handleResetMyQuota : undefined}
-            className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-xl text-[10px] sm:text-xs font-bold font-mono border flex items-center gap-1 shadow-sm shrink-0 transition-all ${
-              dailyEmpireInfo.canAttack 
-                ? 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300' 
-                : 'bg-red-950/80 border-red-500/50 text-red-300'
-            } ${appUser?.role === 'instructor' ? 'cursor-pointer hover:border-amber-400/80 active:scale-95' : 'cursor-default'}`}
-            title={appUser?.role === 'instructor' ? "คลิกเพื่อรีเซ็ตโควตาทดสอบ (สิทธิ์อาจารย์/ผู้ดูแล)" : "โควตาการบุกรุกประจำวัน รีเซ็ตทุกเที่ยงคืน"}
+            onClick={() => handleStartScout()}
+            className="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-teal-950/80 border border-slate-700/80 hover:border-teal-500/50 flex items-center gap-1 text-xs font-mono shadow-md backdrop-blur-md cursor-pointer transition-all active:scale-95"
+            title="ภารกิจโดรนสอดแนม (Bio-Radar) - ตอบคำถามไวรัสวิทยาเปิดหมอก 5x5 ช่อง (+25 EXP)"
           >
-            <Swords className="w-3 h-3 text-cyan-400" />
-            <span className="hidden sm:inline">โควตา:</span>
-            <span>{dailyEmpireInfo.remainingAttacks}/{DAILY_EMPIRE_ATTACK_LIMIT}</span>
-            {appUser?.role === 'instructor' && (
-              <span className="text-[9px] text-amber-400/80 hover:text-amber-300 font-bold ml-0.5" title="รีเซ็ตโควตา">↺</span>
-            )}
-          </button>
-
-          {/* Daily Scout Drone Quota Badge (5/5 per day) */}
-          <button
-            type="button"
-            onClick={appUser?.role === 'instructor' ? handleResetScoutQuota : undefined}
-            className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-xl text-[10px] sm:text-xs font-bold font-mono border flex items-center gap-1 shadow-sm shrink-0 transition-all ${
-              dailyScoutInfo.canScout 
-                ? 'bg-blue-950/80 border-blue-500/40 text-blue-300' 
-                : 'bg-red-950/80 border-red-500/50 text-red-300'
-            } ${appUser?.role === 'instructor' ? 'cursor-pointer hover:border-amber-400/80 active:scale-95' : 'cursor-default'}`}
-            title={appUser?.role === 'instructor' ? "คลิกเพื่อรีเซ็ตโควตาโดรนทดสอบ (สิทธิ์อาจารย์/ผู้ดูแล)" : "แบตเตอรี่โดรนสอดแนมประจำวัน (รีเซ็ตทุกเที่ยงคืน)"}
-          >
-            <Rocket className="w-3 h-3 text-cyan-400" />
-            <span className="hidden sm:inline">โดรน:</span>
-            <span>{dailyScoutInfo.remainingScouts}/{DAILY_SCOUT_DRONE_LIMIT}</span>
-            {appUser?.role === 'instructor' && (
-              <span className="text-[9px] text-amber-400/80 hover:text-amber-300 font-bold ml-0.5" title="รีเซ็ตโควตาโดรน">↺</span>
-            )}
+            <Radio className="w-3.5 h-3.5 text-teal-400 animate-pulse" />
+            <span className="text-teal-300 font-bold">
+              โดรน: {dailyScoutInfo.remainingScouts}/{dailyScoutInfo.limit}
+            </span>
           </button>
         </div>
 
-        {/* Right: Navigation (mobile), GM Toggle, Exploration %, Quick Stats, Guild, and Rules */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {/* GM View Mode Toggle Button (For never.away@gmail.com and instructors) */}
+        {/* Right: Actions & Tools (Both Mobile & Desktop) */}
+        <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-auto shrink-0">
+          {/* Pet Status Badge */}
+          {appUser?.pet && (
+            <Link
+              href="/student/virus-pet"
+              onClick={() => sfx.click()}
+              className={`px-2 sm:px-2.5 py-1 rounded-xl border flex items-center gap-1 text-[10px] sm:text-xs font-mono shadow-md backdrop-blur-md cursor-pointer transition-all active:scale-95 ${
+                appUser.pet.isInjured
+                  ? 'bg-rose-950/80 border-rose-500/50 text-rose-300 animate-pulse'
+                  : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+              }`}
+              title={appUser.pet.isInjured ? 'สัตว์เลี้ยงบาดเจ็บ! คลิกเพื่อไปรักษา' : 'สัตว์เลี้ยงพร้อมรบ'}
+            >
+              <Heart className={`w-3 h-3 ${appUser.pet.isInjured ? 'text-rose-400' : 'text-emerald-400'}`} />
+              <span className="hidden sm:inline">{appUser.pet.nickname || appUser.pet.virusName}:</span>
+              <span>{appUser.pet.isInjured ? 'บาดเจ็บ' : 'พร้อมรบ'}</span>
+            </Link>
+          )}
+
+          {/* Rules / Intel Button */}
+          <button
+            type="button"
+            onClick={() => {
+              sfx.click();
+              setShowRulesModal(true);
+            }}
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 hover:border-cyan-400 text-cyan-400 transition-all shadow-md cursor-pointer hover:scale-105 active:scale-95"
+            title="คู่มือและกติกาสมรภูมิ 3D"
+          >
+            <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </button>
+
+          {/* Statistics Modal Button */}
+          <button
+            type="button"
+            onClick={() => {
+              sfx.click();
+              setShowStatsModal(true);
+            }}
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 hover:border-amber-400 text-amber-400 transition-all shadow-md cursor-pointer hover:scale-105 active:scale-95"
+            title="ดูสถิติและทำเนียบเกียรติยศกิลด์"
+          >
+            <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </button>
+
+          {/* GM View Mode Toggle Button */}
           {isGmUser && (
             <button
               type="button"
@@ -1906,7 +983,7 @@ export default function EmpireMap() {
                 setGmViewMode((prev) => (prev === 'all' ? 'fog' : 'all'));
                 sfx.click();
               }}
-              className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10px] sm:text-xs font-mono font-bold border transition-all flex items-center gap-1 shadow-sm active:scale-95 ${
+              className={`px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-mono font-bold border transition-all flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer ${
                 gmViewMode === 'all'
                   ? 'bg-amber-950/90 border-amber-500/70 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
                   : 'bg-slate-800/90 border-slate-600 text-slate-300'
@@ -1915,1355 +992,765 @@ export default function EmpireMap() {
             >
               {gmViewMode === 'all' ? (
                 <>
-                  <Eye className="w-3.5 h-3.5 text-amber-400" />
+                  <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400" />
                   <span className="hidden sm:inline">GM:</span>
-                  <span>เห็นทั้งหมด</span>
+                  <span>เห็นหมด</span>
                 </>
               ) : (
                 <>
-                  <CloudFog className="w-3.5 h-3.5 text-cyan-400" />
+                  <CloudFog className="w-3 h-3 sm:w-4 sm:h-4 text-cyan-400" />
                   <span className="hidden sm:inline">GM:</span>
-                  <span>จำลองหมอก</span>
+                  <span>หมอก</span>
                 </>
               )}
             </button>
           )}
 
-          {/* Map Exploration Progress Badge */}
-          <div 
-            className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-800/80 border border-slate-700/80 text-[10px] sm:text-xs font-mono font-bold text-slate-300"
-            title={`พื้นที่ที่คุณและกิลด์สำรวจแล้ว: ${explorationPercent}% (${effectiveExploredCount}/2,500 เซกเตอร์) (ปลดล็อคผ่านโดรนสอดแนม/ฐานกิลด์)`}
-          >
-            <CloudFog className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-cyan-300">{explorationPercent}%</span>
-          </div>
-
-          {/* Quick Jump to My Base */}
-          {stats.myCount > 0 && (
+          {/* GM Quota Reset */}
+          {isGmUser && (
             <button
               type="button"
-              onClick={jumpToMyBase}
-              className="px-2 sm:px-2.5 py-1 rounded-xl text-xs font-bold font-mono bg-cyan-950/80 hover:bg-cyan-900/80 border border-cyan-400/60 text-cyan-300 transition-all flex items-center gap-1 shadow-sm active:scale-95 shadow-[0_0_12px_rgba(6,182,212,0.3)] animate-pulse"
-              title="เลื่อนกล้องไปยังเซกเตอร์ฐานทัพหลักของคุณทันที"
+              onClick={handleGmResetMyQuota}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-indigo-950/90 hover:bg-indigo-900 border border-indigo-500/50 text-indigo-300 text-[10px] sm:text-xs font-mono font-bold transition-all shadow-md cursor-pointer flex items-center gap-1 active:scale-95"
+              title="[GM] รีเซ็ตโควตาตนเองเป็น 10/10"
             >
-              <Home className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-              <span className="hidden sm:inline">ฐานฉัน</span>
+              <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="hidden sm:inline">รีเซ็ตโควตา</span>
             </button>
           )}
-
-          {/* Mobile-Only Fast Travel & Zoom Nav Button */}
-          <button
-            type="button"
-            onClick={() => setShowNavMenu(true)}
-            className="md:hidden px-2 sm:px-2.5 py-1 rounded-xl text-xs font-bold font-mono bg-cyan-950/80 hover:bg-cyan-900/80 border border-cyan-500/50 text-cyan-300 transition-all flex items-center gap-1 shadow-sm active:scale-95 shadow-[0_0_10px_rgba(6,182,212,0.25)]"
-            title="เครื่องมือนำทางและซูมแผนที่"
-          >
-            <Compass className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden sm:inline">นำทาง</span>
-          </button>
-
-          {/* Occupied Sectors Badge */}
-          <button
-            type="button"
-            onClick={() => setShowStatsModal(true)}
-            className="px-2 sm:px-2.5 py-1 rounded-xl text-xs font-mono font-bold bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shadow-[0_0_10px_rgba(6,182,212,0.25)] cursor-pointer"
-            title={`เซกเตอร์ที่คุณครอบครอง: ${stats.myCount} ช่อง${appUser?.guildId && stats.guildCount > 0 ? ` (กิลด์ครอบครองรวม ${stats.guildCount} ช่อง)` : ''} (คลิกดูสถิติทั้งหมด)`}
-          >
-            <MapIcon className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-            <span className="text-slate-400 hidden xs:inline">ครอง:</span>
-            <span className="text-white font-black">{stats.myCount}</span>
-            <span className="text-cyan-300 text-[10px]">ช่อง</span>
-            {appUser?.guildId && stats.guildCount > 0 && (
-              <span className="text-[10px] text-amber-300 bg-amber-950/70 border border-amber-500/40 px-1.5 py-0.2 rounded-md hidden md:inline font-semibold">
-                กิลด์: {stats.guildCount}
-              </span>
-            )}
-          </button>
-
-          {/* Guild Button (with truncation to prevent overflow) */}
-          <button
-            type="button"
-            onClick={() => setShowGuildModal(true)}
-            className={`px-2 sm:px-2.5 py-1 rounded-xl text-xs font-bold font-mono border transition-all flex items-center gap-1 shadow-sm active:scale-95 max-w-[95px] sm:max-w-[140px] ${
-              appUser?.guildId
-                ? 'bg-amber-950/80 border-amber-500/50 text-amber-300 hover:bg-amber-900/60'
-                : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700'
-            }`}
-            title="ระบบพันธมิตรกิลด์"
-          >
-            <Users className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="truncate">{appUser?.guildName ? `[${appUser.guildName}]` : 'กิลด์'}</span>
-          </button>
-
-          {/* Rules Button */}
-          <button
-            type="button"
-            onClick={() => setShowRulesModal(true)}
-            className="px-2 sm:px-2.5 py-1 rounded-xl text-xs font-bold font-mono bg-indigo-950/80 border border-indigo-500/50 text-indigo-300 hover:bg-indigo-900/60 transition-all flex items-center gap-1 shadow-sm active:scale-95 shadow-[0_0_12px_rgba(99,102,241,0.2)]"
-            title="ดูกฎและกติกาการทำสงครามอาณาจักร"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden sm:inline">กติกา</span>
-          </button>
         </div>
       </header>
 
-      {/* Floating Claim Success Toast */}
-      {claimSuccessMsg && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 p-2.5 px-4 rounded-2xl bg-emerald-500/90 border border-emerald-400 text-slate-950 font-black text-xs sm:text-sm animate-in fade-in slide-in-from-top-3 flex items-center gap-2 shadow-[0_10px_30px_rgba(16,185,129,0.5)] backdrop-blur-md">
-          <Sparkles className="w-4 h-4 text-slate-950 animate-spin" />
-          <span>{claimSuccessMsg}</span>
+      {/* ── MOBILE TELEMETRY STRIP (Single-line smooth horizontal ticker) ── */}
+      <div className="md:hidden z-20 bg-slate-950/90 border-b border-slate-800/80 px-2.5 py-1.5 backdrop-blur-md flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px] font-mono shrink-0">
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 shrink-0">
+          <MapPin className="w-3 h-3 text-cyan-400" />
+          <span>ฉัน: <strong className="text-white">{stats.myCount}</strong></span>
         </div>
-      )}
 
-      {/* 2. PC-Only Floating Tactical Menu (Hidden on mobile to avoid blocking tiles, visible on PC) */}
-      <div className="hidden md:flex fixed top-16 right-4 z-30 flex-col gap-2 pointer-events-auto animate-in fade-in duration-200">
-        {!isPcMenuMinimized ? (
-          <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-2 shadow-2xl flex flex-col gap-1.5 w-44">
-            {/* Header of PC Menu */}
-            <div className="flex items-center justify-between px-1 pb-1 border-b border-slate-800 text-[11px] font-mono text-slate-400">
-              <span className="flex items-center gap-1.5 font-bold text-slate-200">
-                <Compass className="w-3.5 h-3.5 text-cyan-400" /> เมนูนำทาง
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsPcMenuMinimized(true)}
-                className="p-0.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-xs"
-                title="ย่อเมนู"
-              >
-                —
-              </button>
-            </div>
-
-            {/* Occupied Sectors Status in PC Menu */}
-            <div className="bg-slate-950/80 border border-cyan-500/30 rounded-xl px-2 py-1.5 text-[11px] font-mono flex items-center justify-between">
-              <span className="text-slate-400 flex items-center gap-1">
-                <MapIcon className="w-3 h-3 text-cyan-400" /> ครอบครอง:
-              </span>
-              <span className="text-cyan-300 font-bold">
-                {stats.myCount} ช่อง
-              </span>
-            </div>
-
-            {/* If 0 bases: Magic Auto-Find Landing Site Button */}
-            {stats.myCount === 0 && (
-              <button
-                type="button"
-                onClick={handleAutoFindSanctuary}
-                className="w-full px-2.5 py-1.5 rounded-xl text-xs font-black font-mono bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.6)] animate-pulse"
-                title="สุ่มหาจุดเกิดปลอดภัยสำหรับสถาปนาฐานแรก"
-              >
-                <Rocket className="w-3.5 h-3.5 text-slate-950 shrink-0" />
-                <span className="truncate">🚀 หาจุดเกิด</span>
-              </button>
-            )}
-
-            {/* Jump to My Base */}
-            {stats.myCount > 0 && (
-              <button
-                type="button"
-                onClick={jumpToMyBase}
-                className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold font-mono bg-cyan-950/80 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-300 transition-all flex items-center gap-2 shadow-sm active:scale-95"
-                title="เลื่อนไปหาฐานทัพหลักของคุณ"
-              >
-                <Home className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="truncate">🏠 ฐานฉัน</span>
-              </button>
-            )}
-
-            {/* Guild Citadel Quick Jump */}
-            {appUser?.guildId && guilds[appUser.guildId]?.citadelCoord && (
-              <button
-                type="button"
-                onClick={jumpToCitadel}
-                className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold font-mono bg-amber-950/80 hover:bg-amber-900/80 border border-amber-500/50 text-amber-300 transition-all flex items-center gap-2 shadow-sm active:scale-95 shadow-[0_0_12px_rgba(245,158,11,0.25)]"
-                title="เลื่อนไปยังนครหลวงกิลด์ของคุณ"
-              >
-                <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
-                <span className="truncate">🏛️ นครหลวง</span>
-              </button>
-            )}
-
-            {/* Nearest Boss */}
-            <button
-              type="button"
-              onClick={jumpToNearestBoss}
-              className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold font-mono bg-red-950/80 hover:bg-red-900/80 border border-red-500/40 text-red-300 transition-all flex items-center gap-2 shadow-sm active:scale-95"
-              title="เลื่อนไปหาบอสที่ใกล้ที่สุด"
-            >
-              <Target className="w-3.5 h-3.5 text-red-400 shrink-0" />
-              <span className="truncate">⚔️ ล่าบอส</span>
-            </button>
-
-            {/* Farm Outpost */}
-            <button
-              type="button"
-              onClick={jumpToOutpost}
-              className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold font-mono bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 transition-all flex items-center gap-2 shadow-sm active:scale-95 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
-              title="เลื่อนไปหาป้อมฟาร์มวิจัย (รับ 100 EXP/วัน)"
-            >
-              <Radio className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
-              <span className="truncate">🌾 ป้อมฟาร์ม</span>
-            </button>
-
-            {/* Center of Map */}
-            <button
-              type="button"
-              onClick={jumpToCenter}
-              className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold font-mono bg-amber-950/80 hover:bg-amber-900/80 border border-amber-500/40 text-amber-300 transition-all flex items-center gap-2 shadow-sm active:scale-95 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
-              title="เลื่อนไปยังใจกลางสมรภูมิ (Center 25,25)"
-            >
-              <Compass className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="truncate">🏛️ ใจกลาง (25,25)</span>
-            </button>
-
-            {/* Safe Sanctuary Zone */}
-            <button
-              type="button"
-              onClick={() => jumpToTile(2, 2)}
-              className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold font-mono bg-sky-950/80 hover:bg-sky-900/80 border border-sky-500/40 text-sky-300 transition-all flex items-center gap-2 shadow-sm active:scale-95 shadow-[0_0_12px_rgba(14,165,233,0.2)]"
-              title="เลื่อนไปยังเขตเกิดปลอดภัย 4 ทิศ (Outer Ring Sanctuary)"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-              <span className="truncate">🛡️ เขตปลอดภัย (2,2)</span>
-            </button>
-
-            {/* Zoom Controls inside PC Menu */}
-            <div className="pt-1.5 mt-0.5 border-t border-slate-800 flex items-center justify-between px-1">
-              <span className="text-[10px] font-mono text-slate-400">ซูม</span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={handleZoomOut}
-                  className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center active:scale-90 text-xs font-bold"
-                  title="ซูมออก (-)"
-                >
-                  -
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetZoom}
-                  className="text-[10px] font-mono px-1 py-0.5 rounded bg-slate-800/80 text-cyan-400 hover:text-white"
-                  title="รีเซ็ต 100%"
-                >
-                  {Math.round(zoomLevel * 100)}%
-                </button>
-                <button
-                  type="button"
-                  onClick={handleZoomIn}
-                  className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center active:scale-90 text-xs font-bold"
-                  title="ซูมเข้า (+)"
-                >
-                  +
-                </button>
-              </div>
-            </div>
+        {appUser?.guildId && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-950/70 border border-amber-500/40 text-amber-300 shrink-0">
+            <Shield className="w-3 h-3 text-amber-400" />
+            <span>กิลด์: <strong className="text-white">{stats.guildCount}</strong></span>
           </div>
-        ) : (
-          /* Minimized PC Button */
-          <button
-            type="button"
-            onClick={() => setIsPcMenuMinimized(false)}
-            className="w-10 h-10 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-cyan-400 flex items-center justify-center shadow-xl backdrop-blur-md transition-all active:scale-95 hover:border-cyan-500/50"
-            title="เปิดเมนูนำทาง"
-          >
-            <Compass className="w-5 h-5 text-cyan-400" />
-          </button>
         )}
+
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 shrink-0">
+          <Radio className="w-3 h-3 text-emerald-400" />
+          <span>สำรวจ: <strong className="text-white">{stats.exploredPercent}%</strong></span>
+        </div>
+
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-950/70 border border-rose-500/40 text-rose-300 shrink-0">
+          <Swords className="w-3 h-3 text-rose-400" />
+          <span>โจมตี: <strong className="text-white">{dailyAttackInfo.remainingAttacks}/{dailyAttackInfo.limit}</strong></span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => handleStartScout()}
+          className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-teal-950/80 hover:bg-teal-900 border border-teal-500/50 text-teal-300 shrink-0 cursor-pointer active:scale-95 shadow-sm"
+          title="แตะเพื่อส่งโดรนสอดแนมหมอก (Bio-Radar) ทันที"
+        >
+          <Radio className="w-3 h-3 text-teal-400 animate-pulse" />
+          <span>โดรน: <strong className="text-white">{dailyScoutInfo.remainingScouts}/{dailyScoutInfo.limit}</strong></span>
+        </button>
       </div>
 
-      {/* Navigation & Zoom Modal (Full Screen Ready & Clean Exit) */}
-      {showNavMenu && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            
-            {/* Header with Prominent Back Button */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowNavMenu(false)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
-                  title="ย้อนกลับ / ปิด"
-                >
-                  <ArrowLeft className="w-4 h-4 text-cyan-400" />
-                  <span>ย้อนกลับ</span>
-                </button>
+      {/* ── 3D HOLOGRAPHIC TACTICAL WAR TABLE (CANVAS) ────────────────────── */}
+      <div className="flex-1 relative w-full h-full overflow-hidden">
+        <EmpireCanvas3D
+          tiles={tiles}
+          guilds={guilds}
+          exploredTiles={exploredTiles}
+          myUid={appUser?.uid}
+          myGuildId={appUser?.guildId}
+          selectedCoord={selectedCoord}
+          onSelectCoord={handleSelectCoord}
+          targetFocus={targetFocus}
+          cameraMode={cameraMode}
+          isGmUser={Boolean(isGmUser && gmViewMode === 'all')}
+        />
+
+        {/* ── FLOATING TACTICAL CONTROLS (RIGHT DOCK) ────────────────────────── */}
+        <div className="absolute right-2.5 sm:right-5 top-2.5 sm:top-4 z-20 flex flex-col gap-1.5 sm:gap-2 pointer-events-auto">
+          {/* Toggle 3D Isometric / 2D Top-Down */}
+          <button
+            type="button"
+            onClick={() => {
+              sfx.click();
+              setCameraMode((prev) => (prev === 'iso' ? 'top' : 'iso'));
+            }}
+            className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-slate-900/90 hover:bg-cyan-950/80 border border-cyan-500/30 text-cyan-300 hover:text-white transition-all shadow-xl hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md flex items-center justify-center group"
+            title={cameraMode === 'iso' ? 'สลับเป็นมุมมองมุมบน 2D Top-Down' : 'สลับเป็นมุมมอง 3D Isometric'}
+          >
+            <Compass className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${cameraMode === 'top' ? 'rotate-90 text-amber-400' : 'text-cyan-400'}`} />
+          </button>
+
+          {/* Jump to Center */}
+          <button
+            type="button"
+            onClick={handleJumpToCenter}
+            className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-slate-900/90 hover:bg-cyan-950/80 border border-slate-700/80 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 transition-all shadow-xl hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md flex items-center justify-center"
+            title="เลื่อนกล้องไปศูนย์กลางแผนที่ [25, 25]"
+          >
+            <Crosshair className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
+
+          {/* Jump to My Base */}
+          <button
+            type="button"
+            onClick={handleJumpToMyBase}
+            className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-slate-900/90 hover:bg-cyan-950/80 border border-slate-700/80 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 transition-all shadow-xl hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md flex items-center justify-center"
+            title="เลื่อนกล้องไปที่ฐานของฉัน"
+          >
+            <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
+          </button>
+
+          {/* Jump to Citadel (if guild has citadel) */}
+          {appUser?.guildId && (
+            <button
+              type="button"
+              onClick={handleJumpToCitadel}
+              className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-slate-900/90 hover:bg-amber-950/80 border border-slate-700/80 hover:border-amber-400 text-slate-300 hover:text-amber-300 transition-all shadow-xl hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md flex items-center justify-center"
+              title="เลื่อนกล้องไปที่นครหลวงกิลด์"
+            >
+              <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+            </button>
+          )}
+
+          {/* Toggle Bio-Radar Minimap */}
+          <button
+            type="button"
+            onClick={() => {
+              sfx.click();
+              setShowRadarMobile((prev) => !prev);
+            }}
+            className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl border transition-all shadow-xl hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md flex items-center justify-center ${
+              showRadarMobile 
+                ? 'bg-cyan-950/90 border-cyan-400/70 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]' 
+                : 'bg-slate-900/90 border-slate-700/80 text-slate-400 hover:text-white'
+            }`}
+            title="เปิด/ปิด เรดาร์ยุทธการชีวภาพ (BIO-RADAR)"
+          >
+            <Radio className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
+        </div>
+
+        {/* ── BOTTOM TACTICAL RADAR (BIO-RADAR MINIMAP) ───────────────────────── */}
+        <div className="absolute left-2.5 sm:left-5 bottom-2.5 sm:bottom-4 z-20 pointer-events-auto">
+          {showRadarMobile ? (
+            <div className="p-2 sm:p-2.5 rounded-2xl bg-slate-900/95 border border-cyan-500/40 shadow-2xl backdrop-blur-md space-y-1.5">
+              <div className="flex items-center justify-between gap-2 text-[10px] sm:text-[11px] font-mono text-slate-400">
+                <span className="flex items-center gap-1 font-bold text-cyan-400">
+                  <Radio className="w-3 h-3 text-cyan-400 animate-pulse" /> BIO-RADAR
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500">50×50</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowRadarMobile(false)}
+                    className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="ย่อขนาดเรดาร์"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 50x50 Interactive Real-Time Radar Canvas */}
+              <div 
+                className="w-24 h-24 sm:w-32 sm:h-32 bg-slate-950 rounded-xl border border-slate-800 relative overflow-hidden cursor-crosshair shadow-inner touch-none select-none"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  handleRadarInteract(e);
+                }}
+                onPointerMove={(e) => {
+                  if (e.buttons > 0) {
+                    handleRadarInteract(e);
+                  }
+                }}
+              >
+                {/* 2D Canvas rendering live 50x50 grid pixels */}
+                <canvas 
+                  ref={radarCanvasRef}
+                  width={MAP_SIZE}
+                  height={MAP_SIZE}
+                  className="w-full h-full [image-rendering:pixelated] block pointer-events-none"
+                />
+
+                {/* Radar Sweep Line Animation */}
+                <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/20 to-transparent animate-pulse pointer-events-none" />
+
+                {/* Radar Blip for Selected Tile */}
+                {selectedCoord && (() => {
+                  const [sx, sy] = selectedCoord.split(',').map(Number);
+                  return (
+                    <div 
+                      className="absolute w-2.5 h-2.5 rounded-full bg-cyan-400 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_#22d3ee] animate-ping pointer-events-none"
+                      style={{ left: `${(sx / MAP_SIZE) * 100}%`, top: `${(sy / MAP_SIZE) * 100}%` }}
+                    />
+                  );
+                })()}
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowRadarMobile(true)}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/50 text-cyan-300 font-mono text-xs font-bold flex items-center gap-1.5 shadow-lg active:scale-95 cursor-pointer backdrop-blur-md"
+              title="เปิดเรดาร์ยุทธการ (BIO-RADAR)"
+            >
+              <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+              <span>BIO-RADAR</span>
+            </button>
+          )}
+        </div>
+
+        {/* ── ACTION SUCCESS NOTIFICATION TOAST ───────────────────────────────── */}
+        {actionSuccessMsg && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+            <div className="px-4 py-2 sm:px-5 sm:py-3 rounded-2xl bg-cyan-950/90 border border-cyan-400 text-cyan-200 font-mono text-xs sm:text-sm font-bold shadow-[0_0_30px_rgba(6,182,212,0.5)] backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
+              {actionSuccessMsg}
+            </div>
+          </div>
+        )}
+
+        {/* ── BOTTOM TACTICAL ACTION DRAWER (WHEN SECTOR SELECTED) ───────────── */}
+        {selectedCoord && (
+          <div className="absolute inset-x-2.5 sm:inset-x-auto sm:right-5 bottom-2 sm:bottom-5 sm:w-[400px] z-30 pointer-events-auto max-h-[60vh] sm:max-h-[85vh] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-200">
+            <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900/95 border border-cyan-500/40 shadow-[0_0_40px_rgba(0,0,0,0.85)] backdrop-blur-2xl space-y-2.5 sm:space-y-3.5 overflow-y-auto">
+              
+              {/* Header: Sector Coordinates & Close */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-                    <Compass className="w-5 h-5" />
+                  <div className="w-8 h-8 rounded-xl bg-cyan-950/80 border border-cyan-500/50 flex items-center justify-center text-cyan-400 font-mono font-bold text-xs">
+                    #
                   </div>
                   <div>
-                    <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
-                      นำทาง & ควบคุมแผนที่
-                    </h2>
-                    <p className="text-[11px] text-slate-400 font-mono">
-                      ระบบวาร์ปพิกัดด่วนและควบคุมระยะซูม
+                    <h3 className="text-base font-black text-white font-mono flex items-center gap-1.5 flex-wrap">
+                      <span>SECTOR [{selectedCoord}]</span>
+                      {isGmUser && (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/50 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 shadow-sm whitespace-nowrap">
+                          <Eye className="w-2.5 h-2.5 text-amber-400" /> GM Inspector
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-mono">
+                      {isSanctuaryZone(Number(selectedCoord.split(',')[0]), Number(selectedCoord.split(',')[1])) 
+                        ? '🛡️ เขตรักษาความปลอดภัย (Sanctuary Rim)'
+                        : isCentralVaultZone(Number(selectedCoord.split(',')[0]), Number(selectedCoord.split(',')[1]))
+                        ? '⚡ ศูนย์กลางชีวะ (Central Core Vault)'
+                        : '⚔️ สมรภูมิยุทธการ (Tactical Frontier)'}
                     </p>
                   </div>
                 </div>
-              </div>
-              <button 
-                type="button"
-                onClick={() => setShowNavMenu(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-                title="ปิดหน้าต่าง"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            {/* Scrollable Content Body */}
-            <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
-
-            {/* 1. Zoom Controls */}
-            <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3 space-y-2">
-              <div className="flex items-center justify-between text-xs font-mono text-slate-300">
-                <span className="flex items-center gap-1.5 font-bold text-slate-200">
-                  <ZoomIn className="w-3.5 h-3.5 text-cyan-400" /> ปรับขนาดการมองเห็น (Zoom)
-                </span>
-                <span className="text-cyan-400 font-black">{Math.round(zoomLevel * 100)}%</span>
-              </div>
-              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleZoomOut}
-                  className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                  onClick={() => setSelectedCoord(null)}
+                  className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
                 >
-                  <ZoomOut className="w-3.5 h-3.5" /> ซูมออก (-)
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetZoom}
-                  className="px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-cyan-400 font-mono text-xs active:scale-95 transition-all"
-                  title="รีเซ็ตขนาด 100%"
-                >
-                  100%
-                </button>
-                <button
-                  type="button"
-                  onClick={handleZoomIn}
-                  className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all"
-                >
-                  <ZoomIn className="w-3.5 h-3.5" /> ซูมเข้า (+)
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </div>
 
-            {/* 2. Fast Travel Locations */}
-            <div className="space-y-2">
-              <div className="text-xs font-mono text-slate-400 uppercase tracking-wider px-1">
-                วาร์ปไปยังพิกัดสำคัญ (Fast Travel)
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                
-                {/* Auto-Find Sanctuary for New Players */}
-                {stats.myCount === 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAutoFindSanctuary();
-                      setShowNavMenu(false);
+              {/* Sector Details */}
+              <div className="space-y-2 text-xs font-mono">
+                {/* ── COMMANDER & VIRUS PET IDENTITY CARD ── */}
+                {currentTile?.ownerUid && (
+                  <div 
+                    className="p-3 rounded-2xl bg-slate-950/80 border flex items-center gap-3 shadow-md"
+                    style={{ 
+                      borderColor: `${getPlayerUniqueColor(currentTile.ownerUid, isMyTile)}45`,
                     }}
-                    className="col-span-2 p-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs font-mono flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.5)] transition-all active:scale-95 animate-pulse"
                   >
-                    <Rocket className="w-4 h-4 text-slate-950" />
-                    <span>🎯 สุ่มหาจุดเกิดปลอดภัย (Sanctuary)</span>
-                  </button>
+                    {/* Glowing SVG Virus Pet in Student's Unique Tactical Color */}
+                    <div 
+                      className="w-12 h-12 rounded-2xl bg-slate-900 border flex items-center justify-center p-1.5 shrink-0 relative shadow-inner"
+                      style={{ 
+                        borderColor: `${getPlayerUniqueColor(currentTile.ownerUid, isMyTile)}70`,
+                        boxShadow: `0 0 16px ${getPlayerUniqueColor(currentTile.ownerUid, isMyTile)}25`
+                      }}
+                    >
+                      <SVGVirus 
+                        type={familyToVirusType(currentTile.ownerFamily || 'parvo')} 
+                        className="w-full h-full"
+                        style={{ color: getPlayerUniqueColor(currentTile.ownerUid, isMyTile) }}
+                        glowColor={getPlayerUniqueColor(currentTile.ownerUid, isMyTile)}
+                      />
+                      {isMyTile && (
+                        <span className="absolute -top-1.5 -right-1.5 text-xs drop-shadow">👑</span>
+                      )}
+                    </div>
+
+                    {/* Owner & Virus Details */}
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span 
+                          className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                          style={{ backgroundColor: getPlayerUniqueColor(currentTile.ownerUid, isMyTile) }}
+                        />
+                        <span className="font-bold text-white text-sm truncate">
+                          {currentTile.ownerName || 'ผู้เล่น'}
+                        </span>
+                        {isMyTile && (
+                          <span className="text-[9px] bg-cyan-500 text-slate-950 px-1.5 py-0.2 rounded font-black">คุณ</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+                        <span className="text-cyan-300 capitalize font-bold">
+                          🦠 {currentTile.ownerFamily || 'Parvo'}
+                        </span>
+                        <span>•</span>
+                        <span className="text-amber-300 font-bold">
+                          📍 {playerTerritories[currentTile.ownerUid] || 1} เซกเตอร์
+                        </span>
+                      </div>
+
+                      {currentTile.guildName && (
+                        <div className="text-[10px] font-mono text-slate-400 truncate">
+                          🛡️ กิลด์: <span className="text-slate-200 font-bold">[{currentTile.guildName}]</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
 
-                {/* Jump to My Base */}
-                {stats.myCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      jumpToMyBase();
-                      setShowNavMenu(false);
-                    }}
-                    className="p-2.5 rounded-2xl bg-cyan-950/70 hover:bg-cyan-900/70 border border-cyan-500/40 text-cyan-300 font-bold font-mono text-xs flex items-center gap-2 transition-all active:scale-95"
-                  >
-                    <Home className="w-4 h-4 text-cyan-400 shrink-0" />
-                    <span className="truncate">🏠 ฐานของฉัน</span>
-                  </button>
+                {/* Boss Identity Card */}
+                {isBoss && (
+                  <div className="p-3 rounded-2xl bg-rose-950/40 border border-rose-500/40 flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-rose-500/50 flex items-center justify-center p-1.5 shrink-0 shadow-[0_0_16px_rgba(244,63,94,0.3)]">
+                      <SVGVirus type="corona" className="w-full h-full text-rose-500" glowColor="#f43f5e" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="text-rose-400 font-black text-sm flex items-center gap-1">
+                        <Flame className="w-4 h-4 text-rose-500" /> บอสไวรัสกลายพันธุ์ระบาด
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        ชีววัตถุอันตรายระดับวิกฤต • เอาชนะเพื่อรับ EXP และปลดปล่อยพื้นที่
+                      </p>
+                    </div>
+                  </div>
                 )}
 
-                {/* Jump to Guild Citadel */}
-                {appUser?.guildId && guilds[appUser.guildId]?.citadelCoord && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      jumpToCitadel();
-                      setShowNavMenu(false);
-                    }}
-                    className="p-2.5 rounded-2xl bg-amber-950/70 hover:bg-amber-900/70 border border-amber-500/50 text-amber-300 font-bold font-mono text-xs flex items-center gap-2 transition-all active:scale-95"
-                  >
-                    <Building2 className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
-                    <span className="truncate">🏛️ นครหลวงกิลด์</span>
-                  </button>
+                {/* Outpost Identity Card */}
+                {isOutpost && !currentTile?.ownerUid && (
+                  <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-emerald-500/50 flex items-center justify-center p-2 shrink-0 shadow-[0_0_16px_rgba(16,185,129,0.3)] text-emerald-400">
+                      <Radio className="w-6 h-6 text-emerald-400 animate-pulse" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="text-emerald-400 font-black text-sm">
+                        🌾 ป้อมฟาร์มวิจัย (Research Outpost)
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        เซกเตอร์ทรัพยากรกลาง • ยึดครองเพื่อรับทรัพยากรวิจัยต่อเนื่อง
+                      </p>
+                    </div>
+                  </div>
                 )}
 
-                {/* Nearest Boss */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    jumpToNearestBoss();
-                    setShowNavMenu(false);
-                  }}
-                  className="p-2.5 rounded-2xl bg-red-950/70 hover:bg-red-900/70 border border-red-500/40 text-red-300 font-bold font-mono text-xs flex items-center gap-2 transition-all active:scale-95"
-                >
-                  <Target className="w-4 h-4 text-red-400 shrink-0" />
-                  <span className="truncate">⚔️ ล่าบอสผู้พิทักษ์</span>
-                </button>
+                {/* Ownership */}
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 border border-slate-800">
+                  <span className="text-slate-400">ผู้ครอบครอง:</span>
+                  <span className="font-bold text-white flex items-center gap-1.5">
+                    {currentTile?.ownerName ? (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                        <span>{currentTile.ownerName}</span>
+                        {isMyTile && (
+                          <span className="text-[9px] bg-cyan-500 text-slate-950 px-1.5 py-0.5 rounded font-black">คุณ</span>
+                        )}
+                        {currentTile.guildName && (
+                          <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                            [{currentTile.guildName}]
+                          </span>
+                        )}
+                      </>
+                    ) : isBoss ? (
+                      <span className="text-rose-400 font-black flex items-center gap-1">
+                        <Flame className="w-3.5 h-3.5" /> บอสไวรัสระบาด
+                      </span>
+                    ) : isOutpost ? (
+                      <span className="text-emerald-400 font-black flex items-center gap-1">
+                        🌾 ป้อมฟาร์มวิจัย (Outpost)
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">พื้นที่รกร้าง / ปลอดเชื้อ</span>
+                    )}
+                  </span>
+                </div>
 
-                {/* Farm Outpost */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    jumpToOutpost();
-                    setShowNavMenu(false);
-                  }}
-                  className="p-2.5 rounded-2xl bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/40 text-emerald-300 font-bold font-mono text-xs flex items-center gap-2 transition-all active:scale-95"
-                >
-                  <Radio className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
-                  <span className="truncate">🌾 ป้อมฟาร์ม (+100 EXP)</span>
-                </button>
-
-                {/* Center of Map */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    jumpToCenter();
-                    setShowNavMenu(false);
-                  }}
-                  className="p-2.5 rounded-2xl bg-amber-950/70 hover:bg-amber-900/70 border border-amber-500/40 text-amber-300 font-bold font-mono text-xs flex items-center gap-2 transition-all active:scale-95"
-                >
-                  <Compass className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="truncate">🏛️ ใจกลาง (25, 25)</span>
-                </button>
-
-                {/* Safe Sanctuary Zone */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    jumpToTile(2, 2);
-                    setShowNavMenu(false);
-                  }}
-                  className="p-2.5 rounded-2xl bg-sky-950/70 hover:bg-sky-900/70 border border-sky-500/40 text-sky-300 font-bold font-mono text-xs flex items-center gap-2 transition-all active:scale-95"
-                >
-                  <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
-                  <span className="truncate">🛡️ เขตปลอดภัย (2, 2)</span>
-                </button>
-
-              </div>
-            </div>
-
-            </div>
-
-            {/* Footer */}
-            <div className="pt-2 text-center border-t border-slate-800 shrink-0 flex items-center justify-end gap-2">
-              <button 
-                type="button"
-                onClick={() => setShowNavMenu(false)}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold font-mono transition-colors active:scale-95 flex items-center justify-center gap-1.5"
-              >
-                <ArrowLeft className="w-4 h-4 text-cyan-400" />
-                <span>กลับสู่แผนที่ (Back to Map)</span>
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* 3. Full-Width Edge-to-Edge Drag-to-Pan Viewport (No Scrollbars) */}
-      <main
-        ref={mapRef}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-        className="flex-1 overflow-auto no-scrollbar cursor-grab active:cursor-grabbing select-none p-6 sm:p-12 pb-28 sm:pb-32 bg-slate-950 touch-pan-x touch-pan-y relative"
-      >
-        <div
-          className="relative select-none mx-auto w-max transition-transform duration-150 origin-top-left"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(${MAP_SIZE}, 1fr)`,
-            gap: '2.5px',
-            transform: `scale(${zoomLevel})`,
-          }}
-        >
-          {Array.from({ length: MAP_SIZE * MAP_SIZE }).map((_, i) => {
-            const x = i % MAP_SIZE;
-            const y = Math.floor(i / MAP_SIZE);
-            const id = `${x},${y}`;
-            const tile = tiles[id];
-            const isSelected = selectedTile?.x === x && selectedTile?.y === y;
-            const isMyTileOnMap = tile?.ownerUid === appUser?.uid;
-            const isAttackable = attackableTileIds.has(id);
-            const hasBase = stats.myCount > 0;
-            const isSanctuary = isSanctuaryZone(x, y);
-            const isShielded = isShieldedTile(tile);
-            const guildObj = tile?.guildId ? guilds[tile.guildId] : null;
-            const isCitadel = tile?.isCitadel || 
-              (guildObj?.citadelCoords && guildObj.citadelCoords.includes(id)) || 
-              (guildObj?.citadelCoord === id);
-            const isInCitadelZone = citadelAuraTileIds.has(id);
-            const isDecayed = isDecayedTile(tile, guildObj?.citadelCoord, guildObj?.citadelCoords);
-
-            const playerColor = tile?.type === 'player' && tile.ownerUid
-              ? getPlayerUniqueColor(tile.ownerUid, isMyTileOnMap)
-              : undefined;
-
-            const isAllyGuildTile = Boolean(tile?.guildId && appUser?.guildId && tile.guildId === appUser.guildId);
-            const isOutpost = tile?.type === 'outpost' || tile?.isOutpost;
-
-            // Guild & Player Color Logic:
-            // - If personal tile: Full solid vibrant guild color
-            // - If guildmate's tile: Softer translucent guild shade (45% opacity) so the player's personal base stands out distinctly!
-            const guildBaseColor = guildObj?.color || '#2563eb';
-            const guildmateBgColor = guildBaseColor.startsWith('#') && guildBaseColor.length === 7
-              ? `${guildBaseColor}70`
-              : guildBaseColor.startsWith('#') && guildBaseColor.length === 4
-              ? `${guildBaseColor}7`
-              : guildBaseColor;
-
-            const tileBgColor = isShielded
-              ? '#083344'
-              : guildObj?.color
-              ? isMyTileOnMap
-                ? guildObj.color
-                : isAllyGuildTile && !isGmUser
-                ? guildmateBgColor
-                : guildObj.color
-              : playerColor
-              ? isMyTileOnMap || isGmUser
-                ? `${playerColor}ee`
-                : isAllyGuildTile
-                ? `${playerColor}70`
-                : `${playerColor}55`
-              : isOutpost
-              ? '#064e3b'
-              : tile?.type === 'boss'
-              ? '#b91c1c'
-              : isSanctuary
-              ? '#082f49'
-              : '#0f172a';
-
-            const isVisible = isTileVisible(x, y);
-
-            // Fog of War Cell Rendering: If tile is concealed by fog
-            if (!isVisible) {
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => handleTileClick(x, y)}
-                  className={`relative rounded-sm overflow-hidden flex items-center justify-center transition-all ${
-                    isSelected ? 'z-20 ring-2 ring-cyan-400 scale-110 shadow-lg' : 'hover:border-slate-600'
-                  }`}
-                  style={{
-                    width: 'clamp(28px, 4.4vw, 44px)',
-                    height: 'clamp(28px, 4.4vw, 44px)',
-                    backgroundColor: '#020617', // Pitch dark
-                    border: isSelected ? '1.5px solid #22d3ee' : '1px dashed #1e293b',
-                    backgroundImage: 'radial-gradient(circle, rgba(30,41,59,0.7) 1px, transparent 1px)',
-                    backgroundSize: '6px 6px',
-                  }}
-                  title={`[หมอกสงคราม] พิกัด [${x}, ${y}] - ส่งโดรนสอดแนมเพื่อเปิดแผนที่`}
-                >
-                  <CloudFog className="w-3.5 h-3.5 text-slate-700/80 animate-pulse pointer-events-none" />
-                </button>
-              );
-            }
-
-            const hasBuilding = Boolean(tile?.buildingType);
-            const buildingConfig = tile?.buildingType ? DEFENSE_STRUCTURES[tile.buildingType] : null;
-
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => handleTileClick(x, y)}
-                title={
-                  isGmUser && tile
-                    ? `[${x},${y}] ${
-                        tile.type === 'player'
-                          ? `👤 ผู้เล่น: ${tile.ownerName || 'ไม่ระบุ'} | 🛡️ กิลด์: ${tile.guildName || 'ไม่มี'} | 🦠 ${tile.ownerFamily || 'Pet'} | HP: ${tile.currentDefenderHp ?? 1000}/${tile.maxDefenderHp ?? 1000}${tile.buildingName ? ` | 🏗️ ${tile.buildingName} (สร้างโดย ${tile.builtByName || 'ไม่ระบุ'})` : ''}${isShielded ? ' | 🛡️ มีบาเรีย' : ''}`
-                          : tile.type === 'boss'
-                          ? `👹 บอส: ${tile.ownerName} (HP: ${tile.bossHp ?? 900}/${tile.maxBossHp ?? 900})`
-                          : isOutpost
-                          ? `🌾 ป้อมฟาร์มวิจัย (+100 EXP/วัน)${tile.ownerName ? ` | เจ้าของ: ${tile.ownerName}` : ' | ว่าง'}`
-                          : isCitadel
-                          ? `🏛️ นครหลวงกิลด์ [${guildObj?.name || 'Citadel'}]`
-                          : `เซกเตอร์ว่างเปล่า [${x},${y}]`
-                      }`
-                    : undefined
-                }
-                className={`relative rounded-sm overflow-hidden flex items-center justify-center transition-transform active:scale-90 ${
-                  isSelected ? 'z-20 ring-2 ring-white scale-110 shadow-lg' : ''
-                }`}
-                style={{
-                  width: 'clamp(28px, 4.4vw, 44px)',
-                  height: 'clamp(28px, 4.4vw, 44px)',
-                  backgroundColor: tileBgColor,
-                  border: (tile && typeof tile.currentDefenderHp === 'number' && tile.maxDefenderHp && tile.currentDefenderHp < tile.maxDefenderHp)
-                    ? '2.5px solid #f43f5e'
-                    : hasBuilding
-                    ? tile.buildingType === 'spike_wall'
-                      ? '2.5px solid #fbbf24'
-                      : tile.buildingType === 'sentry_tower'
-                      ? '2.5px solid #f43f5e'
-                      : tile.buildingType === 'regen_depot'
-                      ? '2.5px solid #10b981'
-                      : '2.5px solid #22d3ee'
-                    : isMyTileOnMap
-                    ? isOutpost
-                      ? '2.5px solid #34d399'
-                      : '2.5px solid #22d3ee'
-                    : isAllyGuildTile
-                    ? guildObj?.color
-                      ? `1.5px solid ${guildObj.color}90`
-                      : '1.5px solid rgba(255,255,255,0.25)'
-                    : guildObj?.color
-                    ? `1.5px solid ${guildObj.color}`
-                    : playerColor
-                    ? `1.5px solid ${playerColor}`
-                    : isCitadel
-                    ? '2px solid #f59e0b'
-                    : isShielded
-                    ? '2px solid #06b6d4'
-                    : isDecayed
-                    ? '1.5px dashed #f59e0b'
-                    : isOutpost
-                    ? '2px solid #10b981'
-                    : !hasBase && isSelected
-                    ? '2px solid #34d399'
-                    : hasBase && isAttackable
-                    ? '1.5px dashed #22c55e'
-                    : tile?.type === 'boss'
-                    ? '1.5px solid #f87171'
-                    : isSanctuary
-                    ? '1px dashed #0284c7'
-                    : '1px solid #1e293b',
-                  boxShadow: hasBuilding
-                    ? tile.buildingType === 'spike_wall'
-                      ? '0 0 12px rgba(245,158,11,0.9)'
-                      : tile.buildingType === 'sentry_tower'
-                      ? '0 0 12px rgba(244,63,94,0.9)'
-                      : '0 0 10px rgba(6,182,212,0.9)'
-                    : isCitadel
-                    ? '0 0 14px rgba(245,158,11,0.9)'
-                    : isShielded
-                    ? '0 0 10px rgba(6,182,212,0.85)'
-                    : isOutpost
-                    ? '0 0 12px rgba(16,185,129,0.7)'
-                    : isMyTileOnMap
-                    ? 'inset 0 0 8px rgba(34,211,238,0.7), 0 0 14px rgba(6,182,212,0.95)'
-                    : isAllyGuildTile
-                    ? '0 0 4px rgba(0,0,0,0.35)'
-                    : isInCitadelZone
-                    ? 'inset 0 0 6px rgba(245,158,11,0.5)'
-                    : guildObj?.color
-                    ? `0 0 6px ${guildObj.color}50`
-                    : playerColor
-                    ? `0 0 6px ${playerColor}40`
-                    : !hasBase && isSelected
-                    ? '0 0 12px rgba(52,211,153,0.8)'
-                    : hasBase && isAttackable
-                    ? '0 0 6px rgba(34,197,94,0.45)'
-                    : undefined,
-                  opacity: isDecayed ? 0.75 : 1,
-                }}
-              >
-                {/* Attackable Reach Indicator Dot (Only when player already has a base) */}
-                {hasBase && isAttackable && !isMyTileOnMap && (
-                  <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse pointer-events-none" />
+                {/* Status Warnings: Shield or Decay */}
+                {isCurrentTileShielded && (
+                  <div className="flex items-center gap-1.5 p-2 rounded-xl bg-cyan-950/50 border border-cyan-500/30 text-cyan-300 text-[11px]">
+                    <ShieldAlert className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <span>มีบาเรียคุ้มกันมือใหม่ (Beginner Shield)</span>
+                  </div>
                 )}
 
-                {/* Citadel Icon (Fills the sector with Grand Golden Castle 🏰) */}
-                {isCitadel && (
-                  <div className="w-full h-full flex items-center justify-center relative z-10 animate-in zoom-in-75 duration-200">
-                    <span className="text-2xl sm:text-3xl drop-shadow-[0_0_12px_rgba(245,158,11,1)] select-none animate-pulse">
-                      🏰
+                {isCurrentTileDecayed && (
+                  <div className="flex items-center gap-1.5 p-2 rounded-xl bg-amber-950/50 border border-amber-500/30 text-amber-300 text-[11px]">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>อาณาเขตเสื่อมสภาพ (&gt;72 ชม. ไม่มีความเคลื่อนไหว) โจมตียึดครองได้ทันที</span>
+                  </div>
+                )}
+
+                {/* Defense HP / Structure HP */}
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 border border-slate-800">
+                  <span className="text-slate-400">พลังป้องกัน (HP):</span>
+                  <span className="font-bold text-emerald-400">
+                    {currentTile?.buildingHp !== undefined
+                      ? `${currentTile.buildingHp.toLocaleString()} / ${(currentTile.maxBuildingHp || 1500).toLocaleString()} HP`
+                      : currentTile?.currentDefenderHp !== undefined
+                      ? `${currentTile.currentDefenderHp.toLocaleString()} / ${(currentTile.maxDefenderHp || 1000).toLocaleString()} HP`
+                      : '1,000 HP'}
+                  </span>
+                </div>
+
+                {/* Defense Structure Name */}
+                {currentTile?.buildingType && (
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 border border-slate-800">
+                    <span className="text-slate-400">สิ่งปลูกสร้าง:</span>
+                    <span className="font-bold text-amber-300">
+                      {DEFENSE_STRUCTURES[currentTile.buildingType]?.name || currentTile.buildingType}
                     </span>
                   </div>
                 )}
 
-                {/* Defense Structure Full-Sector Icon (Fills the entire sector with Shield/Wall/Bow) */}
-                {hasBuilding && !isCitadel && buildingConfig && (
-                  <div className="w-full h-full flex items-center justify-center relative z-10 animate-in zoom-in-75 duration-200">
-                    {tile.buildingType === 'sentry_tower' ? (
-                      <span className="text-2xl sm:text-3xl drop-shadow-[0_0_10px_rgba(244,63,94,0.9)] select-none animate-pulse">
-                        🏹
-                      </span>
-                    ) : tile.buildingType === 'spike_wall' ? (
-                      <span className="text-2xl sm:text-3xl drop-shadow-[0_0_10px_rgba(245,158,11,0.9)] select-none">
-                        🧱
-                      </span>
-                    ) : tile.buildingType === 'regen_depot' ? (
-                      <span className="text-2xl sm:text-3xl drop-shadow-[0_0_10px_rgba(16,185,129,0.9)] select-none">
-                        💚
-                      </span>
-                    ) : (
-                      <span className="text-2xl sm:text-3xl drop-shadow-[0_0_10px_rgba(6,182,212,0.9)] select-none">
-                        🛡️
-                      </span>
+                {/* Co-op Siege Rally info */}
+                {currentTile?.lastAttackedByName && currentTile.currentDefenderHp && currentTile.currentDefenderHp < (currentTile.maxDefenderHp || 1000) && (
+                  <div className="p-2 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-[10px]">
+                    ⚔️ กำลังถูกล้อมโจมตีโดย: <span className="font-bold text-white">{currentTile.lastAttackedByName}</span> (เปิดโอกาส Co-op Rally)
+                  </div>
+                )}
+
+                {/* GM Live Diagnostics Info */}
+                {isGmUser && currentTile?.ownerUid && (
+                  <div className="p-2 rounded-xl bg-amber-950/40 border border-amber-500/30 text-[10px] font-mono text-amber-300/90 flex items-center gap-2 flex-wrap">
+                    <span>UID: <span className="text-amber-200 font-bold">{currentTile.ownerUid.slice(0, 12)}...</span></span>
+                    {currentTile.currentDefenderHp !== undefined && (
+                      <span>• 💖 HP: {currentTile.currentDefenderHp}/{currentTile.maxDefenderHp || 1000}</span>
+                    )}
+                    {currentTile.shieldUntil && (
+                      <span>• 🛡️ บาเรีย: ถึง {new Date(currentTile.shieldUntil).toLocaleTimeString('th-TH')}</span>
                     )}
                   </div>
                 )}
+              </div>
 
-                {/* Building Mini Health Bar on Bottom */}
-                {hasBuilding && tile && (
-                  <div className="absolute bottom-0 inset-x-0 h-1 bg-slate-950/90 overflow-hidden z-20 pointer-events-none">
-                    <div 
-                      className={`h-full transition-all ${
-                        (tile.buildingHp || 0) / (tile.maxBuildingHp || 1000) > 0.5 
-                          ? 'bg-emerald-400' 
-                          : 'bg-rose-400'
-                      }`}
-                      style={{ 
-                        width: `${Math.min(100, Math.max(0, ((tile.buildingHp || 0) / (tile.maxBuildingHp || 1000)) * 100))}%` 
-                      }}
-                    />
-                  </div>
-                )}
-
-                {/* Outpost Icon (Unclaimed or Claimed) */}
-                {isOutpost && !tile?.ownerFamily && !isCitadel && !hasBuilding && (
-                  <div className="w-full h-full p-1 flex items-center justify-center text-emerald-300">
-                    <Radio className="w-full h-full animate-pulse text-emerald-400" />
-                  </div>
-                )}
-
-                {/* Boss Icon */}
-                {tile?.type === 'boss' && !isCitadel && (
-                  <div className="w-full h-full p-0.5 flex items-center justify-center text-white">
-                    <SVGVirus type={tile.ownerFamily as any || 'corona'} className="w-full h-full" />
-                  </div>
-                )}
-
-                {/* Player Identity: Centered Pet Virus with Personal Highlight */}
-                {tile?.type === 'player' && !isCitadel && !hasBuilding && (
-                  <div className="w-full h-full p-0.5 flex items-center justify-center relative select-none">
-                    {/* Crown on Player's Own Base or Bonus EXP */}
-                    {isMyTileOnMap ? (
-                      <Crown className="w-3.5 h-3.5 text-amber-300 absolute -top-1 -right-1 drop-shadow-[0_0_8px_rgba(251,191,36,1)] z-20 animate-pulse pointer-events-none" />
-                    ) : tile.bonusExp ? (
-                      <Crown className="w-2.5 h-2.5 text-yellow-300 absolute -top-0.5 -right-0.5 drop-shadow z-10 pointer-events-none" />
-                    ) : null}
-
-                    {isOutpost && (
-                      <Radio className="w-2.5 h-2.5 text-emerald-300 absolute -top-0.5 -left-0.5 drop-shadow z-10 animate-pulse pointer-events-none" />
-                    )}
-
-                    {/* Virus Pet Graphic */}
-                    <SVGVirus
-                      type={familyToVirusType(tile.ownerFamily || 'parvo')}
-                      className={`w-full h-full transition-all ${
-                        isMyTileOnMap
-                          ? 'text-cyan-200 drop-shadow-[0_0_8px_rgba(34,211,238,1)] scale-110'
-                          : 'text-white/90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)] hover:scale-105'
-                      }`}
-                    />
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </main>
-
-      {/* 4. Floating Bottom Action Drawer (Thumb-Friendly Mobile-Ready) */}
-      <div className="fixed bottom-0 inset-x-0 z-40 p-2 sm:p-4 max-w-4xl mx-auto pointer-events-none">
-        {selectedTile ? (
-          <div className="pointer-events-auto bg-slate-900/95 border border-slate-700/80 rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-[0_10px_40px_rgba(0,0,0,0.8)] backdrop-blur-md animate-in slide-in-from-bottom-3 duration-200">
-            {/* Check if Selected Tile is in Fog of War */}
-            {!isTileVisible(selectedTile.x, selectedTile.y) ? (
-              <>
-                {/* TIER 1: Fog Radar Hologram + Details + Close Button */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    {/* Fog Radar Hologram Icon */}
-                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-950/90 border border-slate-800 shrink-0 overflow-hidden relative shadow-inner flex items-center justify-center mt-0.5">
-                      <CloudFog className="w-6 h-6 text-cyan-400 animate-pulse" />
-                    </div>
-
-                    {/* Fog Info Details */}
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-300 flex-wrap">
-                        <span className="text-white font-black text-sm whitespace-nowrap bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60">
-                          เซกเตอร์ [{selectedTile.x}, {selectedTile.y}]
-                        </span>
-                        <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded font-mono whitespace-nowrap">
-                          ปกคลุมด้วยหมอกสงคราม (Uncharted)
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        ส่งโดรนสอดแนมตอบคำถามไวรัสวิทยาเพื่อเปิดแผนที่ 5×5 ถาวร (+25 EXP)
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Close Button */}
+              {/* Tactical Actions */}
+              <div className="pt-1 flex flex-col gap-2">
+                {/* 1. If Unexplored Fog of War */}
+                {!isExplored ? (
                   <button
                     type="button"
-                    onClick={() => setSelectedTile(null)}
-                    className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-                    title="ปิดกล่องข้อมูล"
+                    onClick={() => handleStartScout()}
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 transition-all hover:scale-[1.02] active:scale-98 cursor-pointer"
                   >
-                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Radio className="w-4 h-4 animate-pulse" />
+                    <span>ส่งโดรนสอดแนมหมอก (Scout Drone)</span>
                   </button>
-                </div>
-
-                {/* TIER 2: Scout Drone Button */}
-                <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-end">
-                  <button
-                    type="button"
-                    disabled={!dailyScoutInfo.canScout}
-                    onClick={() => handleOpenScoutModal(selectedTile.x, selectedTile.y)}
-                    className={`h-9 sm:h-10 px-3.5 sm:px-5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
-                      dailyScoutInfo.canScout
-                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.6)] active:scale-95'
-                        : 'bg-slate-800 text-slate-500 border border-slate-700/80 cursor-not-allowed'
-                    }`}
-                  >
-                    {dailyScoutInfo.canScout ? (
-                      <>
-                        <Rocket className="w-4 h-4 text-slate-950 animate-bounce" />
-                        <span>🛸 ส่งโดรนสอดแนม ({dailyScoutInfo.remainingScouts}/{DAILY_SCOUT_DRONE_LIMIT})</span>
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-4 h-4 text-slate-500" />
-                        <span>แบตหมด ({DAILY_SCOUT_DRONE_LIMIT}/{DAILY_SCOUT_DRONE_LIMIT})</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* TIER 1: Visual Hologram Preview + Detailed Sector Info + Close Button */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    {/* 3D Target Pet Hologram Preview */}
-                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-950/90 border border-slate-700/80 shrink-0 overflow-hidden relative shadow-inner flex items-center justify-center mt-0.5">
-                      {(activeTileData?.isCitadel ||
-                        (activeTileData?.guildId &&
-                          (guilds[activeTileData.guildId]?.citadelCoords?.includes(`${selectedTile.x},${selectedTile.y}`) ||
-                            guilds[activeTileData.guildId]?.citadelCoord === `${selectedTile.x},${selectedTile.y}`))) ? (
-                        <div className="w-full h-full flex items-center justify-center bg-amber-950/60 text-amber-300 shadow-[inset_0_0_12px_rgba(245,158,11,0.5)]">
-                          <Building2 className="w-6 h-6 text-amber-400 animate-pulse" />
-                        </div>
-                      ) : (activeTileData?.type === 'outpost' || activeTileData?.isOutpost) ? (
-                        <div className="w-full h-full flex items-center justify-center bg-emerald-950/60 text-emerald-300 shadow-[inset_0_0_10px_rgba(16,185,129,0.4)]">
-                          <Radio className="w-6 h-6 text-emerald-400 animate-pulse" />
-                        </div>
-                      ) : activeTileData?.type === 'boss' ? (
-                        <VirusViewer3D 
-                          type="corona" 
-                          color="#ef4444" 
-                          interactive={false} 
-                          className="w-full h-full scale-125" 
-                        />
-                      ) : activeTileData?.type === 'player' ? (
-                        <VirusViewer3D 
-                          type={familyToVirusType(activeTileData.ownerFamily || 'parvo')} 
-                          color={
-                            activeTileData.guildId && guilds[activeTileData.guildId]?.color
-                              ? guilds[activeTileData.guildId].color
-                              : getPlayerUniqueColor(activeTileData.ownerUid || '', isMyTile) 
-                          } 
-                          interactive={false} 
-                          className="w-full h-full scale-125" 
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Crosshair className="w-5 h-5 text-slate-600 animate-spin-slow" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Sector Information & Badges */}
-                    <div className="min-w-0 flex-1 space-y-1">
-                      {/* Line 1: Sector Coords + Status Badges */}
-                      <div className="flex items-center gap-1.5 text-xs font-mono font-bold flex-wrap">
-                        <span className="text-white font-black text-sm whitespace-nowrap bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60">
-                          เซกเตอร์ [{selectedTile.x}, {selectedTile.y}]
-                        </span>
-                        {(activeTileData?.isCitadel ||
-                          (activeTileData?.guildId &&
-                            (guilds[activeTileData.guildId]?.citadelCoords?.includes(`${selectedTile.x},${selectedTile.y}`) ||
-                              guilds[activeTileData.guildId]?.citadelCoord === `${selectedTile.x},${selectedTile.y}`))) && (
-                          <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/50 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 shadow-sm whitespace-nowrap">
-                            <Building2 className="w-2.5 h-2.5 text-amber-400" /> นครหลวงกิลด์ (4 ช่อง) LV.{activeTileData?.guildId ? (guilds[activeTileData.guildId]?.citadelLevel || 1) : 1}
-                          </span>
-                        )}
-                        {activeTileData?.guildId && isCitadelInfluenceZone(selectedTile.x, selectedTile.y, guilds[activeTileData.guildId]?.citadelCoord, guilds[activeTileData.guildId]?.citadelCoords) && !(activeTileData?.isCitadel || guilds[activeTileData.guildId]?.citadelCoords?.includes(`${selectedTile.x},${selectedTile.y}`) || guilds[activeTileData.guildId]?.citadelCoord === `${selectedTile.x},${selectedTile.y}`) && (
-                          <span className="text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 whitespace-nowrap">
-                            <Shield className="w-2.5 h-2.5 text-amber-400" /> ป้องกันรกร้าง (Aura)
-                          </span>
-                        )}
-                        {isSanctuaryZone(selectedTile.x, selectedTile.y) && (
-                          <span className="text-[10px] bg-sky-500/20 text-sky-300 border border-sky-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 whitespace-nowrap">
-                            <ShieldCheck className="w-2.5 h-2.5 text-sky-400" /> เขตเกิดปลอดภัย
-                          </span>
-                        )}
-                        {isShieldedTile(activeTileData) && (
-                          <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 animate-pulse whitespace-nowrap">
-                            <ShieldCheck className="w-2.5 h-2.5 text-cyan-400" /> บาเรีย ({Math.max(1, Math.ceil((new Date(activeTileData?.shieldUntil!).getTime() - Date.now()) / (3600 * 1000)))} ชม.)
-                          </span>
-                        )}
-                        {isDecayedTile(activeTileData, activeTileData?.guildId ? guilds[activeTileData.guildId]?.citadelCoord : undefined, activeTileData?.guildId ? guilds[activeTileData.guildId]?.citadelCoords : undefined) && (
-                          <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 whitespace-nowrap">
-                            <AlertTriangle className="w-2.5 h-2.5 text-amber-400" /> ฐานรกร้าง (-50% HP)
-                          </span>
-                        )}
-                        {isMyTile && (
-                          <span className="text-[10px] bg-cyan-500/25 text-cyan-300 border border-cyan-400/60 px-2 py-0.5 rounded-full font-mono font-black flex items-center gap-1 shadow-[0_0_8px_rgba(6,182,212,0.4)] animate-pulse whitespace-nowrap">
-                            👑 ดินแดนของคุณ
-                          </span>
-                        )}
-                        {isGuildTile && !isMyTile && (
-                          <span className="text-[10px] bg-blue-500/25 text-blue-300 border border-blue-400/50 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 shadow-sm whitespace-nowrap">
-                            <Shield className="w-2.5 h-2.5 text-blue-400" /> ดินแดนเพื่อนร่วมกิลด์
-                          </span>
-                        )}
-                        {isGmUser && (
-                          <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/50 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 shadow-sm whitespace-nowrap">
-                            <Eye className="w-2.5 h-2.5 text-amber-400" /> GM Inspector
-                          </span>
-                        )}
-                        {(activeTileData?.type === 'outpost' || activeTileData?.isOutpost) && (
-                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 whitespace-nowrap">
-                            <Zap className="w-2.5 h-2.5 text-emerald-400" /> +100 EXP/วัน
-                          </span>
-                        )}
-                        {/* Under Siege Badge (Persistent Damage Indicator) */}
-                        {activeTileData && typeof activeTileData.currentDefenderHp === 'number' && activeTileData.maxDefenderHp && activeTileData.currentDefenderHp < activeTileData.maxDefenderHp && (
-                          <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 animate-pulse whitespace-nowrap">
-                            <Swords className="w-2.5 h-2.5 text-rose-400" /> กำลังถูกปิดล้อมตี (HP เหลือ {Math.round((activeTileData.currentDefenderHp / activeTileData.maxDefenderHp) * 100)}%)
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Line 2: Owner Name & Guild badge */}
-                      <div className="text-xs sm:text-sm font-bold text-slate-200 truncate flex items-center gap-1.5">
-                        {(activeTileData?.type === 'outpost' || activeTileData?.isOutpost) ? (
-                          <span className="text-emerald-300 font-black flex items-center gap-1.5 truncate">
-                            <span>{activeTileData.ownerName || 'ป้อมฟาร์มวิจัย (Bio-Farm Outpost)'}</span>
-                            {activeTileData.ownerUid && (
-                              <span className="text-[10px] text-slate-300 font-normal">
-                                (ผู้ครอง: {activeTileData.ownerName})
-                              </span>
-                            )}
-                          </span>
-                        ) : activeTileData?.type === 'boss' ? (
-                          <span className="text-red-300 font-black">{activeTileData.ownerName || 'บอสระบบภูมิคุ้มกัน'}</span>
-                        ) : activeTileData?.type === 'player' ? (
-                          <>
-                            <span 
-                              className="w-2.5 h-2.5 rounded-full inline-block shrink-0 shadow-sm" 
-                              style={{ 
-                                backgroundColor: activeTileData.guildId && guilds[activeTileData.guildId]?.color
-                                  ? guilds[activeTileData.guildId].color
-                                  : getPlayerUniqueColor(activeTileData.ownerUid || '', isMyTile) 
-                              }}
-                            />
-                            {activeTileData.guildName && (
-                              <span 
-                                className="text-[10px] px-1.5 py-0.2 rounded border font-mono font-bold shrink-0"
-                                style={{
-                                  backgroundColor: activeTileData.guildId && guilds[activeTileData.guildId]?.color
-                                    ? `${guilds[activeTileData.guildId].color}25`
-                                    : 'rgba(245,158,11,0.2)',
-                                  borderColor: activeTileData.guildId && guilds[activeTileData.guildId]?.color
-                                    ? guilds[activeTileData.guildId].color
-                                    : '#f59e0b',
-                                  color: activeTileData.guildId && guilds[activeTileData.guildId]?.color
-                                    ? guilds[activeTileData.guildId].color
-                                    : '#fcd34d',
-                                }}
-                              >
-                                [{activeTileData.guildName}]
-                              </span>
-                            )}
-                            <span className="truncate">{activeTileData.ownerName}</span>
-                            <span className="text-[10px] text-slate-400 font-normal shrink-0">({activeTileData.ownerFamily})</span>
-                            <span className="text-[10px] text-cyan-300 font-mono font-semibold shrink-0">
-                              • ครอง {Object.values(tiles).filter((t) => t.ownerUid === activeTileData.ownerUid).length} เซกเตอร์
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-slate-400">เซลล์ว่างเปล่า (ยังไม่มีเจ้าของ)</span>
-                        )}
-                      </div>
-
-                      {/* Line 3: GM Live Diagnostics Info */}
-                      {isGmUser && activeTileData?.ownerUid && (
-                        <div className="text-[10px] font-mono text-amber-300/80 flex items-center gap-2 flex-wrap">
-                          <span>UID: <span className="text-amber-200">{activeTileData.ownerUid.slice(0, 10)}...</span></span>
-                          {activeTileData.currentDefenderHp !== undefined && (
-                            <span>💖 HP: {activeTileData.currentDefenderHp}/{activeTileData.maxDefenderHp || 1000}</span>
-                          )}
-                          {activeTileData.lastActive && (
-                            <span>⏳ Active: {new Date(activeTileData.lastActive).toLocaleTimeString()}</span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Line 4: DEFENSE STRUCTURE STATUS IN BOTTOM DRAWER */}
-                      {activeTileData?.buildingType && (() => {
-                        const bConfig = DEFENSE_STRUCTURES[activeTileData.buildingType];
-                        const bHp = activeTileData.buildingHp || 0;
-                        const bMaxHp = activeTileData.maxBuildingHp || bConfig?.bonusHp || 1000;
-                        const isDamaged = bHp < bMaxHp;
-                        return (
-                          <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-2.5 py-1 text-[11px] font-mono flex-wrap">
-                            <span className="text-sm">{bConfig?.icon || '🛡️'}</span>
-                            <span className="font-bold text-white truncate">{activeTileData.buildingName || bConfig?.name}</span>
-                            <span className="text-slate-400">|</span>
-                            <span className={isDamaged ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
-                              HP {bHp.toLocaleString()} / {bMaxHp.toLocaleString()}
-                            </span>
-                            {activeTileData.builtByName && (
-                              <span className="text-slate-500 text-[10px] hidden sm:inline">
-                                (ผู้สร้าง: {activeTileData.builtByName})
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* Close Button at top-right */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTile(null)}
-                    className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-                    title="ปิดกล่องข้อมูล"
-                  >
-                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                </div>
-
-                {/* TIER 2: Action Buttons Toolbar */}
-                <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between sm:justify-end gap-2 flex-wrap">
-                  {/* GM Action Buttons */}
-                  {isGmUser && activeTileData && activeTileData.type !== 'empty' && (
-                    <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-amber-500/30 mr-auto sm:mr-0">
-                      <span className="text-[10px] font-mono text-amber-400 font-bold px-1 hidden sm:inline">[GM]</span>
+                ) : (
+                  <>
+                    {/* 2. Attack / Infiltrate Button (Enemy, Neutral, Boss, Decayed) */}
+                    {!isMyTile && (
                       <button
                         type="button"
-                        onClick={() => handleGmFullHealTile(`${selectedTile.x},${selectedTile.y}`)}
-                        className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-lg text-[11px] font-mono font-bold bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 transition-all active:scale-95 shadow-sm"
-                        title="[GM] ฮีลเลือดฐานและสิ่งปลูกสร้างเต็ม 100%"
+                        onClick={handleStartAttack}
+                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-rose-950/50 transition-all hover:scale-[1.02] active:scale-98 cursor-pointer"
                       >
-                        💖 ฮีลเต็ม
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => isShieldedTile(activeTileData) ? handleGmRemoveShield(`${selectedTile.x},${selectedTile.y}`) : handleGmGrantShield(`${selectedTile.x},${selectedTile.y}`, 24)}
-                        className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-lg text-[11px] font-mono font-bold bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 transition-all active:scale-95 shadow-sm"
-                        title={isShieldedTile(activeTileData) ? "[GM] ปลดบาเรีย" : "[GM] มอบบาเรีย 24 ชม."}
-                      >
-                        {isShieldedTile(activeTileData) ? '🔓 ปลดบาเรีย' : '🛡️ ให้บาเรีย'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleGmResetTile(`${selectedTile.x},${selectedTile.y}`)}
-                        className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-lg text-[11px] font-mono font-bold bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-300 transition-all active:scale-95 shadow-sm"
-                        title="[GM] รีเซ็ตช่องนี้ให้กลับเป็นช่องว่าง"
-                      >
-                        🧹 ล้างช่อง
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Player Action Buttons */}
-                  <div className="flex items-center gap-1.5 flex-wrap ml-auto">
-                    {/* Build Defense Wall Button (On own tile or guild tile, non-citadel, non-outpost) */}
-                    {(isMyTile || isGuildTile) && 
-                      !activeTileData?.isCitadel && 
-                      !activeTileData?.isOutpost && 
-                      !activeTileData?.buildingType && (
-                      <button
-                        type="button"
-                        onClick={() => setShowBuildModal(true)}
-                        className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.5)] active:scale-95 transition-all cursor-pointer"
-                        title="สร้างกำแพงหรือสิ่งปลูกสร้างป้องกันอาณาเขต"
-                      >
-                        <Shield className="w-4 h-4 text-slate-950" />
-                        <span>🏗️ สร้างสิ่งป้องกัน</span>
+                        <Swords className="w-4 h-4" />
+                        <span>{isBoss ? 'โจมตีบอสไวรัส (Boss Raid 3D)' : 'เข้าสู่สมรภูมิรบ (Infiltrate & Battle)'}</span>
                       </button>
                     )}
 
-                    {/* Repair Wall Button (When building is damaged) */}
-                    {(isMyTile || isGuildTile) && 
-                      activeTileData?.buildingType && 
-                      (activeTileData.buildingHp || 0) < (activeTileData.maxBuildingHp || 1000) && (
+                    {/* 3. Harvest Outpost EXP (if owned outpost) */}
+                    {isMyTile && isOutpost && (
                       <button
                         type="button"
-                        disabled={repairingInProgress || (appUser.exp || 0) < (DEFENSE_STRUCTURES[activeTileData.buildingType]?.repairCostExp || 50)}
-                        onClick={handleRepairDefenseStructure}
-                        className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.5)] active:scale-95 transition-all disabled:opacity-50"
-                        title={`ซ่อมแซมสิ่งก่อสร้าง (ใช้ ${DEFENSE_STRUCTURES[activeTileData.buildingType]?.repairCostExp || 50} EXP)`}
-                      >
-                        <Sparkles className="w-4 h-4 text-slate-950" />
-                        <span>🔨 ซ่อม ({DEFENSE_STRUCTURES[activeTileData.buildingType]?.repairCostExp || 50} EXP)</span>
-                      </button>
-                    )}
-
-                    {/* Guild Leader: Establish Citadel Button */}
-                    {appUser?.guildId &&
-                      guilds[appUser.guildId]?.leaderUid === appUser.uid &&
-                      !guilds[appUser.guildId]?.citadelCoord &&
-                      (!guilds[appUser.guildId]?.citadelCoords || guilds[appUser.guildId]?.citadelCoords?.length === 0) &&
-                      (activeTileData?.guildId === appUser.guildId || activeTileData?.ownerUid === appUser.uid || isGuildTile) &&
-                      !activeTileData?.isCitadel &&
-                      !activeTileData?.isOutpost &&
-                      !isCentralVaultZone(selectedTile.x, selectedTile.y) && (
-                        <button
-                          type="button"
-                          onClick={() => handleEstablishCitadel(`${selectedTile.x},${selectedTile.y}`)}
-                          className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.6)] active:scale-95 transition-all"
-                          title="สถาปนานครหลวงกิลด์ 4 ช่อง (2x2 บล็อก) ณ บริเวณนี้"
-                        >
-                          <Building2 className="w-4 h-4 text-slate-950" />
-                          <span>🏛️ สถาปนานครหลวง (4 ช่อง)</span>
-                        </button>
-                    )}
-
-                    {/* Harvest Outpost / Shielded / Attack */}
-                    {isMyTile && (activeTileData?.isOutpost || activeTileData?.type === 'outpost') ? (
-                      (() => {
-                        const todayStr = new Date().toISOString().split('T')[0];
-                        const hasClaimedToday = activeTileData.lastClaimedDate === todayStr;
-                        return (
-                          <button
-                            type="button"
-                            disabled={hasClaimedToday || claimingOutpost}
-                            onClick={() => handleClaimDailyExp(`${selectedTile.x},${selectedTile.y}`)}
-                            className={`h-9 sm:h-10 px-3 sm:px-5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all ${
-                              hasClaimedToday
-                                ? 'bg-slate-800 text-emerald-400/60 border border-emerald-900/40 cursor-default'
-                                : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)] active:scale-95'
-                            }`}
-                          >
-                            <Zap className={`w-4 h-4 ${hasClaimedToday ? 'text-emerald-500/60' : 'text-slate-950 fill-current'}`} />
-                            <span>{hasClaimedToday ? 'รับแล้ว' : '🌾 เก็บเกี่ยว (+100 EXP)'}</span>
-                          </button>
-                        );
-                      })()
-                    ) : isShieldedTile(activeTileData) ? (
-                      <button
-                        type="button"
-                        disabled
-                        className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0 bg-slate-800 text-cyan-400 border border-cyan-500/40 cursor-not-allowed shadow-[0_0_10px_rgba(6,182,212,0.2)]"
-                      >
-                        <ShieldCheck className="w-4 h-4 text-cyan-400 animate-pulse" />
-                        <span>ติดบาเรีย ({Math.max(1, Math.ceil((new Date(activeTileData?.shieldUntil!).getTime() - Date.now()) / (3600 * 1000)))} ชม.)</span>
-                      </button>
-                    ) : !isMyTile && (
-                      <button
-                        type="button"
-                        disabled={!canInfect || (stats.myCount > 0 && !dailyEmpireInfo.canAttack)}
-                        onClick={handleAction}
-                        className={`h-9 sm:h-10 px-4 sm:px-6 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all ${
-                          canInfect && (stats.myCount === 0 || dailyEmpireInfo.canAttack)
-                            ? stats.myCount === 0
-                              ? 'bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow-[0_0_15px_rgba(52,211,153,0.6)] active:scale-95'
-                              : (activeTileData?.type === 'outpost' || activeTileData?.isOutpost)
-                              ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)] active:scale-95'
-                              : activeTileData?.type === 'boss'
-                              ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] active:scale-95'
-                              : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.5)] active:scale-95'
-                            : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        disabled={hasClaimedToday || claimingOutpost}
+                        onClick={handleClaimDailyExp}
+                        className={`w-full py-3 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all ${
+                          hasClaimedToday
+                            ? 'bg-slate-800 text-emerald-400/60 border border-emerald-900/40 cursor-default'
+                            : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-950/50 hover:scale-[1.02] active:scale-98 cursor-pointer'
                         }`}
                       >
-                        {canInfect && (stats.myCount === 0 || dailyEmpireInfo.canAttack) ? (
-                          <>
-                            {stats.myCount === 0 ? (
-                              <>
-                                <Rocket className="w-4 h-4 text-slate-950 animate-bounce" />
-                                <span>{activeTileData?.type === 'empty' ? '🚀 สถาปนาฐานแรก' : '🚀 ทิ้งดิ่งชิงฐาน'}</span>
-                              </>
-                            ) : (activeTileData?.type === 'outpost' || activeTileData?.isOutpost) ? (
-                              <>
-                                <Radio className="w-4 h-4 text-slate-950 animate-pulse" />
-                                <span>ยึดป้อม (+100 EXP)</span>
-                              </>
-                            ) : activeTileData?.type === 'boss' ? (
-                              <>
-                                <Swords className="w-4 h-4" />
-                                <span>ตีบอส</span>
-                              </>
-                            ) : (
-                              <>
-                                <Swords className="w-4 h-4" />
-                                <span>บุกรุก</span>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <Lock className="w-3.5 h-3.5" />
-                            <span className="text-[11px] whitespace-nowrap">
-                              {stats.myCount > 0 && !dailyEmpireInfo.canAttack
-                                ? `โควตาหมด (${dailyEmpireInfo.attacksToday}/${DAILY_EMPIRE_ATTACK_LIMIT})`
-                                : stats.myCount === 0
-                                ? 'เลือกช่องเพื่อส่ง Drop Pod'
-                                : 'ต้องติดกับเขตคุณ'}
-                            </span>
-                          </>
-                        )}
+                        <Coins className="w-4 h-4" />
+                        <span>{hasClaimedToday ? 'เก็บเกี่ยว EXP ประจำวันแล้ว' : 'เก็บเกี่ยวผลผลิตประจำวัน (+100 EXP)'}</span>
                       </button>
                     )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="pointer-events-auto bg-slate-900/90 border border-slate-800/80 rounded-2xl px-4 py-2.5 shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 text-xs font-mono">
-            {stats.myCount === 0 ? (
-              <div className="flex items-center justify-between w-full gap-2">
-                <span className="text-slate-300 truncate">
-                  🚀 <strong className="text-emerald-400">ผู้เล่นใหม่:</strong> แตะช่องว่างเพื่อส่ง Drop Pod หรือกดสุ่มจุดเกิด
-                </span>
-                <button
-                  type="button"
-                  onClick={handleAutoFindSanctuary}
-                  className="px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shrink-0 transition-all shadow-[0_0_12px_rgba(16,185,129,0.5)] active:scale-95"
-                >
-                  🎯 สุ่มจุดปลอดภัย
-                </button>
+
+                    {/* 4. Repair Damaged Structure */}
+                    {isMyTile && currentTile?.buildingType && currentTile.buildingHp !== undefined && currentTile.buildingHp < (currentTile.maxBuildingHp || 1500) && (
+                      <button
+                        type="button"
+                        disabled={repairingInProgress}
+                        onClick={handleRepairStructure}
+                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-950/50 transition-all hover:scale-[1.02] active:scale-98 cursor-pointer"
+                      >
+                        <Wrench className="w-4 h-4" />
+                        <span>ซ่อมแซมสิ่งก่อสร้าง (Repair)</span>
+                      </button>
+                    )}
+
+                    {/* 5. Build Structure (if owned & no structure yet) */}
+                    {(isMyTile || isGuildTile) && !currentTile?.buildingType && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sfx.click();
+                          setShowBuildModal(true);
+                        }}
+                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-cyan-950/50 transition-all hover:scale-[1.02] active:scale-98 cursor-pointer"
+                      >
+                        <Building2 className="w-4 h-4" />
+                        <span>สร้างป้อมปราการชีวภาพ (Build Defense)</span>
+                      </button>
+                    )}
+
+                    {/* 6. GM Action Toolkit (Full 4-button controller) */}
+                    {isGmUser && selectedCoord && (
+                      <div className="p-2.5 rounded-2xl bg-amber-950/30 border border-amber-500/40 space-y-1.5 mt-1">
+                        <div className="flex items-center justify-between text-[11px] font-mono text-amber-300 font-bold">
+                          <span className="flex items-center gap-1">
+                            <Eye className="w-3.5 h-3.5 text-amber-400" /> [GM TOOLKIT] ควบคุมเซกเตอร์
+                          </span>
+                          <span className="text-[10px] text-amber-400/70">[{selectedCoord}]</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleGmFullHealTile(selectedCoord)}
+                            className="py-2 px-2.5 rounded-xl text-xs font-mono font-bold bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 transition-all active:scale-95 shadow-sm cursor-pointer flex items-center justify-center gap-1"
+                            title="[GM] ฮีลเลือดฐานและสิ่งปลูกสร้างเต็ม 100%"
+                          >
+                            💖 ฮีลเต็ม
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => isCurrentTileShielded ? handleGmRemoveShield(selectedCoord) : handleGmGrantShield(selectedCoord, 24)}
+                            className="py-2 px-2.5 rounded-xl text-xs font-mono font-bold bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 transition-all active:scale-95 shadow-sm cursor-pointer flex items-center justify-center gap-1"
+                            title={isCurrentTileShielded ? "[GM] ปลดบาเรีย" : "[GM] มอบบาเรีย 24 ชม."}
+                          >
+                            {isCurrentTileShielded ? '🔓 ปลดบาเรีย' : '🛡️ ให้บาเรีย'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleGmInstantClaim(selectedCoord)}
+                            className="py-2 px-2.5 rounded-xl text-xs font-mono font-bold bg-amber-950/80 hover:bg-amber-900 border border-amber-500/50 text-amber-300 transition-all active:scale-95 shadow-sm cursor-pointer flex items-center justify-center gap-1"
+                            title="[GM] ยึดครองเซกเตอร์นี้ให้ตนเองทันที"
+                          >
+                            👑 ยึดทันที
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleGmResetTile(selectedCoord)}
+                            className="py-2 px-2.5 rounded-xl text-xs font-mono font-bold bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-300 transition-all active:scale-95 shadow-sm cursor-pointer flex items-center justify-center gap-1"
+                            title="[GM] รีเซ็ตช่องนี้ให้กลับเป็นช่องว่าง"
+                          >
+                            🧹 ล้างช่อง
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-            ) : (
-              <div className="flex items-center justify-between w-full text-slate-400 text-[11px] sm:text-xs">
-                <span>แตะช่องใดก็ได้บนแผนที่เพื่อดูข้อมูลและเริ่มบุกรุก</span>
-                <span className="text-cyan-400 font-bold">โควตาบุกวันนี้ {dailyEmpireInfo.remainingAttacks}/{DAILY_EMPIRE_ATTACK_LIMIT}</span>
-              </div>
-            )}
+            </div>
           </div>
         )}
+
       </div>
 
-      {/* 5. Stats Overview Modal (Responsive Container & Clean Back Navigation) */}
-      {showStatsModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            
-            {/* Header with Prominent Back Button */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowStatsModal(false)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
-                  title="ย้อนกลับ"
-                >
-                  <ArrowLeft className="w-4 h-4 text-cyan-400" />
-                  <span>ย้อนกลับ</span>
-                </button>
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-                    <BarChart3 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
-                      ภาพรวมสมรภูมิ (Empire Statistics)
-                    </h2>
-                    <p className="text-[11px] text-slate-400 font-mono">
-                      ข้อมูลสถิติการยึดครองพื้นที่และโควตารายวัน
-                    </p>
-                  </div>
-                </div>
+      {/* ── MODAL 1: SCOUT DRONE QUIZ MODAL ─────────────────────────────────── */}
+      {showScoutModal && scoutQuestion && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="max-w-xl w-full p-6 sm:p-8 rounded-3xl bg-slate-900 border border-emerald-500/50 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3">
+              <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                <Radio className="w-5 h-5 animate-pulse" />
+                <span>ภารกิจโดรนสอดแนมหมอก (SCOUT DRONE CALIBRATION)</span>
               </div>
-              <button 
+              <button
                 type="button"
-                onClick={() => setShowStatsModal(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-                title="ปิดหน้าต่าง"
+                onClick={() => setShowScoutModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Scrollable Content Body */}
-            <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
+            <div>
+              <span className="text-xs font-mono text-slate-400">คำถามจูนคลื่นสัญญาณเรดาร์:</span>
+              <h3 className="text-base sm:text-lg font-black text-white mt-1 leading-relaxed">
+                {scoutQuestion.q}
+              </h3>
+            </div>
 
-            <div className={`grid ${appUser?.guildId ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2'} gap-2.5`}>
-              {/* Card 1: ของคุณ */}
-              <div className="bg-cyan-950/70 border border-cyan-500/40 rounded-2xl p-3.5 flex items-center gap-3 shadow-[0_0_12px_rgba(6,182,212,0.15)]">
-                <span className="w-3.5 h-3.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-[10px] font-mono text-cyan-300/80">เซกเตอร์ที่คุณครอบครอง</div>
-                  <div className="text-xl sm:text-2xl font-black text-cyan-200">{stats.myCount} เซกเตอร์</div>
-                  <div className="text-[10px] text-slate-400 font-mono">
-                    {((stats.myCount / (MAP_SIZE * MAP_SIZE)) * 100).toFixed(2)}% ของแผนที่
-                  </div>
-                </div>
+            <div className="space-y-2.5">
+              {scoutQuestion.options.map((opt: string, idx: number) => {
+                const isSelected = scoutChoice === idx;
+                const isCorrect = idx === scoutQuestion.answer;
+
+                let btnStyle = "bg-slate-950/80 hover:bg-slate-800 border-slate-700/80 text-slate-200";
+                if (isScouting && isSelected) {
+                  btnStyle = isCorrect 
+                    ? "bg-emerald-600 text-white border-emerald-400 scale-[1.02]" 
+                    : "bg-rose-600 text-white border-rose-400";
+                }
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={isScouting}
+                    onClick={() => handleAnswerScout(idx)}
+                    className={`w-full p-4 rounded-2xl border text-left text-sm font-semibold transition-all flex items-center justify-between cursor-pointer ${btnStyle}`}
+                  >
+                    <span>{opt}</span>
+                    {isScouting && isSelected && (
+                      isCorrect ? <CheckCircle2 className="w-5 h-5 text-emerald-300" /> : <X className="w-5 h-5 text-rose-300" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {scoutFeedback && (
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/30 text-xs font-mono text-center text-emerald-300">
+                {scoutFeedback}
               </div>
+            )}
+          </div>
+        </div>
+      )}
 
-              {/* Card 2: กิลด์ของคุณ (ถ้ามี) */}
-              {appUser?.guildId && (
-                <div className="bg-amber-950/70 border border-amber-500/40 rounded-2xl p-3.5 flex items-center gap-3 shadow-[0_0_12px_rgba(245,158,11,0.15)]">
-                  <span className="w-3.5 h-3.5 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b] shrink-0" />
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-mono text-amber-300/80 truncate">กิลด์ [{appUser.guildName}]</div>
-                    <div className="text-xl sm:text-2xl font-black text-amber-200">{stats.guildCount} เซกเตอร์</div>
-                    <div className="text-[10px] text-slate-400 font-mono">
-                      {((stats.guildCount / (MAP_SIZE * MAP_SIZE)) * 100).toFixed(2)}% ของแผนที่
+      {/* ── MODAL 2: BUILD DEFENSE STRUCTURE MODAL ──────────────────────────── */}
+      {showBuildModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="max-w-xl w-full p-6 sm:p-8 rounded-3xl bg-slate-900 border border-cyan-500/50 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-3">
+              <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
+                <Building2 className="w-5 h-5" />
+                <span>สถาปนาป้อมปราการชีวภาพ (BIO-DEFENSE WORKSHOP)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBuildModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              {Object.values(DEFENSE_STRUCTURES).map((struct) => {
+                const canAfford = (appUser?.exp || 0) >= struct.costExp;
+
+                return (
+                  <div
+                    key={struct.id}
+                    className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 hover:border-cyan-500/40 transition-all flex items-center justify-between gap-3"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{struct.icon}</span>
+                        <h4 className="text-sm font-bold text-white">{struct.name}</h4>
+                      </div>
+                      <p className="text-xs text-slate-400">{struct.desc}</p>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-cyan-400">
+                        <span className="text-emerald-400 font-bold">+HP {struct.bonusHp.toLocaleString()}</span>
+                        <span>•</span>
+                        <span className="text-rose-400 font-bold">+ATK {struct.bonusAtk}</span>
+                        <span>•</span>
+                        <span>ค่าสร้าง: {struct.costExp} EXP</span>
+                      </div>
                     </div>
+
+                    <button
+                      type="button"
+                      disabled={!canAfford || buildingInProgress}
+                      onClick={() => handleBuildStructure(struct.id)}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                        canAfford
+                          ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-md hover:scale-105 active:scale-95'
+                          : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      }`}
+                    >
+                      {buildingInProgress ? 'กำลังสร้าง...' : 'สร้าง'}
+                    </button>
                   </div>
-                </div>
-              )}
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
-              {/* Card 3: ผู้เล่นอื่น */}
-              <div className="bg-purple-950/70 border border-purple-500/40 rounded-2xl p-3.5 flex items-center gap-3 shadow-[0_0_12px_rgba(168,85,247,0.15)]">
-                <span className="w-3.5 h-3.5 rounded-full bg-purple-400 shadow-[0_0_8px_#c084fc] shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-[10px] font-mono text-purple-300/80">ผู้เล่นอื่นในแผนที่</div>
-                  <div className="text-xl sm:text-2xl font-black text-purple-200">{stats.enemyCount} เซกเตอร์</div>
+      {/* ── MODAL 3: EMPIRE STATISTICS & LEADERBOARD MODAL ─────────────────── */}
+      {showStatsModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="max-w-xl w-full p-6 sm:p-8 rounded-3xl bg-slate-900 border border-amber-500/50 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-amber-500/20 pb-3">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                <BarChart3 className="w-5 h-5" />
+                <span>สถิติยุทธการ VIRUS EMPIRE &amp; ทำเนียบเกียรติยศ</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStatsModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
+                <div className="text-xs text-slate-400 font-mono">เซกเตอร์ทั้งหมด</div>
+                <div className="text-xl font-black text-white font-mono mt-1">2,500</div>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
+                <div className="text-xs text-slate-400 font-mono">สำรวจแล้ว</div>
+                <div className="text-xl font-black text-emerald-400 font-mono mt-1">
+                  {stats.exploredPercent}%
                 </div>
               </div>
-
-              {/* Card 3: บอส */}
-              <div className="bg-red-950/70 border border-red-500/40 rounded-2xl p-3 flex items-center gap-3 shadow-[0_0_12px_rgba(239,68,68,0.15)]">
-                <span className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_#f87171] shrink-0 animate-pulse" />
-                <div>
-                  <div className="text-[10px] font-mono text-red-300/80">บอสผู้พิทักษ์</div>
-                  <div className="text-xl font-black text-red-200">{stats.bossCount} จุด</div>
-                </div>
-              </div>
-
-              {/* Card 4: ป้อมฟาร์ม */}
-              <div className="bg-emerald-950/70 border border-emerald-500/40 rounded-2xl p-3 flex items-center gap-3 shadow-[0_0_12px_rgba(16,185,129,0.2)]">
-                <span className="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] shrink-0 animate-pulse" />
-                <div>
-                  <div className="text-[10px] font-mono text-emerald-300/80">ป้อมฟาร์มวิจัย</div>
-                  <div className="text-xl font-black text-emerald-200">{stats.outpostCount} ป้อม</div>
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
+                <div className="text-xs text-slate-400 font-mono">กิลด์ที่ยึดครอง</div>
+                <div className="text-xl font-black text-amber-400 font-mono mt-1">
+                  {Object.keys(guilds).length} กิลด์
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800 text-xs font-mono text-slate-400 space-y-1">
-              <div className="flex justify-between">
-                <span>ขนาดแผนที่ทั้งหมด:</span>
-                <span className="text-white font-bold">50 × 50 (2,500 เซกเตอร์)</span>
+            {/* Top Conquering Guilds */}
+            {stats.topGuilds.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+                  กิลด์ที่มีอาณาเขตสูงสุด (TOP 5 GUILDS):
+                </h4>
+                <div className="space-y-1.5">
+                  {stats.topGuilds.map((item, idx) => (
+                    <div 
+                      key={item.guild.id}
+                      className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between text-xs font-mono"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-amber-400">#{idx + 1}</span>
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.guild.color }} />
+                        <span className="text-white font-bold">{item.guild.name}</span>
+                        <span className="text-slate-400 text-[10px]">[{item.guild.tag}]</span>
+                      </div>
+                      <span className="text-amber-300 font-bold">{item.count} ช่อง</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span>โควตาการบุกรุกวันนี้:</span>
-                <span className="text-cyan-300 font-bold">{dailyEmpireInfo.remainingAttacks} / {DAILY_EMPIRE_ATTACK_LIMIT} ครั้ง</span>
-              </div>
-            </div>
+            )}
 
             {/* GM Only: Live Territory Directory by Player & Guild */}
             {isGmUser && (() => {
@@ -3296,7 +1783,7 @@ export default function EmpireMap() {
                     <span className="text-[10px] text-slate-400">{list.length} ผู้เล่นมีดินแดน</span>
                   </div>
 
-                  <div className="max-h-56 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
+                  <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
                     {list.length === 0 ? (
                       <div className="text-center py-4 text-xs font-mono text-slate-500">
                         ยังไม่มีผู้เล่นคนใดครอบครองดินแดน
@@ -3327,9 +1814,10 @@ export default function EmpireMap() {
                             type="button"
                             onClick={() => {
                               setShowStatsModal(false);
-                              jumpToTile(p.firstCoord.x, p.firstCoord.y);
+                              setTargetFocus({ x: p.firstCoord.x, y: p.firstCoord.y });
+                              setSelectedCoord(`${p.firstCoord.x},${p.firstCoord.y}`);
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-[11px] transition-all shrink-0 active:scale-95 border border-amber-500/40"
+                            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-[11px] transition-all shrink-0 active:scale-95 border border-amber-500/40 cursor-pointer"
                             title={`วาร์ปไปดูฐานพิกัด [${p.firstCoord.x}, ${p.firstCoord.y}]`}
                           >
                             🎯 ส่องฐาน [{p.firstCoord.x},{p.firstCoord.y}]
@@ -3342,971 +1830,86 @@ export default function EmpireMap() {
               );
             })()}
 
-            </div>
-
-            {/* Footer with Prominent Back Button */}
-            <div className="pt-2 text-center border-t border-slate-800 shrink-0">
-              <button 
-                type="button"
-                onClick={() => setShowStatsModal(false)}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs uppercase transition-all flex items-center justify-center gap-1.5 active:scale-95"
-              >
-                <ArrowLeft className="w-4 h-4 text-cyan-400" />
-                <span>กลับสู่แผนที่ (Back to Map)</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 6. Guild / Alliance Modal (Spacious Container & Prominent Back Button) */}
-      {showGuildModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            
-            {/* Header with Prominent Back Button */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
-              <div className="flex items-center gap-3">
+            <div className="pt-2 text-center">
+              <Link href="/student/leaderboard">
                 <button
                   type="button"
-                  onClick={() => setShowGuildModal(false)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
-                  title="ย้อนกลับ"
+                  onClick={() => sfx.click()}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-950/50 cursor-pointer"
                 >
-                  <ArrowLeft className="w-4 h-4 text-amber-400" />
-                  <span>ย้อนกลับ</span>
+                  <Crown className="w-4 h-4" />
+                  <span>เข้าสู่ตารางอันดับเกียรติยศเต็ม (Full Leaderboard)</span>
                 </button>
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                    <Users className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
-                      ระบบพันธมิตรกิลด์ (Alliance)
-                    </h2>
-                    <p className="text-[11px] text-slate-400 font-mono">
-                      ร่วมมือกับเพื่อน ขยายอาณาเขต และพัฒนาเมืองหลวง
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <button 
-                type="button"
-                onClick={() => setShowGuildModal(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-                title="ปิดหน้าต่าง"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              </Link>
             </div>
-
-            {/* Scrollable Content Body */}
-            <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
-
-            {/* Current Guild Status */}
-            {appUser?.guildId ? (
-              (() => {
-                const currentG = guilds[appUser.guildId];
-                const isLeader = currentG?.leaderUid === appUser.uid;
-                const guildTilesCount = Object.values(tiles).filter((t) => t.guildId === appUser.guildId).length;
-
-                return (
-                  <div className="space-y-4">
-                    {/* 1. Guild Overview Card */}
-                    <div 
-                      className="rounded-2xl p-4 border relative overflow-hidden space-y-3 shadow-lg"
-                      style={{
-                        backgroundColor: `${currentG?.color || '#a855f7'}18`,
-                        borderColor: `${currentG?.color || '#a855f7'}60`,
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span 
-                              className="w-3.5 h-3.5 rounded-full border border-white/80 shadow-[0_0_8px_rgba(255,255,255,0.5)] shrink-0" 
-                              style={{ backgroundColor: currentG?.color || '#a855f7' }} 
-                            />
-                            <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400 font-bold">
-                              พันธมิตรกิลด์ของคุณ
-                            </span>
-                          </div>
-                          <h3 className="text-xl font-black text-white flex items-center gap-2 mt-1">
-                            <span className="font-mono text-cyan-400">[{currentG?.tag || 'TAG'}]</span>
-                            <span>{currentG?.name || appUser.guildName}</span>
-                          </h3>
-                          <div className="mt-1 flex flex-wrap items-center gap-2">
-                            {isLeader ? (
-                              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1 font-mono">
-                                <Crown className="w-3.5 h-3.5 text-amber-400" /> คุณคือหัวหน้ากิลด์
-                              </span>
-                            ) : (
-                              <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-[11px] font-mono flex items-center gap-1">
-                                <Users className="w-3.5 h-3.5 text-cyan-400" /> สมาชิกกิลด์
-                              </span>
-                            )}
-                            <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/50 border border-cyan-500/30 px-2 py-0.5 rounded-full">
-                              รวมยึดครอง {guildTilesCount} เซกเตอร์
-                            </span>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={handleLeaveGuild}
-                          className="text-xs px-3 py-1.5 rounded-xl bg-red-950/70 border border-red-500/40 text-red-300 hover:bg-red-900/60 transition-colors shrink-0 font-medium active:scale-95"
-                        >
-                          ออกจากกิลด์
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 2. Guild Citadel Status & Upgrade Card */}
-                    <div className="bg-slate-950/70 border border-amber-500/40 rounded-2xl p-3.5 space-y-3 shadow-md">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-amber-400" />
-                          <span className="text-xs font-black uppercase text-white tracking-wide font-mono">
-                            นครหลวงกิลด์ (Guild Citadel)
-                          </span>
-                        </div>
-                        {currentG?.citadelCoord ? (
-                          <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full">
-                            LV.{currentG?.citadelLevel || 1}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
-                            ยังไม่มีนครหลวง
-                          </span>
-                        )}
-                      </div>
-
-                      {currentG?.citadelCoord ? (
-                        <div className="space-y-2.5">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-300 font-mono">
-                              พิกัด: <strong className="text-amber-300">[{currentG.citadelCoord}]</strong>
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                jumpToCitadel();
-                                setShowGuildModal(false);
-                              }}
-                              className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold active:scale-95 transition-all flex items-center gap-1"
-                            >
-                              <Compass className="w-3 h-3 text-amber-400" /> วาร์ปไปนครหลวง
-                            </button>
-                          </div>
-
-                          {/* Progress Bar towards Next Level */}
-                          <div>
-                            {(() => {
-                              const lvl = currentG.citadelLevel || 1;
-                              const neededExp = lvl * 150;
-                              const currentExp = currentG.citadelExp || 0;
-                              const pct = Math.min(100, Math.round((currentExp / neededExp) * 100));
-                              return (
-                                <div className="space-y-1">
-                                  <div className="flex justify-between text-[10px] font-mono text-slate-400">
-                                    <span>ความเจริญนครหลวง (EXP กิลด์)</span>
-                                    <span className="text-amber-300 font-bold">
-                                      {lvl >= 5 ? 'MAX LEVEL' : `${currentExp} / ${neededExp} EXP (${pct}%)`}
-                                    </span>
-                                  </div>
-                                  <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden border border-slate-700">
-                                    <div
-                                      className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-300"
-                                      style={{ width: `${lvl >= 5 ? 100 : pct}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-
-                          {/* Perks & Mechanics Info */}
-                          <div className="bg-slate-900/80 rounded-xl p-2.5 border border-slate-800 text-[11px] text-slate-300 space-y-1">
-                            <div className="flex items-center gap-1.5 text-amber-400 font-bold font-mono text-[10px]">
-                              <ShieldCheck className="w-3.5 h-3.5" /> สิทธิประโยชน์ของนครหลวง (ขนาด 4 เซกเตอร์ 2×2):
-                            </div>
-                            <ul className="text-[10px] text-slate-400 list-disc list-inside space-y-0.5 leading-relaxed">
-                              <li>สร้างรัศมีคุ้มกันรอบตัว 2 ช่อง: <strong className="text-amber-200">ไม่มีวันรกร้าง (Decay-Immune)</strong></li>
-                              <li>กำแพงป้องกันหนาแน่น 2 เท่า (HP {(currentG.citadelLevel || 1) * 1000 + 2500} หน่วย) ทุกช่องในกลุ่มนครหลวง</li>
-                              <li>สมาชิกสามารถบริจาค EXP ส่วนตัวเพื่ออัปเกรดความรุ่งเรืองของนครหลวงได้</li>
-                              <li className="text-amber-300 font-medium">🔒 ตำแหน่งเมืองหลวงถูกล็อคถาวร (ระบบย้ายเมืองหลวงด้วย &quot;ใบย้ายเมือง&quot; จะเปิดให้ใช้งานในอนาคต)</li>
-                            </ul>
-                          </div>
-
-                          {/* Donate EXP Button */}
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              EXP ของคุณ: <strong className="text-cyan-400">{appUser.exp || 0}</strong>
-                            </span>
-                            <button
-                              type="button"
-                              disabled={donatingCitadelExp || (currentG.citadelLevel || 1) >= 5 || (appUser.exp || 0) < 45}
-                              onClick={() => handleDonateCitadelExp(25)}
-                              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs font-mono transition-all disabled:opacity-40 active:scale-95 shadow-[0_0_10px_rgba(245,158,11,0.4)] flex items-center gap-1.5"
-                            >
-                              <Sparkles className="w-3.5 h-3.5 text-slate-950" />
-                              <span>{donatingCitadelExp ? 'กำลังบริจาค...' : 'บริจาค 25 EXP'}</span>
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-slate-400 space-y-1.5 leading-relaxed">
-                          <p>
-                            กิลด์ของคุณยังไม่มีนครหลวง! <strong className="text-white">หัวหน้ากิลด์ (👑)</strong> สามารถเลือกช่องในอาณาเขตกิลด์ที่เป็น <strong className="text-amber-300">กลุ่มบล็อก 4 ช่อง (สี่เหลี่ยม 2×2)</strong> แล้วกดปุ่ม <strong>[🏛️ สถาปนานครหลวง (4 ช่อง)]</strong> ในแถบด้านล่าง
-                          </p>
-                          <div className="text-[10px] text-amber-400/90 font-mono">
-                            ⚡ สมาชิกกิลด์สามารถช่วยกันยึดขยายพื้นที่ให้ติดกันเป็นบล็อกสี่เหลี่ยม 2×2 เพื่อให้หัวหน้ากิลด์สถาปนานครหลวงได้
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 3. Guild Color Selector (Leader can pick color, members see it) */}
-                    <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-400" /> สีกิลด์บนแผนที่
-                          </span>
-                          <span 
-                            className="w-4 h-4 rounded-full border border-white shadow-sm inline-block"
-                            style={{ backgroundColor: currentG?.color || '#a855f7' }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-mono text-slate-400">
-                          {isLeader ? 'หัวหน้าสามารถเปลี่ยนสีได้' : 'สีเดียวกันทั้งกิลด์'}
-                        </span>
-                      </div>
-
-                      {isLeader ? (
-                        <div>
-                          <div className="text-[11px] text-slate-300 mb-2 leading-relaxed">
-                            แตะเลือกสีประจำกิลด์ (ทุกช่องในแผนที่ที่คนในกิลด์ยึดไว้จะเปลี่ยนเป็นสีนี้พร้อมกัน):
-                          </div>
-                          <div className="grid grid-cols-6 gap-2">
-                            {PLAYER_PALETTE.map((c) => {
-                              const isSelected = (currentG?.color || '') === c;
-                              return (
-                                <button
-                                  key={c}
-                                  type="button"
-                                  onClick={() => handleUpdateGuildColor(c)}
-                                  className={`h-7 rounded-lg flex items-center justify-center transition-all ${
-                                    isSelected 
-                                      ? 'ring-2 ring-white scale-105 shadow-md shadow-white/20' 
-                                      : 'opacity-70 hover:opacity-100 hover:scale-105'
-                                  }`}
-                                  style={{ backgroundColor: c }}
-                                  title={c}
-                                >
-                                  {isSelected && <Check className="w-4 h-4 text-white drop-shadow font-bold" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-slate-400 font-mono">
-                          ดินแดนทั้งหมดของกิลด์จะเปล่งแสงเป็นสีนี้บนแผนที่ขนาด 50×50 เพื่อแสดงอาณาเขตพันธมิตร
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 4. Guild Members List */}
-                    <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-black uppercase text-amber-400 flex items-center gap-1.5 font-mono">
-                          <Users className="w-3.5 h-3.5" /> รายชื่อสมาชิก ({currentGuildMembers.length} คน)
-                        </h4>
-                        <span className="text-[10px] font-mono text-slate-400">
-                          พรมแดนเชื่อมถึงกัน
-                        </span>
-                      </div>
-
-                      <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-                        {currentGuildMembers
-                          .slice()
-                          .sort((a, b) => {
-                            if (a.uid === currentG?.leaderUid) return -1;
-                            if (b.uid === currentG?.leaderUid) return 1;
-                            return (b.exp || 0) - (a.exp || 0);
-                          })
-                          .map((member) => {
-                            const isMemberLeader = member.uid === currentG?.leaderUid;
-                            const isMe = member.uid === appUser.uid;
-                            const memberTileCount = Object.values(tiles).filter((t) => t.ownerUid === member.uid).length;
-
-                            return (
-                              <div
-                                key={member.uid}
-                                className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition-colors ${
-                                  isMe
-                                    ? 'bg-cyan-950/40 border-cyan-500/50'
-                                    : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <div className="w-7 h-7 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center shrink-0">
-                                    <SVGVirus
-                                      type={member.pet?.family as any || 'parvo'}
-                                      className="w-5 h-5 text-cyan-400"
-                                    />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="font-bold text-white truncate flex items-center gap-1.5">
-                                      <span>{member.fullname || 'นิสิต'}</span>
-                                      {isMe && (
-                                        <span className="text-[10px] font-mono text-cyan-400 font-bold">(คุณ)</span>
-                                      )}
-                                    </div>
-                                    <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 mt-0.5">
-                                      <span>LV.{Math.floor((member.exp || 0) / 100) + 1}</span>
-                                      <span>•</span>
-                                      <span className="text-cyan-300 font-semibold">ครอง {memberTileCount} เซกเตอร์</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="shrink-0 ml-2">
-                                  {isMemberLeader ? (
-                                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[10px] font-bold flex items-center gap-1 font-mono shadow-sm">
-                                      <Crown className="w-3 h-3 text-amber-400" /> หัวหน้า
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[10px] font-mono">
-                                      สมาชิก
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()
-            ) : (
-              <div className="space-y-4">
-                {/* Create New Guild Form */}
-                <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3">
-                  <h4 className="text-xs font-black uppercase text-cyan-400 flex items-center gap-1.5 font-mono">
-                    <Plus className="w-3.5 h-3.5" /> ก่อตั้งพันธมิตรใหม่ (คุณจะเป็นหัวหน้ากิลด์ 👑)
-                  </h4>
-                  <div className="grid grid-cols-3 gap-2">
-                    <input
-                      type="text"
-                      placeholder="ชื่อกิลด์ (เช่น Phage Clan)"
-                      value={newGuildName}
-                      onChange={(e) => setNewGuildName(e.target.value)}
-                      className="col-span-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
-                    />
-                    <input
-                      type="text"
-                      placeholder="แท็ก [TAG]"
-                      maxLength={5}
-                      value={newGuildTag}
-                      onChange={(e) => setNewGuildTag(e.target.value)}
-                      className="col-span-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 uppercase focus:outline-none focus:border-cyan-400"
-                    />
-                  </div>
-
-                  {/* Choose Guild Color for creation */}
-                  <div>
-                    <div className="text-[11px] font-mono text-slate-400 mb-1.5 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <span>เลือกสีกิลด์ประจำอาณาจักร:</span>
-                        <span 
-                          className="w-3.5 h-3.5 rounded-full border border-white inline-block shadow-sm"
-                          style={{ backgroundColor: newGuildColor }}
-                        />
-                      </span>
-                      <span className="text-[10px] text-slate-500">แสดงบนแผนที่</span>
-                    </div>
-                    <div className="grid grid-cols-6 gap-2">
-                      {PLAYER_PALETTE.map((c) => {
-                        const isSelected = newGuildColor === c;
-                        return (
-                          <button
-                            key={c}
-                            type="button"
-                            onClick={() => setNewGuildColor(c)}
-                            className={`h-7 rounded-lg flex items-center justify-center transition-all ${
-                              isSelected 
-                                ? 'ring-2 ring-white scale-105 shadow-md shadow-white/20' 
-                                : 'opacity-70 hover:opacity-100 hover:scale-105'
-                            }`}
-                            style={{ backgroundColor: c }}
-                            title={c}
-                          >
-                            {isSelected && <Check className="w-4 h-4 text-white drop-shadow font-bold" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handleCreateGuild}
-                    disabled={isCreatingGuild || !newGuildName.trim() || !newGuildTag.trim()}
-                    className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs uppercase tracking-wider transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-md active:scale-95"
-                  >
-                    <Crown className="w-4 h-4 text-slate-950" />
-                    <span>{isCreatingGuild ? 'กำลังก่อตั้ง...' : 'ก่อตั้งกิลด์และเป็นหัวหน้า'}</span>
-                  </button>
-                </div>
-
-                {/* Join Existing Guild List */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-mono text-slate-400 uppercase">กิลด์ที่เปิดรับสมัคร</h4>
-                  <div className="max-h-52 overflow-y-auto space-y-2 custom-scrollbar">
-                    {Object.values(guilds).length > 0 ? (
-                      Object.values(guilds).map((g) => {
-                        const membersOfThisGuild = allUsers.filter((u) => u.guildId === g.id);
-                        const isExpanded = previewGuildId === g.id;
-
-                        return (
-                          <div 
-                            key={g.id} 
-                            className="bg-slate-950/50 border border-slate-800 rounded-xl p-3 space-y-2 hover:border-slate-700 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2.5">
-                                <span 
-                                  className="w-3.5 h-3.5 rounded-full border border-white/60 shrink-0 shadow-sm" 
-                                  style={{ backgroundColor: g.color || '#a855f7' }}
-                                />
-                                <div>
-                                  <div className="font-bold text-sm text-white flex items-center gap-1.5">
-                                    <span className="font-mono text-cyan-400">[{g.tag}]</span> 
-                                    <span>{g.name}</span>
-                                  </div>
-                                  <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
-                                    <span className="flex items-center gap-0.5 text-amber-300 font-semibold">
-                                      <Crown className="w-2.5 h-2.5 text-amber-400" /> {g.leaderName}
-                                    </span>
-                                    <span>•</span>
-                                    <span>สมาชิก {membersOfThisGuild.length || g.membersCount || 1} คน</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setPreviewGuildId(isExpanded ? null : g.id)}
-                                  className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[10px] transition-colors"
-                                >
-                                  {isExpanded ? 'ย่อ' : 'ดูสมาชิก'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleJoinGuild(g)}
-                                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase transition-all shadow-sm active:scale-95"
-                                >
-                                  เข้าร่วม
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Expanded Member List for previewing prior to joining */}
-                            {isExpanded && (
-                              <div className="pt-2 border-t border-slate-800/80 space-y-1">
-                                <div className="text-[10px] font-mono text-slate-400 uppercase">
-                                  สมาชิกในกิลด์นี้ ({membersOfThisGuild.length} คน):
-                                </div>
-                                <div className="space-y-1 max-h-28 overflow-y-auto pr-1 custom-scrollbar">
-                                  {membersOfThisGuild.length > 0 ? (
-                                    membersOfThisGuild.map((m) => (
-                                      <div 
-                                        key={m.uid} 
-                                        className="flex items-center justify-between text-[11px] bg-slate-900/90 rounded-lg px-2.5 py-1 border border-slate-800"
-                                      >
-                                        <span className="text-white truncate font-medium">{m.fullname}</span>
-                                        {m.uid === g.leaderUid ? (
-                                          <span className="text-[9px] text-amber-300 font-mono font-bold flex items-center gap-0.5">
-                                            <Crown className="w-2.5 h-2.5" /> หัวหน้า
-                                          </span>
-                                        ) : (
-                                          <span className="text-[9px] text-slate-400 font-mono">สมาชิก</span>
-                                        )}
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <div className="text-[10px] text-slate-500 font-mono py-1">
-                                      {g.leaderName} (หัวหน้ากิลด์)
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="text-center py-4 text-xs font-mono text-slate-500">
-                        ยังไม่มีกิลด์ในระบบ เป็นคนแรกที่ก่อตั้งเลย!
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            </div>
-
-            {/* Footer with Prominent Back Button */}
-            <div className="pt-2 text-center border-t border-slate-800 shrink-0">
-              <button 
-                type="button"
-                onClick={() => setShowGuildModal(false)}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs uppercase transition-all flex items-center justify-center gap-1.5 active:scale-95"
-              >
-                <ArrowLeft className="w-4 h-4 text-amber-400" />
-                <span>กลับสู่แผนที่ (Back to Map)</span>
-              </button>
-            </div>
-
           </div>
         </div>
       )}
 
-      {/* 4. War Rules & Guidelines Modal (Full Screen Ready & Clean Back Navigation) */}
+      {/* ── MODAL 4: RULES & INTEL GUIDE MODAL ─────────────────────────────── */}
       {showRulesModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-3xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            
-            {/* Header with Prominent Back Button */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowRulesModal(false)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
-                  title="ย้อนกลับ"
-                >
-                  <ArrowLeft className="w-4 h-4 text-indigo-400" />
-                  <span>ย้อนกลับ</span>
-                </button>
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">
-                    <BookOpen className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
-                      กฎและกติกาสมรภูมิอาณาจักร (Empire Warfare Rules)
-                    </h2>
-                    <p className="text-[11px] text-slate-400 font-mono">
-                      คู่มือยุทธศาสตร์ กลไกการขยายดินแดน และการป้องกันฐาน
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <button 
-                type="button"
-                onClick={() => setShowRulesModal(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-                title="ปิดหน้าต่าง"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Scrollable Rules Content */}
-            <div className="overflow-y-auto space-y-3 pr-1 text-xs sm:text-sm custom-scrollbar flex-1">
-              
-              {/* Section 1: Drop Pod */}
-              <div className="bg-slate-950/70 border border-emerald-500/30 rounded-2xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                  <Rocket className="w-4 h-4 shrink-0" />
-                  <span className="font-mono text-xs sm:text-sm uppercase tracking-wider">1. สิทธิการสถาปนาฐานแรก & ทิ้งดิ่ง (Drop Pod)</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed text-xs">
-                  สำหรับนิสิตใหม่หรือผู้ที่ยังไม่มีดินแดนในครอบครอง (<span className="text-emerald-300 font-bold">0 อาณาเขต</span>) คุณสามารถใช้ระบบ <span className="text-emerald-300 font-bold">Drop Pod</span> เลือกคลิกช่องใดก็ได้บนแผนที่ขนาด 50×50 (ทั้งช่องว่าง, จุดบอส, หรือชิงฐานศัตรู) เพื่อทิ้งดิ่งลงจอดสถาปนาเมืองแรกได้ทันที <span className="text-emerald-300 underline">โดยไม่ต้องมีพรมแดนเชื่อมติดกัน</span> และ<span className="text-emerald-300 font-bold"> ฟรีโควตาการบุกรุก</span> ไม่หักรอบโจมตีประจำวัน
-                </p>
-              </div>
-
-              {/* Section 2: Sanctuary & Shield */}
-              <div className="bg-slate-950/70 border border-sky-500/30 rounded-2xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-sky-400 font-bold">
-                  <ShieldCheck className="w-4 h-4 shrink-0" />
-                  <span className="font-mono text-xs sm:text-sm uppercase tracking-wider">2. เขตปลอดภัย 4 ทิศ (Sanctuary) & บาเรียคุ้มกัน 48 ชั่วโมง</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed text-xs">
-                  • <span className="text-sky-300 font-bold">ขอบนอก 4 ทิศ (Outer Rim Sanctuary):</span> พื้นที่ริมแผนที่ 4 ช่องรอบนอกสุด คือโซนปลอดภัยสำหรับผู้เล่นใหม่ (สังเกตขอบประสีฟ้าและไอคอน 🛡️)<br/>
-                  • <span className="text-cyan-300 font-bold">บาเรียมือใหม่ 48 ชั่วโมง (Beginner Shield):</span> เมื่อสถาปนาฐานแรกสำเร็จ ฐานทัพหลักของคุณจะได้รับบาเรียคุ้มครองนานถึง 48 ชั่วโมงเต็ม ผู้เล่นคนอื่นหรือกิลด์ใหญ่จะไม่สามารถเข้าตีหรือแย่งชิงได้
-                </p>
-              </div>
-
-              {/* Section 3: Adjacency Expansion */}
-              <div className="bg-slate-950/70 border border-cyan-500/30 rounded-2xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-cyan-400 font-bold">
-                  <Swords className="w-4 h-4 shrink-0" />
-                  <span className="font-mono text-xs sm:text-sm uppercase tracking-wider">3. กฎการขยายอาณาเขต & การประลองตอบคำถาม</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed text-xs">
-                  • หลังจากมีฐานแล้ว การบุกรุกช่องถัดไปจะต้องเลือกช่องที่ <span className="text-cyan-300 font-bold">เชื่อมติดกับอาณาเขตของตนเอง หรือติดกับเขตพันธมิตรกิลด์</span> เท่านั้น<br/>
-                  • เมื่อเข้าสู่สมรภูมิ คุณต้องตอบคำถามชีววิทยาไวรัสให้ถูกต้องและรวดเร็ว เพื่อปล่อยพลังโจมตีกำจัดฝ่ายตรงข้าม หากตอบผิดจะถูกศัตรูสวนกลับ ค่าพลังของไวรัสสัตว์เลี้ยง (STR, VIT, AGI, DEX) มีผลต่อพลังโจมตี เลือด และโอกาสคริติคอล
-                </p>
-              </div>
-
-              {/* Section 4: Daily Quota */}
-              <div className="bg-slate-950/70 border border-red-500/30 rounded-2xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-red-400 font-bold">
-                  <Swords className="w-4 h-4 shrink-0" />
-                  <span className="font-mono text-xs sm:text-sm uppercase tracking-wider">4. โควตาการบุกรุกประจำวัน (Daily Limit)</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed text-xs">
-                  เพื่อป้องกันการกวาดแผนที่แบบต่อเนื่องและเปิดโอกาสให้ผู้เล่นทุกคนได้วางแผน นิสิตแต่ละคนจะได้รับสิทธิ์การบุกรุกได้สูงสุด <span className="text-red-300 font-bold">10 ครั้งต่อวัน</span> (รีเซ็ตโควตาทุกวันเวลาเที่ยงคืน 00:00 น.)
-                </p>
-              </div>
-
-              {/* Section 5: Bio-Farm Outposts */}
-              <div className="bg-slate-950/70 border border-emerald-500/30 rounded-2xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                  <Radio className="w-4 h-4 shrink-0 text-emerald-400 animate-pulse" />
-                  <span className="font-mono text-xs sm:text-sm uppercase tracking-wider">5. ป้อมฟาร์มวิจัยเชิงยุทธศาสตร์ (Bio-Farm Outposts)</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed text-xs">
-                  มีป้อมวิจัยขนาดใหญ่ 4 จุดกระจายตัวตาม 4 ทิศของแผนที่ เมื่อยึดครองสำเร็จจะได้รับโบนัส +100 EXP ทันที และเจ้าของป้อมสามารถกด <span className="text-emerald-300 font-bold">🌾 เก็บเกี่ยวผลผลิตเพื่อรับ +100 EXP ฟรีได้ทุกๆ วัน</span>
-                </p>
-              </div>
-
-              {/* Section 6: Upkeep & Decay */}
-              <div className="bg-slate-950/70 border border-amber-500/30 rounded-2xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-amber-400 font-bold">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span className="font-mono text-xs sm:text-sm uppercase tracking-wider">6. การบำรุงรักษา (Upkeep) & ฐานรกร้าง (Decay)</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed text-xs">
-                  • <span className="text-amber-300 font-bold">การบำรุงรักษาอัตโนมัติ:</span> ทุกครั้งที่คุณเปิดเข้าดูแผนที่ Empire ระบบจะต่ออายุการดูแลอาณาเขตของคุณให้สดใหม่อยู่เสมอ<br/>
-                  • <span className="text-amber-400 font-bold">ฐานรกร้าง (ไม่ได้เข้า &gt; 72 ชั่วโมง):</span> หากไม่เข้าเกมนานเกิน 3 วัน ดินแดนจะขึ้นสถานะ ⚠️ ฐานรกร้าง และถูกลดพลังชีวิต HP และ ATK ของบอทป้องกันลง 50% ทำให้ผู้เล่นอื่นเข้าตีชิงได้ง่ายขึ้น<br/>
-                  • <span className="text-slate-400 font-bold">สลายตัวคืนสู่ธรรมชาติ (ไม่ได้เข้า &gt; 120 ชั่วโมง / 5 วัน):</span> หากทิ้งร้างเกิน 5 วัน ดินแดนจะสลายตัวกลับเป็นเซลล์ว่างเปล่าอัตโนมัติ เพื่อเปิดพื้นที่ให้ผู้เล่นใหม่
-                </p>
-              </div>
-
-              {/* Section 7: Guild Alliance */}
-              <div className="bg-slate-950/70 border border-indigo-500/30 rounded-2xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-indigo-400 font-bold">
-                  <Users className="w-4 h-4 shrink-0" />
-                  <span className="font-mono text-xs sm:text-sm uppercase tracking-wider">7. ระบบพันธมิตรกิลด์ (Guild Alliance)</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed text-xs">
-                  • นิสิตสามารถรวมกลุ่มสร้างกิลด์หรือเข้าร่วมกิลด์ที่มีอยู่ได้ โดยสมาชิกทุกคนจะมีแท็กและสีประจำกิลด์เดียวกัน<br/>
-                  • คนในกิลด์เดียวกัน <span className="text-indigo-300 font-bold">ไม่สามารถโจมตีกันเองได้</span> และสามารถใช้ดินแดนของเพื่อนร่วมกิลด์เป็นเส้นทางเดินทัพเชื่อมต่อขยายอาณาเขตด้วยกันได้
-                </p>
-              </div>
-
-              {/* Section 8: Guild Citadel */}
-              <div className="bg-slate-950/70 border border-amber-500/40 rounded-2xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-amber-400 font-bold">
-                  <Building2 className="w-4 h-4 shrink-0" />
-                  <span className="font-mono text-xs sm:text-sm uppercase tracking-wider">8. นครหลวงกิลด์ (Guild Citadel) แบบ Civilization (ขนาด 4 ช่อง)</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed text-xs">
-                  • <span className="text-amber-300 font-bold">การสถาปนานครหลวง 4 ช่อง:</span> เฉพาะ <strong className="text-amber-300">หัวหน้ากิลด์ (👑)</strong> เท่านั้นที่มีอำนาจสถาปนา โดยกิลด์จะต้องยึดครองดินแดนติดต่อกันเป็น <span className="text-amber-300 font-bold">กลุ่มบล็อก 4 ช่อง (สี่เหลี่ยม 2×2 เซกเตอร์)</span> จึงจะสามารถสถาปนาเป็นนครหลวงกิลด์ได้<br/>
-                  • <span className="text-red-300 font-bold">🔒 ล็อคตำแหน่งเมืองหลวง:</span> เมื่อสถาปนานครหลวงแล้วจะไม่สามารถย้ายตำแหน่งได้ (ในอนาคตจะมีระบบไอเทม &quot;ใบย้ายเมือง&quot; สำหรับการย้ายพิกัดเมืองหลวง)<br/>
-                  • <span className="text-amber-200 font-bold">รัศมีคุ้มกันไม่รกร้าง (Decay Immunity):</span> ดินแดนทุกช่องในระยะ 2 ช่องรอบกลุ่มนครหลวงทั้ง 4 ช่อง จะได้รับออร่าคุ้มครอง <span className="text-amber-300 font-bold">ไม่มีวันรกร้างหรือสลายตัว</span> แม้เจ้าของดินแดนจะไม่ได้เข้าเกมนานเกินกำหนด<br/>
-                  • <span className="text-yellow-300 font-bold">ป้อมปราการป้องกันหนาแน่น:</span> ดินแดนทั้ง 4 ช่องของนครหลวงมีพลังป้องกันและเลือด HP สูงกว่าปกติ 2 เท่า (เริ่มต้น 3,500 HP ขึ้นไป) บอทป้องกันได้รับบัฟ ATK +15<br/>
-                  • <span className="text-cyan-300 font-bold">การพัฒนาและบริจาค EXP:</span> สมาชิกกิลด์สามารถร่วมกันบริจาค EXP เพื่ออัปเกรดเลเวลของนครหลวง (สูงสุด LV.5) เพิ่มความทนทานและรัศมีพลังของกิลด์
-                </p>
-              </div>
-
-              {/* Section 9: Fog of War & Scouts */}
-              <div className="bg-slate-950/70 border border-cyan-500/40 rounded-2xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-cyan-400 font-bold">
-                  <CloudFog className="w-4 h-4 shrink-0" />
-                  <span className="font-mono text-xs sm:text-sm uppercase tracking-wider">9. หมอกสงคราม (Fog of War) & โดรนสอดแนม (Bio-Radar)</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed text-xs">
-                  • <span className="text-cyan-300 font-bold">หมอกสงครามครอบคลุม:</span> แผนที่ขนาด 50×50 จะถูกปกคลุมด้วยหมอกสงคราม โดยมีจุดที่มองเห็นได้แต่แรกคือ ขอบเขตเกิดปลอดภัย (Sanctuary 4 ทิศ), ป้อมฟาร์มวิจัย (Outposts), บอสผู้พิทักษ์ และใจกลางสมบัติ<br/>
-                  • <span className="text-emerald-300 font-bold">ระยะสายตาจากฐาน (Vision Radius):</span> ฐานทัพของคุณและสมาชิกในกิลด์จะเปิดการมองเห็นรัศมี 2 ช่องรอบฐานโดยอัตโนมัติ<br/>
-                  • <span className="text-cyan-400 font-bold">🛸 ส่งโดรนสอดแนม (สแกน 5×5):</span> คลิกที่ช่องหมอกเพื่อส่งโดรน ผู้เล่นแต่ละคนมีแบตเตอรี่โดรน <strong className="text-cyan-300">5 ครั้งต่อวัน</strong> (รีเซ็ตทุกเที่ยงคืน) เมื่อตอบคำถามไวรัสวิทยาถูกต้อง จะเปิดแผนที่พื้นที่ 5×5 (25 เซกเตอร์) <strong className="text-white">แบบถาวรตลอดไป</strong> ไม่ต้องตอบซ้ำทุกวัน พร้อมรับ <span className="text-emerald-300 font-bold">+25 EXP</span> ต่อครั้งทันที
-                </p>
-              </div>
-
-            </div>
-
-            {/* Footer */}
-            <div className="pt-2 border-t border-slate-800 text-center shrink-0">
-              <button 
-                type="button"
-                onClick={() => setShowRulesModal(false)}
-                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
-              >
-                <ArrowLeft className="w-4 h-4 text-white" />
-                <span>เข้าใจแล้ว กลับสู่แผนที่ (Back to Map)</span>
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* 8. Scout Drone Quiz Modal (Full Screen Ready & Prominent Back Button) */}
-      {showScoutModal && scoutTarget && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
-          <div className="bg-slate-900 border border-cyan-500/50 rounded-3xl w-full max-w-xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(6,182,212,0.3)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            
-            {/* Header with Prominent Back Button */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowScoutModal(false);
-                    setScoutFeedback(null);
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
-                  title="ย้อนกลับ"
-                >
-                  <ArrowLeft className="w-4 h-4 text-cyan-400" />
-                  <span>ย้อนกลับ</span>
-                </button>
-                <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-inner shrink-0">
-                    <Rocket className="w-4 h-4 animate-bounce" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
-                      <span>🛸 โดรนสอดแนมชีวภาพ</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">
-                        [{scoutTarget.x}, {scoutTarget.y}]
-                      </span>
-                    </h3>
-                    <p className="text-[11px] text-slate-400 font-mono">
-                      ตอบคำถามสแกนหมอกถาวร 5×5 (25 เซกเตอร์)
-                    </p>
-                  </div>
-                </div>
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="max-w-xl w-full p-6 sm:p-8 rounded-3xl bg-slate-900 border border-cyan-500/50 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-3">
+              <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
+                <HelpCircle className="w-5 h-5" />
+                <span>คู่มือยุทธการและกติกา 3D WAR ROOM</span>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setShowScoutModal(false);
-                  setScoutFeedback(null);
-                }}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-                title="ปิดหน้าต่าง"
+                onClick={() => setShowRulesModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Scrollable Content Body */}
-            <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
-
-            {/* Quiz Card */}
-            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-cyan-400 font-bold flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-cyan-400" /> คำถามพิสูจน์รหัสผ่านโซนาร์
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-blue-300 font-bold bg-blue-950/80 border border-blue-500/30 px-2 py-0.5 rounded-full">
-                    🔋 เหลือโควตาวันนี้ {dailyScoutInfo.remainingScouts}/{DAILY_SCOUT_DRONE_LIMIT}
-                  </span>
-                  <span className="text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                    +25 EXP
-                  </span>
-                </div>
+            <div className="space-y-3 text-xs text-slate-300 leading-relaxed font-mono">
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <h4 className="font-bold text-cyan-400 flex items-center gap-1.5">
+                  <Shield className="w-4 h-4" /> เขตคุ้มกันมือใหม่ (Sanctuary Rim)
+                </h4>
+                <p>
+                  แถบขอบแผนที่ด้านนอก 4 ช่องรอบทิศ เป็นเขตปลอดภัยสำหรับผู้เล่นใหม่ ปราศจากหมอกและไม่สามารถถูกผู้เล่นอื่นแย่งชิงได้ง่าย
+                </p>
               </div>
 
-              {/* Question Text */}
-              <p className="text-sm sm:text-base font-semibold text-white leading-relaxed">
-                {activeScoutQuiz?.q}
-              </p>
-
-              {/* Multiple Choice Options */}
-              <div className="space-y-2 pt-1">
-                {activeScoutQuiz?.options.map((opt, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    disabled={isScouting}
-                    onClick={() => handleAnswerScoutQuiz(idx)}
-                    className="w-full text-left p-3 sm:p-3.5 rounded-xl bg-slate-900/90 hover:bg-cyan-950/60 border border-slate-700/80 hover:border-cyan-500/60 text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-all flex items-center justify-between group active:scale-[0.99] disabled:opacity-50"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-mono font-bold text-cyan-400 group-hover:border-cyan-500 group-hover:bg-cyan-500/20 shrink-0">
-                        {String.fromCharCode(65 + idx)}
-                      </span>
-                      <span>{opt}</span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-                  </button>
-                ))}
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <h4 className="font-bold text-amber-400 flex items-center gap-1.5">
+                  <Flame className="w-4 h-4" /> ศูนย์กลางชีวะ (Central Core Vault)
+                </h4>
+                <p>
+                  พิกัดใจกลาง [22,22] ถึง [27,27] มีบอสไวรัสระดับสูงเฝ้าอยู่ หากพิชิตได้จะได้รับรางวัลมหาศาลและบัฟพิเศษสำหรับกิลด์
+                </p>
               </div>
 
-              {/* Answer Feedback Alert */}
-              {scoutFeedback && (
-                <div
-                  className={`p-3 rounded-xl text-xs leading-relaxed animate-in fade-in flex items-start gap-2 border ${
-                    scoutFeedback.isCorrect
-                      ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
-                      : 'bg-red-950/80 border-red-500/50 text-red-300'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
-                  <div>{scoutFeedback.text}</div>
-                </div>
-              )}
-            </div>
-
-            </div>
-
-            {/* Footer with Prominent Back Button */}
-            <div className="pt-2 text-center border-t border-slate-800 shrink-0 space-y-2">
-              <div className="text-[11px] text-slate-400 text-center flex items-center justify-center gap-1.5 font-mono">
-                <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-                <span>เมื่อสแกนสำเร็จ หมอกจะหายไปอย่างถาวรสำหรับบัญชีของคุณ</span>
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <h4 className="font-bold text-emerald-400 flex items-center gap-1.5">
+                  <Radio className="w-4 h-4" /> โดรนสอดแนมหมอก (Scout Drone)
+                </h4>
+                <p>
+                  ใช้โควตาโดรนวันละ 5 ครั้ง ตอบคำถามไวรัสวิทยาเพื่อเปิดเผยหมอก 5×5 ช่อง รับ +25 EXP ต่อครั้ง และปลดล็อคเหรียญตรานักสำรวจ
+                </p>
               </div>
-              <button 
-                type="button"
-                onClick={() => {
-                  setShowScoutModal(false);
-                  setScoutFeedback(null);
-                }}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs uppercase transition-all flex items-center justify-center gap-1.5 active:scale-95"
-              >
-                <ArrowLeft className="w-4 h-4 text-cyan-400" />
-                <span>ยกเลิก / กลับสู่แผนที่ (Back to Map)</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* ── DEFENSE STRUCTURES & WALLS CONSTRUCTION MODAL ── */}
-      {showBuildModal && selectedTile && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col p-4 sm:p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            
-            {/* Header with Back Button */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowBuildModal(false)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center gap-1.5 font-bold text-xs transition-colors shrink-0 active:scale-95 shadow-sm"
-                  title="ย้อนกลับ"
-                >
-                  <ArrowLeft className="w-4 h-4 text-cyan-400" />
-                  <span>ย้อนกลับ</span>
-                </button>
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-                    <Shield className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
-                      สถาปัตยกรรมป้องกันฐาน & กำแพงเมือง
-                    </h2>
-                    <p className="text-[11px] text-slate-400 font-mono">
-                      เซกเตอร์ [{selectedTile.x}, {selectedTile.y}] • ใช้ EXP สถาปนาสิ่งปลูกสร้างป้องกันอาณาเขต
-                    </p>
-                  </div>
-                </div>
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <h4 className="font-bold text-rose-400 flex items-center gap-1.5">
+                  <Swords className="w-4 h-4" /> สมรภูมิรบและการยึดครอง (Battle &amp; Siege)
+                </h4>
+                <p>
+                  คลิกที่ช่องศัตรู/บอส เพื่อเข้าสู่สนามรบ 3D ด้วยสัตว์เลี้ยงคู่ใจ วันละ 10 ครั้ง การโจมตีสร้างความเสียหายต่อเนื่องแบบ Co-op Rally ร่วมกับเพื่อนในกิลด์
+                </p>
               </div>
-              <button 
-                type="button"
-                onClick={() => setShowBuildModal(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
-                title="ปิดหน้าต่าง"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            {/* User EXP Banner */}
-            <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span className="text-xs text-slate-300 font-mono">คลัง EXP ส่วนตัวของคุณ:</span>
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <h4 className="font-bold text-teal-400 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4" /> ป้อมปราการชีวภาพ (Defense Structures)
+                </h4>
+                <p>
+                  ใช้แต้ม EXP สถาปนากำแพงชีวภาพ ป้อมแอนติบอดี หรือสถานีฟื้นฟู เพื่อเพิ่ม HP และพลังสะท้อนการโจมตีให้กับดินแดนของตนเอง
+                </p>
               </div>
-              <span className="text-base font-black font-mono text-cyan-300">
-                {Number(appUser.exp || 0).toLocaleString()} EXP
-              </span>
             </div>
-
-            {/* List of Defense Structures */}
-            <div className="overflow-y-auto space-y-3 pr-1 custom-scrollbar flex-1">
-              {Object.values(DEFENSE_STRUCTURES).map((struct) => {
-                const canAfford = Number(appUser.exp || 0) >= struct.costExp;
-                return (
-                  <div
-                    key={struct.id}
-                    className={`p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
-                      canAfford 
-                        ? 'bg-slate-950/70 border-slate-700/80 hover:border-cyan-500/50' 
-                        : 'bg-slate-950/40 border-slate-800/60 opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-2xl shrink-0 shadow-inner">
-                        {struct.icon}
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-black text-white">{struct.name}</h4>
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${struct.badgeColor}`}>
-                            {struct.badge}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 leading-relaxed max-w-md">
-                          {struct.desc}
-                        </p>
-                        <div className="flex items-center gap-3 text-[11px] font-mono pt-0.5">
-                          <span className="text-emerald-400 font-bold">
-                            +HP {struct.bonusHp.toLocaleString()}
-                          </span>
-                          <span className="text-slate-500">•</span>
-                          <span className="text-rose-400 font-bold">
-                            +ATK สะท้อน {struct.bonusAtk}
-                          </span>
-                          <span className="text-slate-500">•</span>
-                          <span className="text-amber-400 font-bold">
-                            ซ่อม {struct.repairCostExp} EXP
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      disabled={!canAfford || buildingInProgress}
-                      onClick={() => handleBuildDefenseStructure(struct.id)}
-                      className={`w-full sm:w-auto h-11 px-5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 shrink-0 transition-all active:scale-95 shadow-md ${
-                        canAfford
-                          ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-900/30'
-                          : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                      }`}
-                    >
-                      <Shield className="w-4 h-4" />
-                      <span>{buildingInProgress ? 'กำลังสร้าง...' : `สร้าง (-${struct.costExp} EXP)`}</span>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Footer */}
-            <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 font-mono">
-              <span>💡 คำแนะนำ: สร้างกำแพงล้อมรอบ 4 ช่องนครหลวง เพื่อสกัดกั้นการบุกรุก</span>
-              <button
-                type="button"
-                onClick={() => setShowBuildModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold active:scale-95"
-              >
-                ปิด
-              </button>
-            </div>
-
           </div>
         </div>
       )}
