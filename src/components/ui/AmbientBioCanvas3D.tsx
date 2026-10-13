@@ -81,11 +81,12 @@ function Scene() {
 
 export default function AmbientBioCanvas3D() {
   return (
-    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden opacity-60">
+    <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden opacity-60">
       <Canvas
         camera={{ position: [0, 0, 10], fov: 60 }}
         gl={{ alpha: true, antialias: false, powerPreference: 'low-power' }}
         dpr={[1, 1.5]}
+        style={{ pointerEvents: 'none' }}
       >
         <Scene />
       </Canvas>

@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { 
   Trophy, 
@@ -503,13 +502,19 @@ export default function Leaderboard() {
             <span className="text-slate-400">กิลด์:</span>
             <span className="text-emerald-300 font-bold">{guilds.length} พันธมิตร</span>
           </div>
-          <div className="px-3.5 py-2 rounded-2xl bg-slate-900/80 border border-slate-800/80 flex items-center gap-2 text-xs font-mono">
-            <MapPin className="w-4 h-4 text-cyan-400" />
-            <span className="text-slate-400">เซกเตอร์ครองรวม:</span>
+          <Link
+            href="/student/empire"
+            onClick={() => sfx.click()}
+            className="px-3.5 py-2 rounded-2xl bg-cyan-950/80 hover:bg-cyan-900/90 border border-cyan-500/40 hover:border-cyan-400 flex items-center gap-2 text-xs font-mono transition-all hover:scale-105 active:scale-95 shadow-md group cursor-pointer"
+            title="คลิกเพื่อเข้าสู่แผนที่ Virus Empire"
+          >
+            <MapPin className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+            <span className="text-slate-300">เซกเตอร์ครองรวม:</span>
             <span className="text-cyan-300 font-bold">
               {leaders.reduce((sum, l) => sum + (l.conqueredTiles || 0), 0)} ช่อง
             </span>
-          </div>
+            <ChevronRight className="w-3.5 h-3.5 text-cyan-400 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
         </div>
       </div>
 
@@ -559,10 +564,13 @@ export default function Leaderboard() {
             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <Shield className="w-4 h-4 text-emerald-400" /> อันดับพันธมิตรกิลด์ใน Virus Empire ({guilds.length} กิลด์)
             </h2>
-            <Link href="/student/empire">
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1">
-                เข้าสู่แผนที่ Empire <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
+            <Link 
+              href="/student/empire"
+              onClick={() => sfx.click()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/40 border border-emerald-400/30 transition-all hover:scale-105 active:scale-95 cursor-pointer z-20 shrink-0"
+            >
+              <span>เข้าสู่แผนที่ Empire</span>
+              <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
@@ -711,8 +719,16 @@ export default function Leaderboard() {
                     {getRankTitle(myLeaderData.globalExp).icon} {getRankTitle(myLeaderData.globalExp).title}
                   </div>
                 </div>
-                <div className="text-center sm:text-right">
-                  <div className="text-xs text-slate-400 font-mono">ดินแดนที่ครอบครอง</div>
+                <Link
+                  href="/student/empire"
+                  onClick={() => sfx.click()}
+                  className="text-center sm:text-right group/emp p-1 rounded-xl hover:bg-slate-800/60 transition-all cursor-pointer"
+                  title="คลิกเพื่อเข้าสู่แผนที่ Virus Empire"
+                >
+                  <div className="text-xs text-slate-400 font-mono flex items-center justify-center sm:justify-end gap-1 group-hover/emp:text-cyan-300">
+                    <span>ดินแดนที่ครอบครอง</span>
+                    <ChevronRight className="w-3 h-3 text-cyan-400 group-hover/emp:translate-x-0.5 transition-transform" />
+                  </div>
                   <div className="text-xs font-bold text-cyan-300 font-mono flex items-center justify-center sm:justify-end gap-1">
                     <MapPin className="w-3.5 h-3.5 text-cyan-400" />
                     <span>{myLeaderData.conqueredTiles || 0} เซกเตอร์</span>
@@ -722,7 +738,7 @@ export default function Leaderboard() {
                       (กิลด์: {myLeaderData.guildTiles || 0} ช่อง)
                     </div>
                   )}
-                </div>
+                </Link>
                 <div className="text-center sm:text-right">
                   <div className="text-xl sm:text-2xl font-black text-accent font-mono">
                     {activeTab === 'global' ? myLeaderData.globalExp : activeTab === 'solo' ? myLeaderData.soloExp : myLeaderData.teamExp} EXP
