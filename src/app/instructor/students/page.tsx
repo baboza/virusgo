@@ -12,7 +12,7 @@ import {
   Download, Filter, ArrowUpDown, ChevronRight, Award, Heart, 
   Sparkles, Edit3, CheckCircle2, ChevronDown, BookOpen, Swords, Rocket
 } from 'lucide-react';
-import { collection, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { User as AppUser } from '@/types';
 import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString, getDailyScoutDroneInfo, DAILY_SCOUT_DRONE_LIMIT } from '@/lib/dailyExpCap';
@@ -57,11 +57,14 @@ function StudentProgressContent() {
     const fetchHistory = async () => {
       setHistoryLoading(true);
       try {
-        const histRef = collection(db, 'users', selectedStudent.uid, 'history');
-        const histSnap = await getDocs(histRef);
+        const q = query(
+          collection(db, 'users', selectedStudent.uid, 'history'),
+          orderBy('playedAt', 'desc'),
+          limit(30)
+        );
+        const histSnap = await getDocs(q);
         const h: any[] = [];
         histSnap.forEach(d => h.push(d.data()));
-        h.sort((a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime());
         setStudentHistory(h);
       } catch (e) {
         console.error("Error fetching history:", e);

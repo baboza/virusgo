@@ -32,7 +32,7 @@ import {
   Play
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import dynamic from 'next/dynamic';
 
@@ -126,14 +126,13 @@ export default function PlayerHub() {
     if (appUser) {
       const fetchHistory = async () => {
         try {
-          const snap = await getDocs(collection(db, 'users', appUser.uid, 'history'));
+          const q = query(
+            collection(db, 'users', appUser.uid, 'history'),
+            orderBy('playedAt', 'desc'),
+            limit(15)
+          );
+          const snap = await getDocs(q);
           const data = snap.docs.map(doc => doc.data());
-          // Sort newest first
-          data.sort((a: any, b: any) => {
-            const timeA = new Date(a.playedAt || 0).getTime();
-            const timeB = new Date(b.playedAt || 0).getTime();
-            return timeB - timeA;
-          });
           setHistory(data);
         } catch (e) {
           console.error("Error fetching history", e);

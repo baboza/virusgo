@@ -64,39 +64,35 @@ export default function Leaderboard() {
         const snapshot = await getDocs(q);
         const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        // 2. Fetch Guilds and Empire Tiles for Accurate Real-Time Sector Counts
+        // 2. Fetch Guilds (Tiles are pre-aggregated on user and guild documents)
         try {
-          const [guildSnap, tilesSnap] = await Promise.all([
-            getDocs(collection(db, 'guilds')),
-            getDocs(collection(db, 'empire_tiles'))
-          ]);
+          const guildSnap = await getDocs(collection(db, 'guilds'));
 
-          // Build map of user -> guildId and member counts
-          const userGuildMap: Record<string, string> = {};
+          // Count guild members from loaded users
           const guildMembersCount: Record<string, number> = {};
           users.forEach((u: any) => {
             const gId = u.guildId;
             if (gId) {
-              userGuildMap[u.id] = gId;
-              userGuildMap[u.uid] = gId;
               guildMembersCount[gId] = (guildMembersCount[gId] || 0) + 1;
             }
           });
 
-          // Count tiles accurately for each user and guild from live empire_tiles
-          const guildTilesCount: Record<string, number> = {};
-          const userTilesCount: Record<string, number> = {};
-          tilesSnap.forEach((tDoc) => {
-            const t = tDoc.data();
-            if (t.type === 'player') {
-              if (t.ownerUid) {
-                userTilesCount[t.ownerUid] = (userTilesCount[t.ownerUid] || 0) + 1;
-              }
-              const gId = t.guildId || (t.ownerUid ? userGuildMap[t.ownerUid] : undefined);
-              if (gId) {
-                guildTilesCount[gId] = (guildTilesCount[gId] || 0) + 1;
-              }
-            }
+          // Build guild totalTiles map
+          const guildTilesMap: Record<string, number> = {};
+          const gList: Guild[] = [];
+          guildSnap.forEach((d) => {
+            const rawGuild = d.data() as Guild;
+            const totalTiles = rawGuild.totalTiles || 0;
+            const membersCount = guildMembersCount[d.id] ?? (rawGuild.membersCount || 1);
+            
+            guildTilesMap[d.id] = totalTiles;
+
+            gList.push({
+              ...rawGuild,
+              id: d.id,
+              totalTiles,
+              membersCount
+            });
           });
 
           // Map Students with Solo/Team EXP and accurate conquered sectors count
@@ -104,48 +100,24 @@ export default function Leaderboard() {
             const validGlobalExp = Number(u.exp || 0);
             const savedSolo = typeof u.soloExp === 'number' ? u.soloExp : Math.round(validGlobalExp * 0.7);
             const savedTeam = typeof u.teamExp === 'number' ? u.teamExp : Math.round(validGlobalExp * 0.3);
-            const uUid = u.uid || u.id;
 
             return {
               ...u,
               globalExp: validGlobalExp,
               soloExp: Math.min(savedSolo, validGlobalExp),
               teamExp: Math.min(savedTeam, validGlobalExp),
-              conqueredTiles: userTilesCount[uUid] || 0,
-              guildTiles: u.guildId ? (guildTilesCount[u.guildId] || 0) : 0
+              conqueredTiles: Number(u.conqueredTiles || 0),
+              guildTiles: u.guildId ? (guildTilesMap[u.guildId] || 0) : 0
             };
           });
 
           setLeaders(enrichedUsers);
 
-          const gList: Guild[] = [];
-          guildSnap.forEach((d) => {
-            const rawGuild = d.data() as Guild;
-            const realTiles = guildTilesCount[d.id] ?? (rawGuild.totalTiles || 0);
-            const realMembers = guildMembersCount[d.id] ?? (rawGuild.membersCount || 1);
-            
-            // Sync with Firestore if outdated
-            if (rawGuild.totalTiles !== realTiles || rawGuild.membersCount !== realMembers) {
-              updateDoc(doc(db, 'guilds', d.id), {
-                totalTiles: realTiles,
-                membersCount: realMembers
-              }).catch(() => {});
-            }
-
-            gList.push({
-              ...rawGuild,
-              id: d.id,
-              totalTiles: realTiles,
-              membersCount: realMembers
-            });
-          });
-
           // Sort guilds by totalTiles descending, then membersCount
           gList.sort((a, b) => (b.totalTiles || 0) - (a.totalTiles || 0) || (b.membersCount || 0) - (a.membersCount || 0));
           setGuilds(gList);
         } catch(ge) {
-          console.error("Error fetching guilds and tiles:", ge);
-          // Fallback if tiles fail
+          console.error("Error fetching guilds:", ge);
           const enrichedFallback = users.map((u: any) => {
             const validGlobalExp = Number(u.exp || 0);
             return {
@@ -153,7 +125,7 @@ export default function Leaderboard() {
               globalExp: validGlobalExp,
               soloExp: Math.round(validGlobalExp * 0.7),
               teamExp: Math.round(validGlobalExp * 0.3),
-              conqueredTiles: 0
+              conqueredTiles: Number(u.conqueredTiles || 0)
             };
           });
           setLeaders(enrichedFallback);

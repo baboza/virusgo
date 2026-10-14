@@ -46,11 +46,13 @@ export interface User {
     date: string;
     count: number;
   };
+  displayName?: string;
   dailyScoutDrones?: {
     date: string;
     count: number;
   };
   exploredTiles?: string[];
+  conqueredTiles?: number;
 }
 
 export interface Guild {

@@ -5,49 +5,37 @@ import { db } from '@/lib/firebase/config';
 
 export function useLiveTracking(gameId: string, progress: string) {
   const { appUser } = useAuth();
-  
-  // Use a ref to store the latest progress so the cleanup function has access to it 
-  // without triggering re-runs of the setup/teardown if we don't want to.
-  // Actually, we want to update Firestore whenever `progress` changes.
-  
+  const latestSessionRef = useRef<any>(null);
+
+  // 1. Lifecycle effect: Cleanup live session ONLY when player leaves game (unmounts)
   useEffect(() => {
-    if (!appUser) return;
-
+    if (!appUser?.uid) return;
     const sessionRef = doc(db, 'live_sessions', appUser.uid);
-    
-    // Update live session in Firestore
-    const updateLiveSession = async () => {
-      try {
-        await setDoc(sessionRef, {
-          gameId,
-          progress,
-          updatedAt: serverTimestamp(),
-          user: {
-            uid: appUser.uid,
-            fullname: appUser.fullname || 'Unknown Student',
-            email: appUser.email || '',
-            photoURL: appUser.photoURL || '',
-            level: appUser.level || 1
-          }
-        });
-      } catch (error) {
-        console.error("Failed to update live tracking", error);
-      }
-    };
+    latestSessionRef.current = sessionRef;
 
-    updateLiveSession();
-
-    // Cleanup: Remove live session when unmounting
     return () => {
-      const removeLiveSession = async () => {
-        try {
-          await deleteDoc(sessionRef);
-        } catch (error) {
-          console.error("Failed to remove live tracking", error);
-        }
-      };
-      // We don't await this inside the return function, we just call it.
-      removeLiveSession();
+      // Only delete live session doc once when user leaves the game
+      deleteDoc(sessionRef).catch(() => {});
     };
-  }, [appUser, gameId, progress]);
+  }, [appUser?.uid]);
+
+  // 2. Progress update effect: updates document without deleting/recreating on every question
+  useEffect(() => {
+    if (!appUser?.uid || !latestSessionRef.current) return;
+
+    setDoc(latestSessionRef.current, {
+      gameId,
+      progress,
+      updatedAt: serverTimestamp(),
+      user: {
+        uid: appUser.uid,
+        fullname: appUser.fullname || 'Unknown Student',
+        email: appUser.email || '',
+        photoURL: appUser.photoURL || '',
+        level: appUser.level || 1
+      }
+    }, { merge: true }).catch((error) => {
+      console.error("Failed to update live tracking", error);
+    });
+  }, [appUser?.uid, appUser?.fullname, appUser?.email, appUser?.photoURL, appUser?.level, gameId, progress]);
 }

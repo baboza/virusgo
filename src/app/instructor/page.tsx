@@ -15,7 +15,7 @@ import { GameModePerformanceChart } from '@/components/analytics/GameModePerform
 import { AccuracyDoughnutChart } from '@/components/analytics/AccuracyDoughnutChart';
 import { ChapterMasteryChart } from '@/components/analytics/ChapterMasteryChart';
 import Link from 'next/link';
-import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { MASTER_CORE_VIRUSES } from '@/data/seedVirusesData';
 import { 
@@ -72,8 +72,35 @@ export default function InstructorDashboard() {
   const [syncStatusText, setSyncStatusText] = useState('');
   const [syncSuccess, setSyncSuccess] = useState(false);
 
+  const CACHE_KEY = 'virusgo_instructor_analytics_v1';
+  const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache
+
   // Fetch all analytics data
-  const fetchData = async () => {
+  const fetchData = async (forceRefresh: boolean = false) => {
+    // 0. Check Session Cache to prevent repeat reads on page navigation
+    if (!forceRefresh && typeof window !== 'undefined') {
+      try {
+        const cachedStr = sessionStorage.getItem(CACHE_KEY);
+        if (cachedStr) {
+          const cached = JSON.parse(cachedStr);
+          if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+            setStudents(cached.students || []);
+            setTotalSystemExp(cached.totalSystemExp || 0);
+            setTotalSessions(cached.totalSessions || 0);
+            setOverallAccuracy(cached.overallAccuracy || 78);
+            setChartData(cached.chartData || [0, 0, 0, 0]);
+            setTotalViruses(cached.totalViruses || 0);
+            setLoading(false);
+            setRefreshing(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Session cache error:", e);
+      }
+    }
+
+    if (forceRefresh) setRefreshing(true);
     try {
       // 1. Fetch Students
       const usersRef = collection(db, 'users');
@@ -104,7 +131,12 @@ export default function InstructorDashboard() {
           let userTotal = 0;
           
           try {
-            const histRef = collection(db, 'users', docSnap.id, 'history');
+            // Limit history to 10 most recent sessions per student instead of scanning entire collection
+            const histRef = query(
+              collection(db, 'users', docSnap.id, 'history'),
+              orderBy('playedAt', 'desc'),
+              limit(10)
+            );
             const histSnap = await getDocs(histRef);
             
             histSnap.forEach((hDoc) => {
@@ -179,17 +211,36 @@ export default function InstructorDashboard() {
       setOverallAccuracy(sysAccuracy);
 
       const getAvg = (stat: any) => stat.plays > 0 ? Math.round(stat.totalExp / stat.plays) : 0;
-      setChartData([
+      const calculatedChartData = [
         getAvg(gameModeStats.identification),
         getAvg(gameModeStats.boss),
         getAvg(gameModeStats.matching),
         getAvg(gameModeStats.outbreak)
-      ]);
+      ];
+      setChartData(calculatedChartData);
 
       // 2. Fetch Total Viruses
       const virusesRef = collection(db, 'viruses');
       const virusesSnap = await getDocs(virusesRef);
-      setTotalViruses(virusesSnap.size);
+      const virusCount = virusesSnap.size;
+      setTotalViruses(virusCount);
+
+      // 3. Cache results to sessionStorage
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+            timestamp: Date.now(),
+            students: enrichedUsers,
+            totalSystemExp: sysExp,
+            totalSessions: sessionCount,
+            overallAccuracy: sysAccuracy,
+            chartData: calculatedChartData,
+            totalViruses: virusCount
+          }));
+        } catch (e) {
+          console.warn("Failed to store analytics cache:", e);
+        }
+      }
 
     } catch (error) {
       console.error("Error fetching analytics:", error);
@@ -491,7 +542,7 @@ export default function InstructorDashboard() {
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           <Button
             variant="outline"
-            onClick={fetchData}
+            onClick={() => fetchData(true)}
             leftIcon={<RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />}
             className="bg-slate-900/80 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500"
           >

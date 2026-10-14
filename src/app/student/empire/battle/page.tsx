@@ -384,8 +384,7 @@ function BattleContent() {
     const nowIso = new Date().toISOString();
 
     // Check if player had 0 bases before this claim (First Base / Drop Pod placement)
-    const myTilesSnap = await getDocs(query(collection(db, 'empire_tiles'), where('ownerUid', '==', appUser.uid)));
-    const isFirstBase = myTilesSnap.empty;
+    const isFirstBase = !appUser.conqueredTiles || appUser.conqueredTiles <= 0;
     if (isFirstBase) {
       setIsFirstBaseClaimed(true);
     }
@@ -479,8 +478,16 @@ function BattleContent() {
 
     const userRef = doc(db, 'users', appUser.uid);
     await updateDoc(userRef, {
-      exp: increment(expReward)
+      exp: increment(expReward),
+      conqueredTiles: increment(1)
     });
+
+    // If tile was previously owned by another student, decrement their conqueredTiles
+    if (tile.type === 'player' && tile.ownerUid && tile.ownerUid !== appUser.uid) {
+      updateDoc(doc(db, 'users', tile.ownerUid), {
+        conqueredTiles: increment(-1)
+      }).catch(console.error);
+    }
 
     // Log match history
     try {

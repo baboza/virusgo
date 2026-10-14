@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { motion } from 'framer-motion';
 import { ShieldAlert, Award, Medal, Zap, Star, Target, Crown, Compass, MapPin, Globe2 } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 
 export const ACHIEVEMENTS = [
   {
@@ -117,9 +117,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!appUser?.guildId) return;
-    const q = query(collection(db, 'empire_tiles'), where('guildId', '==', appUser.guildId));
-    getDocs(q).then((snap) => {
-      const gCount = snap.size;
+    getDoc(doc(db, 'guilds', appUser.guildId)).then((gSnap) => {
+      const gData = gSnap.data();
+      const gCount = gData?.totalTiles || 0;
       setGuildTilesCount(gCount);
 
       // Auto-award badges for guild members in Profile page
