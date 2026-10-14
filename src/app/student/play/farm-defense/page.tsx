@@ -132,7 +132,7 @@ export default function FarmDefense() {
         gameType: 'farm-defense',
         status: 'waiting',
         hostId: myUid,
-        players: [{ uid: myUid, displayName: appUser?.displayName || 'Farmer 1' }],
+        players: [{ uid: myUid, displayName: appUser?.fullname || appUser?.displayName || user?.displayName || 'Farmer 1' }],
         createdAt: serverTimestamp()
       });
       setRoomCode(code);
@@ -166,7 +166,7 @@ export default function FarmDefense() {
       if (data.players.length >= 2) throw new Error('Room is full');
 
       await updateDoc(roomRef, {
-        players: arrayUnion({ uid: myUid, displayName: appUser?.displayName || 'Farmer 2' })
+        players: arrayUnion({ uid: myUid, displayName: appUser?.fullname || appUser?.displayName || user?.displayName || 'Farmer 2' })
       });
       setRoomCode(code);
     } catch (e: any) {

@@ -38,7 +38,20 @@ const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUppe
 export default function ClassroomBattle() {
   const { appUser, user } = useAuth();
   const myUid = appUser?.uid || user?.uid || '';
-  const myName = appUser?.displayName || 'Student';
+  const initialName = appUser?.fullname || appUser?.displayName || user?.displayName || 'นิสิต (Cadet)';
+  const [playerName, setPlayerName] = useState(initialName);
+
+  useEffect(() => {
+    if (appUser?.fullname) {
+      setPlayerName(appUser.fullname);
+    } else if (appUser?.displayName) {
+      setPlayerName(appUser.displayName);
+    } else if (user?.displayName) {
+      setPlayerName(user.displayName);
+    }
+  }, [appUser, user]);
+
+  const effectiveName = playerName.trim() || appUser?.fullname || appUser?.displayName || user?.displayName || 'นิสิต (Cadet)';
   
   const [roomCode, setRoomCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -233,9 +246,15 @@ export default function ClassroomBattle() {
       const data = roomSnap.data();
       if (data.gameType !== 'classroom-battle') throw new Error('ประเภทห้องไม่ถูกต้อง');
       
-      // Allow reconnect
+      // Allow reconnect and sync latest student name
       const existingPlayer = data.players?.find((p: any) => p.uid === myUid);
       if (existingPlayer) {
+        if (existingPlayer.displayName === 'Student' || existingPlayer.displayName !== effectiveName) {
+          const updatedPlayers = (data.players || []).map((p: any) =>
+            p.uid === myUid ? { ...p, displayName: effectiveName } : p
+          );
+          await updateDoc(roomRef, { players: updatedPlayers }).catch(() => {});
+        }
         setRoomCode(code);
         setIsHostMode(data.hostId === myUid);
         setLoading(false);
@@ -245,7 +264,7 @@ export default function ClassroomBattle() {
       if (data.status !== 'lobby') throw new Error('เกมเริ่มไปแล้ว ไม่สามารถเข้าร่วมได้ในขณะนี้');
 
       await updateDoc(roomRef, {
-        players: arrayUnion({ uid: myUid, displayName: myName }),
+        players: arrayUnion({ uid: myUid, displayName: effectiveName }),
         [`scores.${myUid}`]: 0,
         [`accuracy.${myUid}`]: { correct: 0, total: 0 }
       });
@@ -372,6 +391,36 @@ export default function ClassroomBattle() {
             <p className="text-slate-400 text-sm mt-1">สำหรับนิสิต ใส่รหัส PIN 6 หลักเพื่อเข้าร่วมประลอง</p>
           </div>
           <form onSubmit={handleJoinRoom} className="w-full space-y-4">
+            {/* Student Identity Display */}
+            <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-pink-500/30 flex items-center justify-between gap-3 text-left">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-pink-500/20 border border-pink-500/40 flex items-center justify-center text-pink-300 font-black text-base">
+                  {effectiveName.charAt(0)}
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">เข้าเล่นในชื่อ (Player Name)</p>
+                  <p className="font-bold text-white text-sm">{effectiveName}</p>
+                </div>
+              </div>
+              {appUser?.studentID && (
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
+                  {appUser.studentID}
+                </span>
+              )}
+            </div>
+
+            <div className="text-left space-y-1">
+              <label className="text-xs font-bold text-slate-400">ชื่อแสดงในเกม (Display Name)</label>
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder="ชื่อเรียกในห้องเรียน"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-bold text-sm focus:border-pink-500 outline-none transition-colors"
+                maxLength={30}
+              />
+            </div>
+
             <input 
               type="text" 
               placeholder="ENTER 6-CHAR PIN" 
@@ -439,16 +488,37 @@ export default function ClassroomBattle() {
           <Users className="w-6 h-6" /> {playersCount} คนเข้าร่วมแล้ว
         </p>
         
-        <div className="flex flex-wrap justify-center gap-3 mb-10 max-h-56 overflow-y-auto p-4 bg-slate-900/50 rounded-2xl border border-slate-800">
-          {roomData.players?.map((p: any, i: number) => (
-            <motion.div initial={{scale:0}} animate={{scale:1}} key={i} className="bg-slate-800 px-4 py-2 rounded-xl text-md font-bold text-white border border-slate-700 shadow-md">
-              {p.displayName}
-            </motion.div>
-          ))}
+        <div className="flex flex-wrap justify-center gap-3 mb-8 max-h-56 overflow-y-auto p-4 bg-slate-900/50 rounded-2xl border border-slate-800">
+          {roomData.players?.map((p: any, i: number) => {
+            const isMe = p.uid === myUid;
+            const shownName = isMe ? effectiveName : (p.displayName && p.displayName !== 'Student' ? p.displayName : 'นิสิต');
+            return (
+              <motion.div 
+                initial={{scale:0}} 
+                animate={{scale:1}} 
+                key={i} 
+                className={`px-4 py-2 rounded-xl text-md font-bold border shadow-md flex items-center gap-2 ${
+                  isMe 
+                    ? 'bg-pink-600/30 text-pink-300 border-pink-500 ring-2 ring-pink-500/40' 
+                    : 'bg-slate-800 text-white border-slate-700'
+                }`}
+              >
+                <span>{shownName}</span>
+                {isMe && <span className="text-[10px] bg-pink-500 text-white font-black px-1.5 py-0.5 rounded-md">คุณ</span>}
+              </motion.div>
+            );
+          })}
           {playersCount === 0 && (
             <div className="text-slate-500 font-medium py-6">กำลังรอนิสิตเข้าร่วมด้วยรหัส PIN...</div>
           )}
         </div>
+
+        {!isHostMode && (
+          <div className="mb-6 inline-flex items-center gap-2 bg-slate-900/80 px-4 py-2 rounded-xl border border-pink-500/30 text-xs text-slate-300">
+            <span>เข้าร่วมในชื่อ:</span>
+            <span className="font-bold text-pink-400">{effectiveName}</span>
+          </div>
+        )}
 
         {isHostMode ? (
           <div className="space-y-4">
@@ -469,6 +539,12 @@ export default function ClassroomBattle() {
       </div>
     );
   }
+
+  // Safe Player Display Name Resolver
+  const getPlayerDisplayName = (p: any) => {
+    if (p?.uid === myUid) return effectiveName;
+    return p?.displayName && p.displayName !== 'Student' ? p.displayName : 'นิสิต';
+  };
 
   // Safe Player Leaderboard Calculation
   const sortedPlayers = [...(roomData.players || [])].sort((a, b) => (roomData.scores?.[b.uid] || 0) - (roomData.scores?.[a.uid] || 0));
@@ -563,14 +639,27 @@ export default function ClassroomBattle() {
 
     return (
       <div className="max-w-3xl mx-auto mt-8 space-y-6 px-4 pb-16">
-        <div className="flex justify-between items-center bg-slate-900/90 p-4 rounded-2xl border border-slate-700 shadow-md">
-          <div className="text-pink-400 font-black uppercase tracking-widest text-lg">ข้อ {qIndex + 1} / {currentQList.length}</div>
-          <div className="flex items-center gap-2">
-            <Clock className={`w-6 h-6 ${timeLeft <= 5 ? 'text-danger animate-ping' : 'text-cyan-400'}`} />
-            <span className={`text-2xl font-black font-mono ${timeLeft <= 5 ? 'text-danger' : 'text-white'}`}>{timeLeft}s</span>
+        {/* Top Header Bar with Student Identity */}
+        <div className="flex flex-wrap justify-between items-center gap-3 bg-slate-900/95 p-4 rounded-2xl border border-slate-700 shadow-md">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="text-pink-400 font-black uppercase tracking-widest text-base sm:text-lg">
+              ข้อ {qIndex + 1} / {currentQList.length}
+            </div>
+            <div className="flex items-center gap-1.5 bg-pink-500/15 border border-pink-500/30 px-3 py-1 rounded-xl">
+              <span className="w-2 h-2 rounded-full bg-pink-400 animate-pulse" />
+              <span className="text-xs font-bold text-pink-300 truncate max-w-[140px] sm:max-w-[200px]">
+                👤 {effectiveName}
+              </span>
+            </div>
           </div>
-          <div className="text-yellow-400 font-bold bg-yellow-500/10 px-3 py-1.5 rounded-xl border border-yellow-500/30">
-            คะแนน: {roomData.scores?.[myUid] || 0}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-slate-800/90 px-3.5 py-1.5 rounded-xl border border-slate-700">
+              <Clock className={`w-5 h-5 ${timeLeft <= 5 ? 'text-danger animate-ping' : 'text-cyan-400'}`} />
+              <span className={`text-xl font-black font-mono ${timeLeft <= 5 ? 'text-danger' : 'text-white'}`}>{timeLeft}s</span>
+            </div>
+            <div className="text-yellow-400 font-bold bg-yellow-500/10 px-3.5 py-1.5 rounded-xl border border-yellow-500/30 text-sm font-mono">
+              คะแนน: <span className="font-black text-white">{roomData.scores?.[myUid] || 0}</span>
+            </div>
           </div>
         </div>
 
@@ -607,6 +696,9 @@ export default function ClassroomBattle() {
               <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider">
                 ส่งคำตอบแล้ว!
               </h2>
+              <div className="text-xs font-mono text-pink-300 font-bold bg-pink-500/10 px-4 py-1.5 rounded-full border border-pink-500/30">
+                ผู้เข้าแข่งขัน: {effectiveName}
+              </div>
               {chosenAns !== undefined && chosenAns >= 0 && q.opts[chosenAns] && (
                 <div className="bg-slate-800/80 px-6 py-3 rounded-2xl border border-cyan-500/30 text-cyan-300 font-bold text-base max-w-lg">
                   คำตอบที่คุณเลือก: <span className="text-white font-extrabold">{String.fromCharCode(65 + chosenAns)}. {q.opts[chosenAns]}</span>
@@ -670,11 +762,15 @@ export default function ClassroomBattle() {
               </h3>
               {sortedPlayers.slice(0, 5).map((p: any, i: number) => {
                 const score = roomData.scores?.[p.uid] || 0;
+                const isMe = p.uid === myUid;
+                const name = getPlayerDisplayName(p);
                 return (
                   <div key={p.uid} className={`flex justify-between items-center p-4 rounded-2xl transition-all ${i === 0 ? 'bg-yellow-500/20 border-2 border-yellow-500/60 shadow-lg' : 'bg-slate-800/80 border border-slate-700/50'}`}>
                     <div className="flex items-center gap-4">
                       <span className={`text-2xl font-black w-8 text-center ${i === 0 ? 'text-yellow-400' : 'text-slate-400'}`}>#{i + 1}</span>
-                      <span className="font-bold text-white text-lg">{p.displayName}</span>
+                      <span className="font-bold text-white text-lg">
+                        {name} {isMe && <span className="text-xs text-pink-400 font-mono ml-1">(คุณ)</span>}
+                      </span>
                     </div>
                     <div className="font-black text-yellow-400 text-xl font-mono">{score} pts</div>
                   </div>
@@ -694,6 +790,12 @@ export default function ClassroomBattle() {
 
     return (
       <div className="max-w-xl mx-auto mt-10 p-8 glass rounded-3xl border-2 border-slate-700 text-center space-y-6 shadow-2xl px-4">
+        {/* Student Identity Pill */}
+        <div className="inline-flex items-center gap-2 bg-pink-500/15 border border-pink-500/30 px-4 py-1.5 rounded-full text-xs text-pink-300 font-bold">
+          <Users className="w-3.5 h-3.5 text-pink-400" />
+          <span>ผู้เข้าแข่งขัน: {effectiveName}</span>
+        </div>
+
         {isCorrect ? (
           <>
             <CheckCircle className="w-24 h-24 text-emerald-400 mx-auto animate-bounce" />
@@ -739,9 +841,11 @@ export default function ClassroomBattle() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end mb-12">
           {/* Rank 2 */}
           {sortedPlayers[1] && (
-            <div className="order-2 md:order-1 bg-slate-800/80 p-6 rounded-t-3xl border-t-4 border-slate-400 h-52 flex flex-col justify-end relative pb-4 shadow-xl">
+            <div className={`order-2 md:order-1 bg-slate-800/80 p-6 rounded-t-3xl border-t-4 border-slate-400 h-52 flex flex-col justify-end relative pb-4 shadow-xl ${sortedPlayers[1].uid === myUid ? 'ring-2 ring-pink-500 shadow-pink-500/20' : ''}`}>
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center font-black text-slate-300 text-xl border-4 border-slate-800">2</div>
-              <div className="font-bold text-white text-xl truncate">{sortedPlayers[1].displayName}</div>
+              <div className="font-bold text-white text-xl truncate">
+                {getPlayerDisplayName(sortedPlayers[1])} {sortedPlayers[1].uid === myUid && <span className="text-xs text-pink-400 font-mono ml-1">(คุณ)</span>}
+              </div>
               <div className="text-slate-400 font-black font-mono text-lg">{roomData.scores?.[sortedPlayers[1].uid] || 0} pts</div>
               <div className="text-xs text-slate-500 mt-1 font-mono">
                 ความแม่นยำ: {Math.round(((roomData.accuracy?.[sortedPlayers[1].uid]?.correct || 0) / (roomData.accuracy?.[sortedPlayers[1].uid]?.total || 1)) * 100)}%
@@ -750,9 +854,11 @@ export default function ClassroomBattle() {
           )}
           {/* Rank 1 */}
           {sortedPlayers[0] && (
-            <div className="order-1 md:order-2 bg-yellow-500/20 p-6 rounded-t-3xl border-t-4 border-yellow-400 h-64 flex flex-col justify-end relative pb-6 shadow-[0_0_35px_rgba(234,179,8,0.35)]">
+            <div className={`order-1 md:order-2 bg-yellow-500/20 p-6 rounded-t-3xl border-t-4 border-yellow-400 h-64 flex flex-col justify-end relative pb-6 shadow-[0_0_35px_rgba(234,179,8,0.35)] ${sortedPlayers[0].uid === myUid ? 'ring-2 ring-pink-500 shadow-pink-500/30' : ''}`}>
               <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-yellow-500 rounded-full flex items-center justify-center font-black text-black text-3xl border-4 border-slate-900 shadow-lg">1</div>
-              <div className="font-bold text-white text-2xl truncate mb-1">{sortedPlayers[0].displayName}</div>
+              <div className="font-bold text-white text-2xl truncate mb-1">
+                {getPlayerDisplayName(sortedPlayers[0])} {sortedPlayers[0].uid === myUid && <span className="text-xs text-pink-400 font-mono ml-1">(คุณ)</span>}
+              </div>
               <div className="text-yellow-400 font-black text-2xl font-mono">{roomData.scores?.[sortedPlayers[0].uid] || 0} pts</div>
               <div className="text-xs text-emerald-400 mt-2 font-mono font-bold">
                 ความแม่นยำ: {Math.round(((roomData.accuracy?.[sortedPlayers[0].uid]?.correct || 0) / (roomData.accuracy?.[sortedPlayers[0].uid]?.total || 1)) * 100)}%
@@ -761,9 +867,11 @@ export default function ClassroomBattle() {
           )}
           {/* Rank 3 */}
           {sortedPlayers[2] && (
-            <div className="order-3 md:order-3 bg-slate-800/80 p-6 rounded-t-3xl border-t-4 border-orange-700 h-44 flex flex-col justify-end relative pb-4 shadow-xl">
+            <div className={`order-3 md:order-3 bg-slate-800/80 p-6 rounded-t-3xl border-t-4 border-orange-700 h-44 flex flex-col justify-end relative pb-4 shadow-xl ${sortedPlayers[2].uid === myUid ? 'ring-2 ring-pink-500 shadow-pink-500/20' : ''}`}>
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center font-black text-orange-400 text-xl border-4 border-slate-800">3</div>
-              <div className="font-bold text-white text-xl truncate">{sortedPlayers[2].displayName}</div>
+              <div className="font-bold text-white text-xl truncate">
+                {getPlayerDisplayName(sortedPlayers[2])} {sortedPlayers[2].uid === myUid && <span className="text-xs text-pink-400 font-mono ml-1">(คุณ)</span>}
+              </div>
               <div className="text-slate-400 font-black font-mono text-lg">{roomData.scores?.[sortedPlayers[2].uid] || 0} pts</div>
               <div className="text-xs text-slate-500 mt-1 font-mono">
                 ความแม่นยำ: {Math.round(((roomData.accuracy?.[sortedPlayers[2].uid]?.correct || 0) / (roomData.accuracy?.[sortedPlayers[2].uid]?.total || 1)) * 100)}%
@@ -774,7 +882,10 @@ export default function ClassroomBattle() {
 
         {/* My Reward & Daily Cap Summary */}
         {!isHostMode && (
-          <div className="mb-6 p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 max-w-md mx-auto space-y-1">
+          <div className="mb-6 p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 max-w-md mx-auto space-y-2 text-center">
+            <div className="text-xs text-slate-400">
+              ผู้เข้าแข่งขัน: <span className="font-bold text-pink-400">{effectiveName}</span>
+            </div>
             <div className="text-sm font-bold text-yellow-300">
               {awardedExp !== null ? (awardedExp > 0 ? `🎉 ได้รับ +${awardedExp} EXP จากการแข่งขัน!` : 'โหมดฝึกฝน (+0 EXP)') : 'คำนวณ EXP สำเร็จ'}
             </div>

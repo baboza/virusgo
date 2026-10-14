@@ -50,7 +50,7 @@ type Match = { id: string; p1: Player | null; p2: Player | null; winner: Player 
 export default function TournamentMultiplayer() {
   const { appUser, user } = useAuth();
   const myUid = appUser?.uid || user?.uid || '';
-  const myName = appUser?.displayName || 'Player';
+  const myName = appUser?.fullname || appUser?.displayName || user?.displayName || 'Player';
   
   const [roomCode, setRoomCode] = useState('');
   const [joinCode, setJoinCode] = useState('');

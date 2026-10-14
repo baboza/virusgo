@@ -147,7 +147,7 @@ export default function DiagnosisDuel() {
         gameType: 'diagnosis-duel',
         status: 'waiting',
         hostId: appUser.uid || user.uid,
-        players: [{ uid: appUser.uid || user.uid, displayName: appUser.displayName || 'Doctor 1' }],
+        players: [{ uid: appUser.uid || user.uid, displayName: appUser.fullname || appUser.displayName || user.displayName || 'Doctor 1' }],
         createdAt: serverTimestamp()
       });
       setRoomCode(code);
@@ -182,7 +182,7 @@ export default function DiagnosisDuel() {
       if (data.players.length >= 2) throw new Error('Room is full');
 
       await updateDoc(roomRef, {
-        players: arrayUnion({ uid: appUser.uid || user.uid, displayName: appUser.displayName || 'Doctor 2' })
+        players: arrayUnion({ uid: appUser.uid || user.uid, displayName: appUser.fullname || appUser.displayName || user.displayName || 'Doctor 2' })
       });
       setRoomCode(code);
     } catch (e: any) {
