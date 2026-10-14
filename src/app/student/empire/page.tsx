@@ -94,6 +94,7 @@ export default function StudentEmpirePage() {
 
   // Live Firestore State
   const [tiles, setTiles] = useState<Record<string, EmpireTile>>({});
+  const tilesRef = useRef<Record<string, EmpireTile>>({});
   const [guilds, setGuilds] = useState<Record<string, Guild>>({});
   const [loading, setLoading] = useState(true);
 
@@ -154,15 +155,58 @@ export default function StudentEmpirePage() {
     return () => unsub();
   }, [user]);
 
-  // ── 2. Real-time Subscription to Empire Tiles & Guilds ─────────────
+  // ── 2. Real-time Subscription to Empire Tiles & Guilds (Delta-Optimized) ─────────────
   useEffect(() => {
     const unsubTiles = onSnapshot(collection(db, 'empire_tiles'), (snapshot) => {
-      const tileMap: Record<string, EmpireTile> = {};
-      snapshot.forEach((docSnap) => {
-        tileMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() } as EmpireTile;
+      // Initial Load: Build full map
+      if (Object.keys(tilesRef.current).length === 0) {
+        const tileMap: Record<string, EmpireTile> = {};
+        snapshot.forEach((docSnap) => {
+          tileMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() } as EmpireTile;
+        });
+        tilesRef.current = tileMap;
+        setTiles(tileMap);
+        setLoading(false);
+        return;
+      }
+
+      // Delta Sync: Check doc changes to avoid redundant full-map re-renders & quota waste
+      let hasRelevantChange = false;
+      const updatedMap = { ...tilesRef.current };
+
+      snapshot.docChanges().forEach((change) => {
+        const docId = change.doc.id;
+        if (change.type === 'removed') {
+          delete updatedMap[docId];
+          hasRelevantChange = true;
+        } else {
+          const newData = { id: docId, ...change.doc.data() } as EmpireTile;
+          const prevData = updatedMap[docId];
+
+          if (
+            !prevData ||
+            prevData.ownerUid !== newData.ownerUid ||
+            prevData.type !== newData.type ||
+            prevData.buildingType !== newData.buildingType ||
+            prevData.buildingHp !== newData.buildingHp ||
+            prevData.currentDefenderHp !== newData.currentDefenderHp ||
+            prevData.shieldUntil !== newData.shieldUntil ||
+            prevData.lastActive !== newData.lastActive ||
+            prevData.lastAttacked !== newData.lastAttacked ||
+            prevData.guildId !== newData.guildId ||
+            prevData.isCitadel !== newData.isCitadel ||
+            prevData.bossHp !== newData.bossHp
+          ) {
+            updatedMap[docId] = newData;
+            hasRelevantChange = true;
+          }
+        }
       });
-      setTiles(tileMap);
-      setLoading(false);
+
+      if (hasRelevantChange) {
+        tilesRef.current = updatedMap;
+        setTiles(updatedMap);
+      }
     });
 
     const unsubGuilds = onSnapshot(collection(db, 'guilds'), (snapshot) => {
@@ -243,6 +287,8 @@ export default function StudentEmpirePage() {
         const tile = tiles[coord];
 
         if (isExplored) {
+          const tileGuild = tile?.guildId ? guilds[tile.guildId] : undefined;
+
           if (tile?.type === 'boss') {
             ctx.fillStyle = '#ef4444'; // Red for boss
             ctx.fillRect(x, y, 1, 1);
@@ -344,14 +390,18 @@ export default function StudentEmpirePage() {
   // ── 6. Selected Tile Analysis ─────────────────────────────────────
   const currentTile = selectedCoord ? tiles[selectedCoord] : null;
 
-  const userGuildCitadelCoord = useMemo(() => {
-    if (!appUser?.guildId) return null;
-    return (guilds[appUser.guildId] as any)?.citadelCoord || null;
-  }, [appUser, guilds]);
+  const currentTileGuild = useMemo(() => {
+    if (!currentTile?.guildId) return null;
+    return guilds[currentTile.guildId] || null;
+  }, [currentTile, guilds]);
 
   const isCurrentTileDecayed = useMemo(() => {
-    return isDecayedTile(currentTile, userGuildCitadelCoord);
-  }, [currentTile, userGuildCitadelCoord]);
+    return isDecayedTile(
+      currentTile, 
+      currentTileGuild?.citadelCoord, 
+      currentTileGuild?.citadelCoords
+    );
+  }, [currentTile, currentTileGuild]);
 
   const isCurrentTileShielded = useMemo(() => {
     return isShieldedTile(currentTile);
@@ -708,6 +758,31 @@ export default function StudentEmpirePage() {
       console.error("Claim daily exp error:", err);
     } finally {
       setClaimingOutpost(false);
+    }
+  };
+
+  // ── 12.1 Handler: Restore Decayed Territory Upkeep (>72h Inactivity) ──────
+  const [restoringUpkeep, setRestoringUpkeep] = useState(false);
+
+  const handleRestoreUpkeep = async () => {
+    if (!selectedCoord || !appUser || !currentTile || restoringUpkeep) return;
+    setRestoringUpkeep(true);
+    try {
+      const tileRef = doc(db, 'empire_tiles', selectedCoord);
+      const fullHp = currentTile.maxDefenderHp || 1000;
+      await updateDoc(tileRef, {
+        lastActive: new Date().toISOString(),
+        currentDefenderHp: fullHp,
+      });
+
+      sfx.victory();
+      setActionSuccessMsg(`✨ ฟื้นฟูอาณาเขต [${selectedCoord}] สำเร็จ! พลังชีวิตและค่าสถานะกลับคืน 100%`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error("Restore upkeep error:", err);
+      alert('เกิดข้อผิดพลาดในการฟื้นฟูอาณาเขต');
+    } finally {
+      setRestoringUpkeep(false);
     }
   };
 
@@ -1179,6 +1254,14 @@ export default function StudentEmpirePage() {
                   );
                 })()}
               </div>
+
+              {/* Radar Color Key Legend */}
+              <div className="flex items-center justify-between text-[8px] font-mono text-slate-400 pt-0.5 px-0.5 select-none">
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block" />คุณ</span>
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />กิลด์</span>
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />บอส</span>
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />ฟาร์ม</span>
+              </div>
             </div>
           ) : (
             <button
@@ -1378,9 +1461,19 @@ export default function StudentEmpirePage() {
                 )}
 
                 {isCurrentTileDecayed && (
-                  <div className="flex items-center gap-1.5 p-2 rounded-xl bg-amber-950/50 border border-amber-500/30 text-amber-300 text-[11px]">
-                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>อาณาเขตเสื่อมสภาพ (&gt;72 ชม. ไม่มีความเคลื่อนไหว) โจมตียึดครองได้ทันที</span>
+                  <div className="p-3 rounded-2xl bg-amber-950/70 border border-amber-500/60 text-amber-200 text-xs shadow-md space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>🏚️ อาณาเขตเสื่อมสลาย (Decayed Sector)</span>
+                      <span className="text-[9px] bg-amber-500/30 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-mono ml-auto">
+                        &gt;72 ชม.
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-200/90 leading-relaxed font-mono">
+                      {isMyTile 
+                        ? '⚠️ ฐานของคุณขาดการดูแลเกิน 72 ชั่วโมง! พลังป้องกัน (HP) และพลังโจมตีลดลง 50% กรุณากด "ฟื้นฟูอาณาเขต" ทันทีเพื่อป้องกันการถูกชิง'
+                        : '🎯 เป้าหมายนี้ขาดการดูแลเกิน 72 ชั่วโมง! พลังป้องกันและพลังโจมตีลดลง 50% เหมาะอย่างยิ่งสำหรับการบุกชิงยึดครอง!'}
+                    </p>
                   </div>
                 )}
 
@@ -1446,10 +1539,33 @@ export default function StudentEmpirePage() {
                       <button
                         type="button"
                         onClick={handleStartAttack}
-                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-rose-950/50 transition-all hover:scale-[1.02] active:scale-98 cursor-pointer"
+                        className={`w-full py-3 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all hover:scale-[1.02] active:scale-98 cursor-pointer ${
+                          isCurrentTileDecayed
+                            ? 'bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 hover:from-amber-500 hover:via-rose-500 hover:to-red-500 text-white shadow-amber-950/60 ring-2 ring-amber-400/60 animate-pulse'
+                            : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-950/50'
+                        }`}
                       >
                         <Swords className="w-4 h-4" />
-                        <span>{isBoss ? 'โจมตีบอสไวรัส (Boss Raid 3D)' : 'เข้าสู่สมรภูมิรบ (Infiltrate & Battle)'}</span>
+                        <span>
+                          {isBoss 
+                            ? 'โจมตีบอสไวรัส (Boss Raid 3D)' 
+                            : isCurrentTileDecayed
+                            ? '⚔️ บุกยึดฐานรกร้างเสื่อมสภาพ (-50% HP)'
+                            : 'เข้าสู่สมรภูมิรบ (Infiltrate & Battle)'}
+                        </span>
+                      </button>
+                    )}
+
+                    {/* 2.1 Restore Upkeep for Owned Decayed Base */}
+                    {isMyTile && isCurrentTileDecayed && (
+                      <button
+                        type="button"
+                        disabled={restoringUpkeep}
+                        onClick={handleRestoreUpkeep}
+                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-emerald-500 to-teal-500 hover:from-amber-400 hover:via-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 hover:scale-[1.02] active:scale-98 cursor-pointer transition-all"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>{restoringUpkeep ? 'กำลังฟื้นฟู...' : 'ฟื้นฟูอาณาเขต (Restore Upkeep - พลังกลับคืน 100%)'}</span>
                       </button>
                     )}
 
