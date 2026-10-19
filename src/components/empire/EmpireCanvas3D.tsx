@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { MapControls, Float, Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 import { EmpireTile, Guild } from '@/types';
-import { MAP_SIZE, isSanctuaryZone, isCentralVaultZone, getPlayerUniqueColor, isDecayedTile } from '@/lib/empireConstants';
+import { MAP_SIZE, isSanctuaryZone, isCentralVaultZone, getPlayerUniqueColor } from '@/lib/empireConstants';
 import { familyToVirusType } from '@/components/ui/SVGVirus';
 
 // ── Hexagonal Grid Math & Constants (Pointy-Topped, Civilization Style) ──
@@ -373,67 +373,8 @@ function DefenseStructureMesh({
   );
 }
 
-// ── 3D Landmark: Clean Decayed Symbol Marker (Zero Text, 100% Clean & Fast) ────
-function DecayedBeaconMarker({
-  position,
-}: {
-  position: [number, number, number];
-}) {
-  const meshRef = useRef<THREE.Group>(null);
-
-  useFrame((state, delta) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += delta * 1.4;
-      meshRef.current.position.y = 0.22 + Math.sin(state.clock.elapsedTime * 2.2) * 0.02;
-    }
-  });
-
-  return (
-    <group position={position}>
-      {/* 1. Subtle glowing amber hazard ring */}
-      <mesh position={[0, 0.03, 0]}>
-        <cylinderGeometry args={[0.20, 0.22, 0.015, 6]} />
-        <meshStandardMaterial 
-          color="#f59e0b" 
-          emissive="#d97706" 
-          emissiveIntensity={0.8} 
-          roughness={0.3} 
-        />
-      </mesh>
-
-      {/* 2. Sleek Floating Amber Hazard Diamond */}
-      <group ref={meshRef}>
-        <mesh>
-          <octahedronGeometry args={[0.075, 0]} />
-          <meshStandardMaterial 
-            color="#fbbf24" 
-            emissive="#d97706" 
-            emissiveIntensity={1.5} 
-            roughness={0.2} 
-            metalness={0.7}
-          />
-        </mesh>
-      </group>
-
-      {/* 3. Minimal Billboard Symbol (Just ⚠️ Symbol, NO Owner Name) */}
-      <Billboard position={[0, 0.38, 0]}>
-        <Text
-          fontSize={0.13}
-          color="#fef08a"
-          outlineWidth={0.02}
-          outlineColor="#000000"
-          anchorX="center"
-          anchorY="middle"
-        >
-          ⚠️
-        </Text>
-      </Billboard>
-    </group>
-  );
-}
-
 // ── 2D-on-3D Instanced Virus Decal System (Classic Version Clarity + 60-144 FPS) ──
-export type DecalArchetype = 'parvo' | 'corona' | 'rabies' | 'retro' | 'decay';
+export type DecalArchetype = 'parvo' | 'corona' | 'rabies' | 'retro';
 
 export function familyToDecalArchetype(family?: string): DecalArchetype {
   const vType = familyToVirusType(family || 'parvo');
@@ -572,59 +513,8 @@ function createVirusDecalTexture(type: DecalArchetype): THREE.CanvasTexture {
       ctx.stroke();
     }
 
-  } else if (type === 'decay') {
-    // ── 4. Decay Symbol: Crisp Glowing Biohazard / Warning Hazard Triangle ──
-    const r = 36;
-    ctx.strokeStyle = '#ffffff';
-    ctx.fillStyle = '#ffffff';
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    // 1. Triangular Hazard Shield
-    ctx.beginPath();
-    for (let i = 0; i < 3; i++) {
-      const a = (i * 2 * Math.PI) / 3 - Math.PI / 2;
-      const x = cx + r * Math.cos(a);
-      const y = cy + r * Math.sin(a) + 4;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.globalAlpha = 0.28;
-    ctx.fill();
-    ctx.globalAlpha = 0.95;
-    ctx.stroke();
-
-    // 2. Bold Exclamation Bar
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - 14);
-    ctx.lineTo(cx, cy + 6);
-    ctx.lineWidth = 5.5;
-    ctx.stroke();
-
-    // 3. Exclamation Dot
-    ctx.beginPath();
-    ctx.arc(cx, cy + 18, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 4. Subtle Lateral Fractures
-    ctx.lineWidth = 2.5;
-    ctx.globalAlpha = 0.75;
-    ctx.beginPath();
-    ctx.moveTo(cx - 16, cy + 8);
-    ctx.lineTo(cx - 8, cy);
-    ctx.lineTo(cx - 14, cy - 8);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(cx + 16, cy + 8);
-    ctx.lineTo(cx + 8, cy);
-    ctx.lineTo(cx + 14, cy - 8);
-    ctx.stroke();
-
   } else {
-    // ── 5. Retro / Flavi / Arteri / Reo: Double Ring Envelope + Knobs ──
+    // ── 4. Retro / Flavi / Arteri / Reo: Double Ring Envelope + Knobs ──
     ctx.globalAlpha = 0.85;
     ctx.beginPath();
     ctx.arc(cx, cy, 26, 0, Math.PI * 2);
@@ -675,7 +565,6 @@ function getVirusDecalTextures(): Record<DecalArchetype, THREE.CanvasTexture> {
     corona: createVirusDecalTexture('corona'),
     rabies: createVirusDecalTexture('rabies'),
     retro: createVirusDecalTexture('retro'),
-    decay: createVirusDecalTexture('decay'),
   };
   return cachedDecalTextures;
 }
@@ -734,13 +623,11 @@ function VirusArchetypeDecalMesh({
 
 function HexInstancedVirusDecals({
   tiles,
-  guilds,
   exploredTiles,
   myUid,
   isGmUser,
 }: {
   tiles: Record<string, EmpireTile>;
-  guilds: Record<string, Guild>;
   exploredTiles: Set<string>;
   myUid?: string;
   isGmUser?: boolean;
@@ -753,7 +640,6 @@ function HexInstancedVirusDecals({
       corona: [],
       rabies: [],
       retro: [],
-      decay: [],
     };
 
     Object.values(tiles).forEach((t) => {
@@ -762,26 +648,12 @@ function HexInstancedVirusDecals({
       if (t.type !== 'player' || !t.ownerUid || t.isCitadel) return;
 
       const isMine = Boolean(myUid && t.ownerUid === myUid);
-      const tGuild = t.guildId ? guilds[t.guildId] : undefined;
-      const isDecayed = isDecayedTile(t, tGuild?.citadelCoord, tGuild?.citadelCoords);
 
       // Top surface of the cylinder in HexInstancedBoard:
       // isMine: 0.12/2 + 0.12*1.5/2 = 0.150
       // other with guild: 0.10/2 + 0.12*1.3/2 = 0.128
       // other without guild: 0.09/2 + 0.12*1.2/2 = 0.117
       const topY = isMine ? 0.150 : (t.guildId ? 0.128 : 0.117);
-
-      if (isDecayed) {
-        // ✨ Clean decay symbol rendered on top of the guild-colored hex!
-        map.decay.push({
-          x: t.x,
-          y: t.y,
-          topY: topY + 0.001,
-          isMine,
-          color: '#fbbf24', // Crisp golden amber warning emblem
-        });
-        return;
-      }
 
       const archetype = familyToDecalArchetype(t.ownerFamily);
       const color = isMine ? '#38bdf8' : '#ffffff';
@@ -796,7 +668,7 @@ function HexInstancedVirusDecals({
     });
 
     return map;
-  }, [tiles, guilds, exploredTiles, myUid, isGmUser]);
+  }, [tiles, exploredTiles, myUid, isGmUser]);
 
   return (
     <group>
@@ -804,7 +676,6 @@ function HexInstancedVirusDecals({
       <VirusArchetypeDecalMesh texture={textures.corona} items={grouped.corona} />
       <VirusArchetypeDecalMesh texture={textures.rabies} items={grouped.rabies} />
       <VirusArchetypeDecalMesh texture={textures.retro} items={grouped.retro} />
-      <VirusArchetypeDecalMesh texture={textures.decay} items={grouped.decay} />
     </group>
   );
 }
@@ -987,16 +858,14 @@ function SelectedSectorBadge({
   tile,
   isMine,
   isHQ,
-  isDecayed,
 }: {
   coord: string;
   tile?: EmpireTile | null;
   isMine?: boolean;
   isHQ?: boolean;
-  isDecayed?: boolean;
 }) {
-  // If it's already an HQ, or if decayed (clean look, zero text), or non-player: return null
-  if (isHQ || isDecayed || !tile || tile.type !== 'player' || !tile.ownerUid) return null;
+  // If it's already an HQ, or non-player: return null
+  if (isHQ || !tile || tile.type !== 'player' || !tile.ownerUid) return null;
   const [x, y] = coord.split(',').map(Number);
   const { worldX, worldZ } = getHexWorldPos(x, y);
 
@@ -1058,8 +927,6 @@ function HexInstancedBoard({
         const effectiveGuildId = tile?.guildId || (isMine && myGuildId ? myGuildId : undefined);
         const guildObj = effectiveGuildId ? guilds[effectiveGuildId] : undefined;
         const actualGuildColor = guildObj?.color;
-
-        const isDecayed = Boolean(tile && isDecayedTile(tile, guildObj?.citadelCoord, guildObj?.citadelCoords));
 
         let elevation = 0.08;
         let scaleY = 1.0;
@@ -1375,11 +1242,6 @@ export default function EmpireCanvas3D({
       guildColor: string;
       isMine: boolean;
     }[] = [];
-    const decayedBases: {
-      id: string;
-      x: number;
-      y: number;
-    }[] = [];
 
     Object.values(tiles).forEach((t) => {
       const coord = `${t.x},${t.y}`;
@@ -1416,17 +1278,6 @@ export default function EmpireCanvas3D({
           isMine,
         });
       }
-      // Collect Decayed Player Bases (>72h Inactivity) - Clean, fast, zero text overhead
-      if (t.type === 'player' && t.ownerUid && !t.isCitadel) {
-        const tGuild = t.guildId ? guilds[t.guildId] : undefined;
-        if (isDecayedTile(t, tGuild?.citadelCoord, tGuild?.citadelCoords)) {
-          decayedBases.push({
-            id: `decayed-${coord}`,
-            x: t.x,
-            y: t.y,
-          });
-        }
-      }
     });
 
     const bosses = bossGroups.map((g, i) => ({
@@ -1448,7 +1299,7 @@ export default function EmpireCanvas3D({
       };
     });
 
-    return { bosses, citadels, structures, decayedBases };
+    return { bosses, citadels, structures };
   }, [tiles, guilds, exploredTiles, isGmUser, myUid]);
 
   // Approach 2: Compute exactly 1 HQ Base Landmark per Student (Prioritize isCapital or fortified outpost)
@@ -1471,11 +1322,6 @@ export default function EmpireCanvas3D({
       const coord = `${t.x},${t.y}`;
       if (!isGmUser && !exploredTiles.has(coord)) return;
       if (t.type !== 'player' || !t.ownerUid || t.isCitadel) return;
-
-      // Exclude decayed bases: they are rendered with DecayedRuinsMarker instead
-      const tGuild = t.guildId ? guilds[t.guildId] : undefined;
-      const isDecayed = isDecayedTile(t, tGuild?.citadelCoord, tGuild?.citadelCoords);
-      if (isDecayed) return;
 
       const isMine = Boolean(myUid && t.ownerUid === myUid);
       const color = getPlayerUniqueColor(t.ownerUid, isMine);
@@ -1570,7 +1416,6 @@ export default function EmpireCanvas3D({
         {/* 2. Instanced Virus Decals (Flat Stenciled 2D Decals on Hex Top, 4 Draw Calls Total) */}
         <HexInstancedVirusDecals
           tiles={tiles}
-          guilds={guilds}
           exploredTiles={exploredTiles}
           myUid={myUid}
           isGmUser={isGmUser}
@@ -1635,17 +1480,6 @@ export default function EmpireCanvas3D({
           );
         })}
 
-        {/* 6.1 Decayed Symbol Markers (Clean ⚠️ Symbol, Zero Owner Name Text) */}
-        {landmarks.decayedBases.map((dbase) => {
-          const { worldX, worldZ } = getHexWorldPos(dbase.x, dbase.y);
-          return (
-            <DecayedBeaconMarker
-              key={dbase.id}
-              position={[worldX, 0.08, worldZ]}
-            />
-          );
-        })}
-
         {/* 7. Selected Sector Floating Billboard (On-Demand for Non-HQ Sectors) */}
         {selectedCoord && (
           <SelectedSectorBadge
@@ -1653,14 +1487,6 @@ export default function EmpireCanvas3D({
             tile={selectedTile}
             isMine={isSelectedMine}
             isHQ={isSelectedHQ}
-            isDecayed={Boolean(
-              selectedTile && 
-              isDecayedTile(
-                selectedTile, 
-                selectedTile.guildId ? guilds[selectedTile.guildId]?.citadelCoord : undefined, 
-                selectedTile.guildId ? guilds[selectedTile.guildId]?.citadelCoords : undefined
-              )
-            )}
           />
         )}
 
