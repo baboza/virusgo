@@ -1,5 +1,29 @@
 export type UserRole = 'student' | 'instructor' | 'admin';
 
+export interface HeroEquipment {
+  head?: string;    // e.g. 'capsomer_crown' (+HP)
+  weapon?: string;  // e.g. 'glycoprotein_spike' (+ATK)
+  armor?: string;   // e.g. 'lipid_envelope' (Retaliation reduction)
+  scroll?: string;  // e.g. 'polymerase_scroll' (+Timer / Hint)
+}
+
+export interface HeroUnitStack {
+  id: string;          // e.g. 'stack_1'
+  virusId: string;     // e.g. 'cpv', 'fip', 'rabies'
+  virusName: string;   // e.g. 'Parvovirus', 'Coronavirus', 'Rabies Virus'
+  family: string;      // 'parvo' | 'corona' | 'rabies' | 'retro'
+  count: number;       // Number of virion particles in stack
+  tier: number;        // 1 (Swarm), 2 (Core), 3 (Elite)
+  baseHp: number;      // HP per single virion
+  baseAtk: number;     // ATK per single virion
+}
+
+export interface HeroArmyData {
+  equipment?: HeroEquipment;
+  stacks?: HeroUnitStack[];
+  lastReplicated?: string;
+}
+
 export interface VirusPetData {
   virusID: string;
   virusName: string;
@@ -21,6 +45,8 @@ export interface VirusPetData {
     dex: number;
     spentPoints: number;
   };
+  hero?: HeroArmyData;
+  currentTileCoord?: string; // Current hex coordinates (e.g. "25,25") where Hero is stationed on Empire Map
 }
 
 export interface User {
@@ -143,6 +169,10 @@ export interface EmpireTile {
   maxDefenderHp?: number;
   lastAttackedBy?: string;
   lastAttackedByName?: string;
+  // ── HOMM HERO ARMY STACKS (3-STACK GARRISON) ──
+  defenderStacks?: HeroUnitStack[];
+  defenderEquipment?: HeroEquipment;
+  heroStationedUid?: string; // UID of the player whose Virus Pet Hero is physically stationed on this sector
 }
 
 export interface CaseStudy {

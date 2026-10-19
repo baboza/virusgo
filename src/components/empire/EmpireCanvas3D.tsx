@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { MapControls, Float, Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
@@ -70,6 +70,14 @@ export function worldToHexCoord(wx: number, wz: number): { x: number; y: number 
   return { x: bestX, y: bestY };
 }
 
+export interface MarchOrder {
+  fromCoord: string;
+  toCoord: string;
+  petFamily?: string;
+  ownerName?: string;
+  onArrival: () => void;
+}
+
 interface EmpireCanvas3DProps {
   tiles: Record<string, EmpireTile>;
   guilds: Record<string, Guild>;
@@ -81,6 +89,10 @@ interface EmpireCanvas3DProps {
   targetFocus: { x: number; y: number } | null;
   cameraMode: 'iso' | 'top';
   isGmUser?: boolean;
+  petCoord?: string | null;
+  petFamily?: string;
+  ownerName?: string;
+  marchOrder?: MarchOrder | null;
 }
 
 const tempColor = new THREE.Color();
@@ -680,6 +692,375 @@ function HexInstancedVirusDecals({
   );
 }
 
+// ── Virus Hero 3D Geometry (Shared between HQ Base & Marching Hero) ──
+export function VirusHero3DGeometry({
+  virusType,
+  color,
+  hasCrown = true,
+  isMine = true,
+}: {
+  virusType: string;
+  color: string;
+  hasCrown?: boolean;
+  isMine?: boolean;
+}) {
+  return (
+    <group>
+      {/* Rabies Bullet */}
+      {virusType === 'rabies' && (
+        <mesh>
+          <capsuleGeometry args={[0.10, 0.18, 10, 16]} />
+          <meshStandardMaterial 
+            color={color} 
+            emissive={color} 
+            emissiveIntensity={isMine ? 0.85 : 0.55} 
+            roughness={0.25} 
+            metalness={0.4} 
+          />
+        </mesh>
+      )}
+
+      {/* Parvo / Picorna / Birna (Icosahedron) */}
+      {(virusType === 'parvo' || virusType === 'picorna' || virusType === 'birna') && (
+        <group>
+          <mesh>
+            <icosahedronGeometry args={[0.16, 0]} />
+            <meshStandardMaterial 
+              color={color} 
+              emissive={color} 
+              emissiveIntensity={isMine ? 0.85 : 0.55} 
+              roughness={0.2} 
+              metalness={0.5} 
+              flatShading 
+            />
+          </mesh>
+          <mesh>
+            <icosahedronGeometry args={[0.168, 0]} />
+            <meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.35} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Corona / Retro / Orthomyxo (Spiked Sphere with 3D Spike Rods) */}
+      {virusType !== 'rabies' && virusType !== 'parvo' && virusType !== 'picorna' && virusType !== 'birna' && (
+        <group>
+          <mesh>
+            <sphereGeometry args={[0.13, 14, 14]} />
+            <meshStandardMaterial 
+              color={color} 
+              emissive={color} 
+              emissiveIntensity={isMine ? 0.85 : 0.55} 
+              roughness={0.25} 
+              metalness={0.35} 
+            />
+          </mesh>
+          <mesh rotation={[0, 0, 0]}>
+            <cylinderGeometry args={[0.018, 0.024, 0.34, 6]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
+          </mesh>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.018, 0.024, 0.34, 6]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
+          </mesh>
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.018, 0.024, 0.34, 6]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
+          </mesh>
+          <mesh rotation={[Math.PI / 4, Math.PI / 4, 0]}>
+            <cylinderGeometry args={[0.016, 0.022, 0.32, 6]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
+          </mesh>
+          <mesh rotation={[-Math.PI / 4, Math.PI / 4, 0]}>
+            <cylinderGeometry args={[0.016, 0.022, 0.32, 6]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Golden Crown on Player's Personal Base */}
+      {hasCrown && (
+        <group position={[0, 0.22, 0]}>
+          <mesh>
+            <cylinderGeometry args={[0.09, 0.05, 0.07, 5]} />
+            <meshStandardMaterial 
+              color="#f59e0b" 
+              emissive="#d97706" 
+              emissiveIntensity={0.9} 
+              metalness={0.9} 
+              roughness={0.2} 
+            />
+          </mesh>
+        </group>
+      )}
+    </group>
+  );
+}
+
+// ── Hex Grid Coordinate Helpers for Marching (Pointy-Topped, odd-r) ──
+function offsetToCube(col: number, row: number) {
+  const q = col - (row - (row & 1)) / 2;
+  const r = row;
+  return { q, r, s: -q - r };
+}
+
+function cubeToOffset(q: number, r: number) {
+  const col = q + (r - (r & 1)) / 2;
+  const row = r;
+  return { x: col, y: row };
+}
+
+function cubeRound(cube: { q: number; r: number; s: number }) {
+  let q = Math.round(cube.q);
+  let r = Math.round(cube.r);
+  let s = Math.round(cube.s);
+  const qDiff = Math.abs(q - cube.q);
+  const rDiff = Math.abs(r - cube.r);
+  const sDiff = Math.abs(s - cube.s);
+  if (qDiff > rDiff && qDiff > sDiff) {
+    q = -r - s;
+  } else if (rDiff > sDiff) {
+    r = -q - s;
+  } else {
+    s = -q - r;
+  }
+  return { q, r, s };
+}
+
+export function getHexPathWaypoints(from: { x: number; y: number }, to: { x: number; y: number }): { x: number; y: number }[] {
+  const a = offsetToCube(from.x, from.y);
+  const b = offsetToCube(to.x, to.y);
+  const dist = Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r), Math.abs(a.s - b.s));
+  if (dist === 0) return [from];
+  const list: { x: number; y: number }[] = [];
+  for (let i = 0; i <= dist; i++) {
+    const t = i / dist;
+    const q = a.q + (b.q - a.q) * t;
+    const r = a.r + (b.r - a.r) * t;
+    const s = a.s + (b.s - a.s) * t;
+    const rounded = cubeRound({ q, r, s });
+    const offset = cubeToOffset(rounded.q, rounded.r);
+    const clampedX = Math.max(0, Math.min(MAP_SIZE - 1, offset.x));
+    const clampedY = Math.max(0, Math.min(MAP_SIZE - 1, offset.y));
+    list.push({ x: clampedX, y: clampedY });
+  }
+  return list;
+}
+
+// ── March Trajectory Path (Glow line + Waypoint Dots) ────────────────
+function MarchTrajectoryPath({ waypoints }: { waypoints: { worldX: number; worldZ: number }[] }) {
+  const lineObj = useMemo(() => {
+    const points = waypoints.map(w => new THREE.Vector3(w.worldX, 0.17, w.worldZ));
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({
+      color: 0x06b6d4,
+      linewidth: 3,
+      transparent: true,
+      opacity: 0.85,
+    });
+    return new THREE.Line(geometry, material);
+  }, [waypoints]);
+
+  return (
+    <group>
+      {/* Continuous glowing trajectory line */}
+      <primitive object={lineObj} />
+
+      {/* Dotted waypoint markers at each hex center along the path */}
+      {waypoints.map((wp, idx) => {
+        const isDestination = idx === waypoints.length - 1;
+        const isOrigin = idx === 0;
+        return (
+          <group key={idx} position={[wp.worldX, 0.165, wp.worldZ]}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[isDestination ? 0.22 : 0.08, isDestination ? 0.32 : 0.14, 16]} />
+              <meshBasicMaterial 
+                color={isDestination ? '#ef4444' : isOrigin ? '#38bdf8' : '#22d3ee'} 
+                transparent 
+                opacity={isDestination ? 0.9 : 0.6}
+                side={THREE.DoubleSide}
+              />
+            </mesh>
+            {isDestination && (
+              <Billboard position={[0, 0.35, 0]}>
+                <Text
+                  fontSize={0.14}
+                  color="#ef4444"
+                  outlineWidth={0.03}
+                  outlineColor="#000000"
+                  anchorX="center"
+                  anchorY="middle"
+                >
+                  🎯 เป้าหมายโจมตี
+                </Text>
+              </Billboard>
+            )}
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+// ── 3D Marching Hero Virus (HoMM Travel Animation) ───────────────────
+function HeroVirusMarcher({
+  fromCoord,
+  toCoord,
+  petFamily,
+  ownerName,
+  onArrival,
+  onPositionUpdate,
+}: {
+  fromCoord: string;
+  toCoord: string;
+  petFamily?: string;
+  ownerName?: string;
+  onArrival?: () => void;
+  onPositionUpdate?: (pos: { worldX: number; worldZ: number }) => void;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const virusType = useMemo(() => familyToVirusType(petFamily || 'parvo'), [petFamily]);
+
+  const waypoints = useMemo(() => {
+    const [fx, fy] = fromCoord.split(',').map(Number);
+    const [tx, ty] = toCoord.split(',').map(Number);
+    const pts = getHexPathWaypoints({ x: fx, y: fy }, { x: tx, y: ty });
+    return pts.map(p => {
+      const pos = getHexWorldPos(p.x, p.y);
+      return { x: p.x, y: p.y, worldX: pos.worldX, worldZ: pos.worldZ };
+    });
+  }, [fromCoord, toCoord]);
+
+  const startTimeRef = useRef<number | null>(null);
+  const arrivedRef = useRef(false);
+  const duration = useMemo(() => {
+    const steps = Math.max(1, waypoints.length - 1);
+    return Math.min(1.0, Math.max(0.5, steps * 0.08));
+  }, [waypoints]);
+
+  useFrame((state) => {
+    if (startTimeRef.current === null) {
+      startTimeRef.current = state.clock.elapsedTime;
+    }
+    const elapsed = state.clock.elapsedTime - startTimeRef.current;
+    const progress = Math.min(1, elapsed / duration);
+
+    if (waypoints.length <= 1) {
+      if (!arrivedRef.current) {
+        arrivedRef.current = true;
+        onArrival?.();
+      }
+      return;
+    }
+
+    const totalSegs = waypoints.length - 1;
+    const currentSegFloat = progress * totalSegs;
+    const segIdx = Math.min(totalSegs - 1, Math.floor(currentSegFloat));
+    const subT = currentSegFloat - segIdx;
+
+    const p0 = waypoints[segIdx];
+    const p1 = waypoints[Math.min(totalSegs, segIdx + 1)];
+
+    const curX = THREE.MathUtils.lerp(p0.worldX, p1.worldX, subT);
+    const curZ = THREE.MathUtils.lerp(p0.worldZ, p1.worldZ, subT);
+    // HoMM bouncy galloping trajectory
+    const hopY = 0.38 + Math.sin(subT * Math.PI) * 0.25;
+
+    if (groupRef.current) {
+      groupRef.current.position.set(curX, hopY, curZ);
+      groupRef.current.lookAt(p1.worldX, hopY, p1.worldZ);
+    }
+
+    onPositionUpdate?.({ worldX: curX, worldZ: curZ });
+
+    if (progress >= 1 && !arrivedRef.current) {
+      arrivedRef.current = true;
+      onArrival?.();
+    }
+  });
+
+  return (
+    <group>
+      <MarchTrajectoryPath waypoints={waypoints} />
+      <group ref={groupRef} scale={1.6}>
+        <VirusHero3DGeometry virusType={virusType} color="#06b6d4" hasCrown={true} isMine={true} />
+        <Billboard position={[0, 0.48, 0]}>
+          <Text
+            fontSize={0.13}
+            color="#38bdf8"
+            outlineWidth={0.03}
+            outlineColor="#000000"
+            anchorX="center"
+            anchorY="middle"
+          >
+            {`👑 ${ownerName || 'ไวรัสฮีโร่'} (กำลังเคลื่อนทัพ)`}
+          </Text>
+        </Billboard>
+        {/* Glow halo under hero */}
+        <mesh position={[0, -0.15, 0]}>
+          <sphereGeometry args={[0.09, 8, 8]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.65} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// ── 3D Stationed Hero Virus (Stationed at current tile) ──────────────
+function HeroVirusPetStationed({
+  coord,
+  petFamily,
+  ownerName,
+  isMine = true,
+}: {
+  coord: string;
+  petFamily?: string;
+  ownerName?: string;
+  isMine?: boolean;
+}) {
+  const [x, y] = coord.split(',').map(Number);
+  const { worldX, worldZ } = getHexWorldPos(x, y);
+  const virusType = useMemo(() => familyToVirusType(petFamily || 'parvo'), [petFamily]);
+  const groupRef = useRef<THREE.Group>(null);
+  const color = isMine ? '#06b6d4' : '#f59e0b';
+  const labelColor = isMine ? '#38bdf8' : '#fbbf24';
+
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 1.2;
+      groupRef.current.position.y = 0.42 + Math.sin(state.clock.elapsedTime * 2.5) * 0.04;
+    }
+  });
+
+  return (
+    <group position={[worldX, 0, worldZ]}>
+      {/* Stationed Royal Beacon Beam */}
+      <mesh position={[0, 0.55, 0]}>
+        <cylinderGeometry args={[0.07, 0.22, 0.95, 12, 1, true]} />
+        <meshBasicMaterial color={color} transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+
+      {/* 3D Model with Crown */}
+      <group ref={groupRef} scale={1.6}>
+        <VirusHero3DGeometry virusType={virusType} color={color} hasCrown={true} isMine={isMine} />
+      </group>
+
+      {/* Billboard label */}
+      <Billboard position={[0, 0.95, 0]}>
+        <Text
+          fontSize={0.14}
+          color={labelColor}
+          outlineWidth={0.03}
+          outlineColor="#000000"
+          anchorX="center"
+          anchorY="middle"
+        >
+          {isMine ? `👑 ${ownerName || 'ฮีโร่ของคุณ'} (ประจำการ)` : `👑 จอมทัพ ${ownerName || 'ศัตรู'}`}
+        </Text>
+      </Billboard>
+    </group>
+  );
+}
+
 // ── 3D Landmark: Player HQ Capital Base (Majestic 3D Mascot Landmark) ──
 function PlayerHQMesh({
   position,
@@ -745,94 +1126,7 @@ function PlayerHQMesh({
 
       {/* 4. Majestic 3D Virus Mascot */}
       <group ref={mascotRef} position={[0, 0.40, 0]} scale={1.5}>
-        {/* Rabies Bullet */}
-        {virusType === 'rabies' && (
-          <mesh>
-            <capsuleGeometry args={[0.10, 0.18, 10, 16]} />
-            <meshStandardMaterial 
-              color={color} 
-              emissive={color} 
-              emissiveIntensity={isMine ? 0.85 : 0.55} 
-              roughness={0.25} 
-              metalness={0.4} 
-            />
-          </mesh>
-        )}
-
-        {/* Parvo / Picorna / Birna (Icosahedron) */}
-        {(virusType === 'parvo' || virusType === 'picorna' || virusType === 'birna') && (
-          <group>
-            <mesh>
-              <icosahedronGeometry args={[0.16, 0]} />
-              <meshStandardMaterial 
-                color={color} 
-                emissive={color} 
-                emissiveIntensity={isMine ? 0.85 : 0.55} 
-                roughness={0.2} 
-                metalness={0.5} 
-                flatShading 
-              />
-            </mesh>
-            <mesh>
-              <icosahedronGeometry args={[0.168, 0]} />
-              <meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.35} />
-            </mesh>
-          </group>
-        )}
-
-        {/* Corona / Retro / Orthomyxo (Spiked Sphere with 3D Spike Rods) */}
-        {virusType !== 'rabies' && virusType !== 'parvo' && virusType !== 'picorna' && virusType !== 'birna' && (
-          <group>
-            <mesh>
-              <sphereGeometry args={[0.13, 14, 14]} />
-              <meshStandardMaterial 
-                color={color} 
-                emissive={color} 
-                emissiveIntensity={isMine ? 0.85 : 0.55} 
-                roughness={0.25} 
-                metalness={0.35} 
-              />
-            </mesh>
-            {/* 3 Orthogonal Spike Rods */}
-            <mesh rotation={[0, 0, 0]}>
-              <cylinderGeometry args={[0.018, 0.024, 0.34, 6]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
-            </mesh>
-            <mesh rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.018, 0.024, 0.34, 6]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
-            </mesh>
-            <mesh rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.018, 0.024, 0.34, 6]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
-            </mesh>
-            {/* 2 Diagonal Spike Rods */}
-            <mesh rotation={[Math.PI / 4, Math.PI / 4, 0]}>
-              <cylinderGeometry args={[0.016, 0.022, 0.32, 6]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
-            </mesh>
-            <mesh rotation={[-Math.PI / 4, Math.PI / 4, 0]}>
-              <cylinderGeometry args={[0.016, 0.022, 0.32, 6]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
-            </mesh>
-          </group>
-        )}
-
-        {/* Golden Crown on Player's Personal Base */}
-        {isMine && (
-          <group position={[0, 0.22, 0]}>
-            <mesh>
-              <cylinderGeometry args={[0.09, 0.05, 0.07, 5]} />
-              <meshStandardMaterial 
-                color="#f59e0b" 
-                emissive="#d97706" 
-                emissiveIntensity={0.9} 
-                metalness={0.9} 
-                roughness={0.2} 
-              />
-            </mesh>
-          </group>
-        )}
+        <VirusHero3DGeometry virusType={virusType} color={color} hasCrown={isMine} isMine={isMine} />
       </group>
 
       {/* 5. Floating High-Contrast HQ Name Tag */}
@@ -1168,17 +1462,29 @@ function HexInteractionController({
 function CameraRig({
   targetFocus,
   cameraMode,
+  marchingPos,
 }: {
   targetFocus: { x: number; y: number } | null;
   cameraMode: 'iso' | 'top';
+  marchingPos?: { worldX: number; worldZ: number } | null;
 }) {
   const { camera, size } = useThree();
   const controlsRef = useRef<any>(null);
 
   const isMobile = size.width < 768 || size.width < size.height;
 
+  useFrame(() => {
+    if (marchingPos && controlsRef.current) {
+      controlsRef.current.target.lerp(new THREE.Vector3(marchingPos.worldX, 0, marchingPos.worldZ), 0.12);
+      const elevation = isMobile ? 18 : 20;
+      const zOffset = isMobile ? 12 : 14;
+      camera.position.lerp(new THREE.Vector3(marchingPos.worldX, elevation, marchingPos.worldZ + zOffset), 0.12);
+      controlsRef.current.update();
+    }
+  });
+
   useEffect(() => {
-    if (!controlsRef.current) return;
+    if (!controlsRef.current || marchingPos) return;
     const targetX = targetFocus ? targetFocus.x : 25;
     const targetY = targetFocus ? targetFocus.y : 25;
     const { worldX, worldZ } = getHexWorldPos(targetX, targetY);
@@ -1197,7 +1503,7 @@ function CameraRig({
     camera.up.set(0, 1, 0);
     camera.lookAt(worldX, 0, worldZ);
     controlsRef.current.update();
-  }, [targetFocus, cameraMode, camera, isMobile]);
+  }, [targetFocus, cameraMode, camera, isMobile, marchingPos]);
 
   return (
     <MapControls
@@ -1229,7 +1535,13 @@ export default function EmpireCanvas3D({
   targetFocus,
   cameraMode,
   isGmUser,
+  petCoord,
+  petFamily,
+  ownerName,
+  marchOrder,
 }: EmpireCanvas3DProps) {
+  const [marchingWorldPos, setMarchingWorldPos] = useState<{ worldX: number; worldZ: number } | null>(null);
+
   // Deduplicate and group landmarks
   const landmarks = useMemo(() => {
     const bossGroups: { x: number; y: number; count: number }[] = [];
@@ -1467,6 +1779,11 @@ export default function EmpireCanvas3D({
 
         {/* 6. Player HQ Landmarks (1 Majestic 3D Virus Mascot per Player) */}
         {playerHQs.map((hq) => {
+          // If this is my HQ and I have a stationed or marching hero, don't double render my hero at the same spot
+          const isMyStationedHere = Boolean(hq.isMine && (petCoord === hq.coord || (!petCoord && hq.isCapital)));
+          if (isMyStationedHere && (marchOrder || petCoord)) {
+            return null;
+          }
           const { worldX, worldZ } = getHexWorldPos(hq.x, hq.y);
           return (
             <PlayerHQMesh
@@ -1480,6 +1797,41 @@ export default function EmpireCanvas3D({
           );
         })}
 
+        {/* 6.1 HoMM Stationed Hero Virus Pet (When not marching) */}
+        {!marchOrder && petCoord && (
+          <HeroVirusPetStationed
+            coord={petCoord}
+            petFamily={petFamily}
+            ownerName={ownerName}
+            isMine={true}
+          />
+        )}
+
+        {/* 6.1.1 Rival Player Stationed Hero Virus Pets on the Field */}
+        {Object.values(tiles)
+          .filter(t => t.heroStationedUid && t.heroStationedUid !== myUid && t.id !== petCoord)
+          .map(t => (
+            <HeroVirusPetStationed
+              key={`rival_hero_${t.id}`}
+              coord={t.id}
+              petFamily={t.ownerFamily}
+              ownerName={t.ownerName}
+              isMine={false}
+            />
+          ))}
+
+        {/* 6.2 HoMM Marching Hero Virus Pet (Traveling towards attacked tile!) */}
+        {marchOrder && (
+          <HeroVirusMarcher
+            fromCoord={marchOrder.fromCoord}
+            toCoord={marchOrder.toCoord}
+            petFamily={marchOrder.petFamily || petFamily}
+            ownerName={marchOrder.ownerName || ownerName}
+            onArrival={marchOrder.onArrival}
+            onPositionUpdate={setMarchingWorldPos}
+          />
+        )}
+
         {/* 7. Selected Sector Floating Billboard (On-Demand for Non-HQ Sectors) */}
         {selectedCoord && (
           <SelectedSectorBadge
@@ -1490,8 +1842,8 @@ export default function EmpireCanvas3D({
           />
         )}
 
-        {/* 9. Smooth Camera Rig */}
-        <CameraRig targetFocus={targetFocus} cameraMode={cameraMode} />
+        {/* 9. Smooth Camera Rig with March Tracking */}
+        <CameraRig targetFocus={targetFocus} cameraMode={cameraMode} marchingPos={marchingWorldPos} />
       </Canvas>
     </div>
   );

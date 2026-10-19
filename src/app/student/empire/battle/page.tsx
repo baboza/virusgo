@@ -1,37 +1,37 @@
 "use client";
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
-
+import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Heart, ArrowLeft, Swords, Loader2, Box } from 'lucide-react';
+import { 
+  Shield, Heart, ArrowLeft, Swords, Loader2, Box, 
+  Crosshair, Sparkles, Layers, Crown, ShieldAlert, CheckCircle2 
+} from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 import { sfx } from '@/utils/sound';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc, setDoc, updateDoc, increment, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase/config';
+import { auth, db } from '@/lib/firebase/config';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { EmpireTile, User, Guild } from '@/types';
+import { EmpireTile, User, Guild, HeroUnitStack, HeroEquipment, HeroArmyData } from '@/types';
 import { familyToColor, isDecayedTile, isShieldedTile, isCentralVaultZone } from '@/app/student/empire/page';
 import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString } from '@/lib/dailyExpCap';
 import { getEffectivePetStats } from '@/lib/petBalance';
+import { 
+  BIO_ARTIFACTS, 
+  getDefaultHeroArmy, 
+  generateWildDefenderArmy, 
+  calculateAttackDamage, 
+  calculateRetaliationDamage, 
+  applyDamageToStack 
+} from '@/lib/heroArmy';
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
   ssr: false,
   loading: () => <div className="w-full h-full flex items-center justify-center text-slate-500 font-mono text-xs">Loading 3D...</div>
 });
-
-// Helper: same as empire map
-const stringToColor = (str: string) => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-  return '#' + '00000'.substring(0, 6 - c.length) + c;
-};
 
 // Shuffle array helper
 function shuffle<T>(arr: T[]): T[] {
@@ -64,25 +64,54 @@ function BattleContent() {
   const router = useRouter();
   const tileId = searchParams.get('tile');
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [tile, setTile] = useState<EmpireTile | null>(null);
   const [questionsBank, setQuestionsBank] = useState<QuizItem[]>(shuffle([...FALLBACK_QUIZ]));
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
   const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing');
-  const [showDamage, setShowDamage] = useState<{ target: 'attacker' | 'defender', amount: number, isCrit: boolean } | null>(null);
-  const [isHit, setIsHit] = useState(false); // Screen flash for attacker damage
+  const [isHit, setIsHit] = useState(false);
   const [is3DMode, setIs3DMode] = useState(true);
   const [awardedExp, setAwardedExp] = useState<number>(15);
   const [isFirstBaseClaimed, setIsFirstBaseClaimed] = useState(false);
+  const [isHeroDuel, setIsHeroDuel] = useState(false);
+
+  // ── HoMM System State: Synchronously Pre-populated (0ms delay) ──
+  const initialArmy = useMemo(() => getDefaultHeroArmy(appUser?.pet?.family || 'parvo'), [appUser?.pet?.family]);
+  const initialStacks = useMemo<HeroUnitStack[]>(() => {
+    if (appUser?.pet?.hero?.stacks && appUser.pet.hero.stacks.length > 0) {
+      return appUser.pet.hero.stacks;
+    }
+    return initialArmy.stacks || [];
+  }, [appUser?.pet?.hero?.stacks, initialArmy.stacks]);
+  const [attackerHero, setAttackerHero] = useState<HeroArmyData>(appUser?.pet?.hero || initialArmy);
+  const [attackerStacks, setAttackerStacks] = useState<HeroUnitStack[]>(initialStacks);
+  const [selectedAttackerId, setSelectedAttackerId] = useState<string>(initialStacks[0]?.id || 'stack_1');
+
+  const initialWild = useMemo(() => generateWildDefenderArmy('empty'), []);
+  const [defenderStacks, setDefenderStacks] = useState<HeroUnitStack[]>(initialWild);
+  const [selectedDefenderId, setSelectedDefenderId] = useState<string>(initialWild[0]?.id || 'wild_1');
+  const [defenderEquipment, setDefenderEquipment] = useState<HeroEquipment | undefined>();
+  const [defenderInfo, setDefenderInfo] = useState({
+    name: 'เซลล์ร่างกายอ่อนแอ (Wild Virions)',
+    family: 'corona',
+    isBoss: false,
+    isOutpost: false,
+    isPlayer: false,
+  });
+
+  const [combatLog, setCombatLog] = useState<string[]>([]);
+  const [showDamageAnim, setShowDamageAnim] = useState<{
+    targetStackId: string;
+    amount: number;
+    casualties: number;
+    isCrit?: boolean;
+    isRetaliation?: boolean;
+  } | null>(null);
 
   const hasInitializedRef = useRef(false);
 
-  // Battle Stats
-  const [attackerStats, setAttackerStats] = useState({ hp: 100, maxHp: 100, atk: 20, agi: 1, dex: 1, name: 'You' });
-  const [defenderStats, setDefenderStats] = useState({ hp: 50, maxHp: 50, atk: 10, name: 'Unclaimed Cell', family: 'parvo' });
-
-  // Load questions from Firestore (same pool as Time Attack)
+  // Load questions from Firestore in background
   useEffect(() => {
     getDoc(doc(db, 'game_content', 'quiz_general')).then((snap) => {
       if (snap.exists() && snap.data().questions?.length > 0) {
@@ -92,65 +121,71 @@ function BattleContent() {
           answer: q.opts ? q.opts[q.ans] : ''
         }));
         setQuestionsBank(shuffle(mapped));
-      } else {
-        setQuestionsBank(shuffle(FALLBACK_QUIZ.map((q) => ({ ...q, choices: shuffle(q.choices) }))));
       }
     }).catch((e) => {
       console.error(e);
-      setQuestionsBank(shuffle(FALLBACK_QUIZ.map((q) => ({ ...q, choices: shuffle(q.choices) }))));
     });
   }, []);
 
-  // Load Data
+  // Initialize Battle Background Data
   useEffect(() => {
-    if (!appUser?.uid || !tileId) return;
+    if (!tileId) return;
     if (hasInitializedRef.current) return;
     hasInitializedRef.current = true;
 
+    // Synchronously cache current sector in localStorage for instant hero persistence
+    if (typeof window !== 'undefined' && tileId) {
+      localStorage.setItem('virusgo_hero_coord', tileId);
+    }
+
     const initBattle = async () => {
       try {
-        // 1. Calculate Attacker Stats with Hard Cap
-        const aStats = appUser.pet?.stats || { str: 1, vit: 1, agi: 1, dex: 1, spentPoints: 0 };
-        const aCombat = getEffectivePetStats(aStats, appUser.exp || 0);
-        setAttackerStats({ 
-          hp: aCombat.maxHp, 
-          maxHp: aCombat.maxHp, 
-          atk: aCombat.atk, 
-          agi: aCombat.agi, 
-          dex: aCombat.dex, 
-          name: appUser.fullname 
-        });
+        const currentUid = appUser?.uid || auth.currentUser?.uid;
+        const petFamily = appUser?.pet?.family || 'parvo';
+        const userArmy = appUser?.pet?.hero || getDefaultHeroArmy(petFamily);
+        const validAttackerStacks = (userArmy.stacks || []).map(s => ({ ...s }));
+        
+        // Ensure at least 1 stack exists
+        if (validAttackerStacks.length === 0) {
+          const starter = getDefaultHeroArmy(petFamily);
+          validAttackerStacks.push(...(starter.stacks || []));
+        }
+
+        setAttackerHero(userArmy);
+        setAttackerStacks(validAttackerStacks);
+        setSelectedAttackerId(validAttackerStacks[0]?.id || 'stack_1');
 
         // Check if user currently has any bases (exempt first base Drop Pod placement from daily limit)
-        const myTilesSnap = await getDocs(query(collection(db, 'empire_tiles'), where('ownerUid', '==', appUser.uid)));
-        const hasExistingBase = !myTilesSnap.empty;
+        const hasExistingBase = Boolean((appUser?.conqueredTiles && appUser.conqueredTiles > 0) || appUser?.pet?.currentTileCoord);
 
-        // Daily Attack Limit Check (Fetch fresh user doc from Firestore to prevent multi-tab abuse)
-        const userRef = doc(db, 'users', appUser.uid);
-        const userSnap = await getDoc(userRef);
-        const freshUserData = userSnap.exists() ? userSnap.data() : appUser;
-        const empireDaily = getDailyEmpireInfo(freshUserData);
+        // Daily Attack Limit Check using real-time auth user state (0 extra network latency!)
+        if (appUser) {
+          const empireDaily = getDailyEmpireInfo(appUser);
+          if (hasExistingBase && !empireDaily.canAttack) {
+            alert(`⛔ คุณใช้โควตาการบุกรุกครบ ${DAILY_EMPIRE_ATTACK_LIMIT} ครั้งสำหรับวันนี้แล้ว! (รีเซ็ตทุกเที่ยงคืน)`);
+            router.push('/student/empire');
+            return;
+          }
 
-        if (hasExistingBase && !empireDaily.canAttack) {
-          alert(`⛔ คุณใช้โควตาการบุกรุกครบ ${DAILY_EMPIRE_ATTACK_LIMIT} ครั้งสำหรับวันนี้แล้ว! (รีเซ็ตทุกเที่ยงคืน)`);
-          router.push('/student/empire');
-          return;
-        }
-
-        // Consume 1 Attack Quota immediately upon entering the battlefield (exempt first base placement)
-        if (hasExistingBase) {
-          const todayDate = getTodayDateString();
-          const isTodayRecord = freshUserData?.dailyEmpireBattles?.date === todayDate;
-          const currentCount = isTodayRecord ? (Number(freshUserData?.dailyEmpireBattles?.count) || 0) : 0;
-          await updateDoc(userRef, {
-            dailyEmpireBattles: {
-              date: todayDate,
-              count: currentCount + 1,
+          if (currentUid) {
+            const userRef = doc(db, 'users', currentUid);
+            const userUpdates: Record<string, any> = {
+              'pet.currentTileCoord': tileId,
+            };
+            if (hasExistingBase) {
+              const todayDate = getTodayDateString();
+              const isTodayRecord = appUser?.dailyEmpireBattles?.date === todayDate;
+              const currentCount = isTodayRecord ? (Number(appUser?.dailyEmpireBattles?.count) || 0) : 0;
+              userUpdates.dailyEmpireBattles = {
+                date: todayDate,
+                count: currentCount + 1,
+              };
             }
-          });
+            updateDoc(userRef, userUpdates).catch(console.error);
+          }
         }
 
-        // 2. Fetch Tile & Defender Stats
+        // 2. Fetch Tile & Setup Defender Army (HoMM 3-Stack) - Single Doc Direct Lookup
         const tileRef = doc(db, 'empire_tiles', tileId);
         const tileSnap = await getDoc(tileRef);
 
@@ -163,7 +198,7 @@ function BattleContent() {
         }
         setTile(currentTile);
 
-        // Security check: Drop Pod (first base) cannot land on outposts or central vault
+        // Security check: Drop Pod (first base) restrictions
         if (!hasExistingBase) {
           const [tx, ty] = (currentTile.id || tileId).split(',').map(Number);
           const isVault = isCentralVaultZone(tx, ty) || currentTile.ownerName?.includes('ผู้พิทักษ์');
@@ -174,97 +209,126 @@ function BattleContent() {
           }
         }
 
-        // Security check: cannot attack shielded tiles
+        // Security check: Shielded tile
         if (isShieldedTile(currentTile)) {
           alert('🛡️ เซกเตอร์นี้ได้รับการคุ้มครองด้วยบาเรียมือใหม่ ไม่สามารถโจมตีได้');
           router.push('/student/empire');
           return;
         }
 
-        if (currentTile.type === 'empty') {
-          setDefenderStats({ hp: 50, maxHp: 50, atk: 15, name: 'เซลล์ร่างกายอ่อนแอ', family: 'corona' });
+        // Setup Defender 3-Stack Armies
+        let defStacks: HeroUnitStack[] = [];
+        let defEquip: HeroEquipment | undefined = currentTile.defenderEquipment;
+        let defName = 'เซลล์สิ่งแวดล้อม';
+        let defFamily = 'corona';
+
+        if (currentTile.defenderStacks && currentTile.defenderStacks.length > 0) {
+          // Use persisted defender stacks if available
+          defStacks = currentTile.defenderStacks.map(s => ({ ...s }));
+          defName = currentTile.ownerName || 'กองทัพพิทักษ์ดินแดน';
+          defFamily = currentTile.ownerFamily || 'parvo';
+        } else if (currentTile.type === 'empty') {
+          defStacks = generateWildDefenderArmy('empty');
+          defName = 'เซลล์ร่างกายอ่อนแอ (Wild Virions)';
+          defFamily = 'corona';
         } else if (currentTile.type === 'outpost' || currentTile.isOutpost) {
-          const outpHp = Math.max(currentTile.bossHp || 800, 800);
-          setDefenderStats({ hp: outpHp, maxHp: outpHp, atk: 35, name: currentTile.ownerName || 'ป้อมฟาร์มวิจัย (Bio-Farm Outpost)', family: 'corona' });
+          defStacks = generateWildDefenderArmy('outpost');
+          defName = currentTile.ownerName || 'ป้อมฟาร์มวิจัย (Bio-Farm Outpost)';
+          defFamily = 'corona';
         } else if (currentTile.type === 'boss') {
-          // Guardian Boss: Increased HP and ATK challenge to prevent one-hit kills
-          const isInnerRing = currentTile.ownerName?.includes('ชั้นใน') || currentTile.ownerName?.includes('Elite');
-          const bossHp = Math.max(currentTile.bossHp || (isInnerRing ? 2000 : 1400), isInnerRing ? 2000 : 1400);
-          const bossAtk = isInnerRing ? 55 : 45;
-          setDefenderStats({ 
-            hp: bossHp, 
-            maxHp: bossHp, 
-            atk: bossAtk, 
-            name: currentTile.ownerName || 'ผู้พิทักษ์สมบัติ', 
-            family: currentTile.ownerFamily || 'rabies' 
-          });
+          const [tx, ty] = (currentTile.id || tileId).split(',').map(Number);
+          const isVault = isCentralVaultZone(tx, ty);
+          defStacks = generateWildDefenderArmy('boss', isVault);
+          defName = currentTile.ownerName || 'บอสผู้พิทักษ์สมบัติ';
+          defFamily = currentTile.ownerFamily || 'rabies';
         } else if (currentTile.type === 'player' && currentTile.ownerUid) {
           const defDoc = await getDoc(doc(db, 'users', currentTile.ownerUid));
           if (defDoc.exists()) {
             const defData = defDoc.data() as User;
-            const dCombat = getEffectivePetStats(defData.pet?.stats, defData.exp || 0);
-            // Territory passive guard ATK is balanced with a cap (max 115 ATK) so new players are not one-shot killed
-            let dAtk = 15 + (dCombat.str * 5);
-            let dHp = dCombat.maxHp;
+            defFamily = defData.pet?.family || currentTile.ownerFamily || 'parvo';
 
-            // Decay system: Inactive bases (>72h) have their defender HP and ATK reduced by 50%
-            const isDecayed = isDecayedTile(currentTile);
-            if (isDecayed) {
-              dHp = Math.max(25, Math.floor(dHp * 0.5));
-              dAtk = Math.max(10, Math.floor(dAtk * 0.5));
-            }
+            // Check if Defender's Hero is stationed on this specific tile
+            const isHeroStationedHere = Boolean(
+              defData.pet?.currentTileCoord === tileId || 
+              currentTile.heroStationedUid === currentTile.ownerUid
+            );
 
-            // Citadel Fortress bonus
-            if (currentTile.isCitadel) {
-              dHp = Math.max(dHp * 2, 2800);
-              dAtk = Math.max(dAtk + 15, 45);
-            }
+            setIsHeroDuel(isHeroStationedHere);
 
-            // Defense Structures bonus (Bio-Wall, Spike Wall, Sentry Tower, Regen Depot)
-            let buildingBonusHp = 0;
-            let buildingBonusAtk = 0;
-            let buildingPrefix = '';
-            if (currentTile.buildingType) {
-              if (currentTile.buildingType === 'spike_wall') {
-                buildingBonusHp = Math.max(currentTile.buildingHp || 3500, 500);
-                buildingBonusAtk = 30;
-                buildingPrefix = '🏰 [กำแพงหนาม Lv.2] ';
-              } else if (currentTile.buildingType === 'sentry_tower') {
-                buildingBonusHp = Math.max(currentTile.buildingHp || 1800, 400);
-                buildingBonusAtk = 45;
-                buildingPrefix = '🏹 [ป้อมยิงโจมตี] ';
-              } else if (currentTile.buildingType === 'regen_depot') {
-                buildingBonusHp = Math.max(currentTile.buildingHp || 1200, 300);
-                buildingBonusAtk = 10;
-                buildingPrefix = '💚 [สถานีฟื้นฟู] ';
+            if (isHeroStationedHere) {
+              // ── 1. HERO DUEL: Direct Clash with Enemy Virus Pet Hero! ──
+              defName = `👑 จอมทัพ ${defData.fullname || 'Defender'} (${defData.pet?.nickname || defData.pet?.virusName || 'Hero'})`;
+              
+              if (defData.pet?.hero?.stacks && defData.pet.hero.stacks.length > 0) {
+                defStacks = defData.pet.hero.stacks.map(s => ({ ...s }));
+                defEquip = defData.pet.hero.equipment;
               } else {
-                buildingBonusHp = Math.max(currentTile.buildingHp || 1500, 350);
-                buildingBonusAtk = 15;
-                buildingPrefix = '🛡️ [กำแพงชีวภาพ] ';
+                defStacks = getDefaultHeroArmy(defFamily).stacks || [];
+              }
+            } else {
+              // ── 2. GARRISON SIEGE: Garrison Troops on a normal sector ──
+              defName = `🛡️ กองรักษาการ [${currentTile.ownerName || defData.fullname || 'Defender'}]`;
+              defEquip = undefined; // No Hero artifacts on unmanned territory!
+
+              if (currentTile.defenderStacks && currentTile.defenderStacks.length > 0) {
+                defStacks = currentTile.defenderStacks.map(s => ({ ...s }));
+              } else {
+                // Default garrison virions
+                defStacks = [
+                  {
+                    id: 'garrison_1',
+                    virusId: 'garrison',
+                    tier: 1,
+                    virusName: `${currentTile.ownerFamily || 'Parvo'} Virions เฝ้าป้อม`,
+                    family: (currentTile.ownerFamily as any) || 'parvo',
+                    count: 60,
+                    baseHp: 35,
+                    baseAtk: 18,
+                  }
+                ];
+              }
+
+              // Apply fortification bonuses from defense structures if present
+              if (currentTile.buildingType === 'bio_wall') {
+                defStacks = defStacks.map(s => ({ ...s, baseHp: Math.round(s.baseHp * 1.5) }));
+                defName += ' 🧱 (กำแพงชีวภาพ +50% HP)';
+              } else if (currentTile.buildingType === 'sentry_tower') {
+                defStacks = defStacks.map(s => ({ ...s, baseAtk: Math.round(s.baseAtk * 1.3) }));
+                defName += ' 🏹 (ป้อมตรวจการณ์ +30% ATK)';
               }
             }
 
-            dHp += buildingBonusHp;
-            dAtk += buildingBonusAtk;
-
-            // Persistent Siege Damage: If sector was previously attacked by someone and not fully repaired/reset
-            const maxCalculatedHp = dHp;
-            let currentPersistentHp = maxCalculatedHp;
-            if (typeof currentTile.currentDefenderHp === 'number' && currentTile.currentDefenderHp > 0) {
-              currentPersistentHp = Math.min(maxCalculatedHp, currentTile.currentDefenderHp);
+            // Inactive base decay (-50% virion counts if inactive >72h)
+            if (isDecayedTile(currentTile)) {
+              defStacks = defStacks.map(s => ({
+                ...s,
+                count: Math.max(1, Math.floor(s.count * 0.5)),
+              }));
+              defName += ' ⚠️ (ฐานรกร้าง)';
             }
-
-            const citadelPrefix = currentTile.isCitadel ? `🏛️ นครหลวงกิลด์ [${currentTile.guildName || 'CITADEL'}] - ` : '';
-            const damagedPrefix = currentPersistentHp < maxCalculatedHp ? `💥 [เสียหายเหลือ ${Math.round((currentPersistentHp / maxCalculatedHp) * 100)}%] ` : '';
-            setDefenderStats({
-              hp: currentPersistentHp,
-              maxHp: maxCalculatedHp,
-              atk: dAtk,
-              name: `${citadelPrefix}${damagedPrefix}${buildingPrefix}${defData.fullname || 'Defender'}${isDecayed ? ' ⚠️ (ฐานรกร้าง -50% HP)' : ''}`,
-              family: defData.pet?.family || 'parvo'
-            });
+          } else {
+            defStacks = getDefaultHeroArmy('parvo').stacks || [];
           }
         }
+
+        setDefenderStacks(defStacks);
+        setSelectedDefenderId(defStacks[0]?.id || 'wild_1');
+        setDefenderEquipment(defEquip);
+        setDefenderInfo({
+          name: defName,
+          family: defFamily,
+          isBoss: currentTile.type === 'boss',
+          isOutpost: Boolean(currentTile.type === 'outpost' || currentTile.isOutpost),
+          isPlayer: currentTile.type === 'player',
+        });
+
+        // Initialize question timer with Polymerase scroll equipment bonus
+        const timerBonus = attackerHero.equipment?.scroll === 'polymerase_scroll' 
+          ? (BIO_ARTIFACTS.polymerase_scroll.timerBonusSec || 4) 
+          : 0;
+        const aCombat = getEffectivePetStats(appUser?.pet?.stats, appUser?.exp || 0);
+        setTimeLeft(15 + (aCombat.agi * 2) + timerBonus);
+
       } catch (e) {
         console.error('initBattle error:', e);
       } finally {
@@ -276,15 +340,17 @@ function BattleContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appUser?.uid, tileId]);
 
-  // Timer
+  // Timer loop
   useEffect(() => {
     if (gameState !== 'playing' || loading) return;
-    
+
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          handleWrongAnswer();
-          return 15 + (attackerStats.agi * 2); // Reset time with AGI bonus
+          handleWrongAnswer('หมดเวลา!');
+          const aCombat = getEffectivePetStats(appUser?.pet?.stats, appUser?.exp || 0);
+          const scrollBonus = attackerHero.equipment?.scroll === 'polymerase_scroll' ? 4 : 0;
+          return 15 + (aCombat.agi * 2) + scrollBonus;
         }
         return prev - 1;
       });
@@ -292,75 +358,183 @@ function BattleContent() {
 
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQIndex, gameState, loading, attackerStats.agi]);
+  }, [currentQIndex, gameState, loading, attackerHero.equipment]);
 
-  const handleWrongAnswer = () => {
+  // Turn Resolution: Handle Wrong Answer / Timeout
+  const handleWrongAnswer = (reason = 'ตอบผิด!') => {
     sfx.wrong();
-    const dmg = defenderStats.atk;
-    setShowDamage({ target: 'attacker', amount: dmg, isCrit: false });
-    
-    // Screen flash
+
+    // Select active attacker and defender stacks
+    const activeAttacker = attackerStacks.find(s => s.id === selectedAttackerId && s.count > 0) || attackerStacks.find(s => s.count > 0);
+    const activeDefender = defenderStacks.find(s => s.id === selectedDefenderId && s.count > 0) || defenderStacks.find(s => s.count > 0);
+
+    if (!activeAttacker || !activeDefender) return;
+
+    // Enemy free attack: Deals regular damage to active attacker stack
+    const enemyDmg = calculateAttackDamage(activeDefender, 1, false, defenderEquipment);
+    const atkResult = applyDamageToStack(activeAttacker, enemyDmg, attackerHero.equipment);
+
+    // Visual feedback
     setIsHit(true);
     setTimeout(() => setIsHit(false), 300);
-    
-    setAttackerStats(prev => {
-      const newHp = Math.max(0, prev.hp - dmg);
-      if (newHp === 0) {
-        setGameState('lost');
-        if (appUser?.uid && appUser.pet) {
-          updateDoc(doc(db, 'users', appUser.uid), {
-            'pet.isInjured': true,
-            'pet.currentHp': 0,
-            'pet.maxHp': prev.maxHp,
-          }).catch(console.error);
-        }
 
-        // Persistent Siege Damage: Save remaining defender HP so comrades can finish off the weakened sector!
-        if (tile?.id) {
-          updateDoc(doc(db, 'empire_tiles', tile.id), {
-            currentDefenderHp: defenderStats.hp,
-            maxDefenderHp: defenderStats.maxHp,
-            buildingHp: tile.buildingType ? Math.min(tile.buildingHp || defenderStats.maxHp, defenderStats.hp) : undefined,
-            lastAttacked: new Date().toISOString(),
-            lastAttackedBy: appUser?.uid,
-            lastAttackedByName: appUser?.fullname || 'Attacker',
-          }).catch(console.error);
-        }
-      }
-      return { ...prev, hp: newHp };
+    setShowDamageAnim({
+      targetStackId: activeAttacker.id,
+      amount: enemyDmg,
+      casualties: atkResult.casualties,
+      isRetaliation: true,
     });
-    
-    nextQuestion();
+
+    const newLog = `❌ ${reason} ${activeDefender.virusName} โจมตีกองทัพของคุณฟรี สร้างความเสียหาย ${enemyDmg} (-${atkResult.casualties} อนุภาค)!`;
+    setCombatLog(prev => [newLog, ...prev.slice(0, 2)]);
+
+    // Update attacker stacks
+    const nextAttackerStacks = attackerStacks.map(s => {
+      if (s.id === activeAttacker.id) {
+        return { ...s, count: atkResult.remainingCount };
+      }
+      return s;
+    });
+    setAttackerStacks(nextAttackerStacks);
+
+    // Check Defeat condition
+    const isWipedOut = nextAttackerStacks.every(s => s.count <= 0);
+    if (isWipedOut) {
+      handleDefeat(nextAttackerStacks);
+    } else {
+      // Re-target to next living stack if current died
+      if (atkResult.remainingCount <= 0) {
+        const nextLiving = nextAttackerStacks.find(s => s.count > 0);
+        if (nextLiving) setSelectedAttackerId(nextLiving.id);
+      }
+      nextQuestion();
+    }
   };
 
+  // Turn Resolution: Handle Correct Answer (Attack + HoMM Retaliation)
   const handleCorrectAnswer = () => {
     sfx.correct();
+
+    const activeAttacker = attackerStacks.find(s => s.id === selectedAttackerId && s.count > 0) || attackerStacks.find(s => s.count > 0);
+    const activeDefender = defenderStacks.find(s => s.id === selectedDefenderId && s.count > 0) || defenderStacks.find(s => s.count > 0);
+
+    if (!activeAttacker || !activeDefender) return;
+
+    // 1. Calculate Forward Damage (Knowledge-boosted attack)
+    const aCombat = getEffectivePetStats(appUser?.pet?.stats, appUser?.exp || 0);
+    const isCrit = Math.random() < (aCombat.dex * 0.05);
+    const forwardDmg = calculateAttackDamage(activeAttacker, aCombat.str, isCrit, attackerHero.equipment);
     
-    // Critical calculation (DEX * 5% chance)
-    const isCrit = Math.random() < (attackerStats.dex * 0.05);
-    const dmg = isCrit ? attackerStats.atk * 2 : attackerStats.atk;
-    
-    setShowDamage({ target: 'defender', amount: dmg, isCrit });
-    
-    setDefenderStats(prev => {
-      const newHp = Math.max(0, prev.hp - dmg);
-      if (newHp === 0) {
-        setGameState('won');
-        claimTile();
+    // Apply damage to defender stack
+    const defResult = applyDamageToStack(activeDefender, forwardDmg, defenderEquipment);
+
+    // 2. HoMM Auto-Retaliation (If defender survivors remain)
+    let retaliationDmg = 0;
+    let atkCasualties = 0;
+    let nextAttackerCount = activeAttacker.count;
+
+    if (defResult.remainingCount > 0) {
+      // Surviving virions retaliate immediately!
+      const survivingDefender = { ...activeDefender, count: defResult.remainingCount };
+      retaliationDmg = calculateRetaliationDamage(survivingDefender, attackerHero.equipment);
+      const atkResult = applyDamageToStack(activeAttacker, retaliationDmg, attackerHero.equipment);
+      atkCasualties = atkResult.casualties;
+      nextAttackerCount = atkResult.remainingCount;
+      
+      if (atkCasualties > 0) {
+        setIsHit(true);
+        setTimeout(() => setIsHit(false), 300);
       }
-      return { ...prev, hp: newHp };
+    }
+
+    // Display damage animations
+    setShowDamageAnim({
+      targetStackId: activeDefender.id,
+      amount: forwardDmg,
+      casualties: defResult.casualties,
+      isCrit,
     });
-    
-    nextQuestion();
+
+    // Update Logs
+    let logMsg = `⚔️ ${activeAttacker.virusName} โจมตี ${activeDefender.virusName} ${forwardDmg} DMG (-${defResult.casualties} อนุภาค)${isCrit ? ' [CRIT!]' : ''}`;
+    if (retaliationDmg > 0) {
+      logMsg += ` | ศัตรูสวนกลับ (-${atkCasualties} อนุภาค)!`;
+    } else {
+      logMsg += ` | ศัตรูถูกทำลายสิ้นซาก!`;
+    }
+    setCombatLog(prev => [logMsg, ...prev.slice(0, 2)]);
+
+    // Update Defender stacks
+    const nextDefenderStacks = defenderStacks.map(s => {
+      if (s.id === activeDefender.id) {
+        return { ...s, count: defResult.remainingCount };
+      }
+      return s;
+    });
+    setDefenderStacks(nextDefenderStacks);
+
+    // Update Attacker stacks
+    const nextAttackerStacks = attackerStacks.map(s => {
+      if (s.id === activeAttacker.id) {
+        return { ...s, count: nextAttackerCount };
+      }
+      return s;
+    });
+    setAttackerStacks(nextAttackerStacks);
+
+    // 3. Check Victory / Defeat Conditions
+    const allDefendersDead = nextDefenderStacks.every(s => s.count <= 0);
+    const allAttackersDead = nextAttackerStacks.every(s => s.count <= 0);
+
+    if (allDefendersDead) {
+      setGameState('won');
+      claimTile(nextAttackerStacks);
+    } else if (allAttackersDead) {
+      handleDefeat(nextAttackerStacks);
+    } else {
+      // Re-target if current target was destroyed
+      if (defResult.remainingCount <= 0) {
+        const nextLivingDef = nextDefenderStacks.find(s => s.count > 0);
+        if (nextLivingDef) setSelectedDefenderId(nextLivingDef.id);
+      }
+      if (nextAttackerCount <= 0) {
+        const nextLivingAtk = nextAttackerStacks.find(s => s.count > 0);
+        if (nextLivingAtk) setSelectedAttackerId(nextLivingAtk.id);
+      }
+      nextQuestion();
+    }
+  };
+
+  const handleDefeat = (remainingAttackerStacks: HeroUnitStack[]) => {
+    setGameState('lost');
+    if (appUser?.uid && appUser.pet) {
+      updateDoc(doc(db, 'users', appUser.uid), {
+        'pet.isInjured': true,
+        'pet.currentHp': 0,
+        'pet.hero.stacks': remainingAttackerStacks,
+      }).catch(console.error);
+    }
+
+    // Persist remaining defender stacks on tile for persistent siege damage
+    if (tile?.id) {
+      updateDoc(doc(db, 'empire_tiles', tile.id), {
+        defenderStacks: defenderStacks,
+        lastAttacked: new Date().toISOString(),
+        lastAttackedBy: appUser?.uid,
+        lastAttackedByName: appUser?.fullname || 'Attacker',
+      }).catch(console.error);
+    }
   };
 
   const nextQuestion = () => {
     const pool = questionsBank;
     setTimeout(() => {
-      setShowDamage(null);
+      setShowDamageAnim(null);
       setCurrentQIndex(Math.floor(Math.random() * pool.length));
-      setTimeLeft(15 + (attackerStats.agi * 2));
-    }, 1000);
+      const aCombat = getEffectivePetStats(appUser?.pet?.stats, appUser?.exp || 0);
+      const scrollBonus = attackerHero.equipment?.scroll === 'polymerase_scroll' ? 4 : 0;
+      setTimeLeft(15 + (aCombat.agi * 2) + scrollBonus);
+    }, 1200);
   };
 
   const handleAnswer = (choice: string) => {
@@ -371,23 +545,29 @@ function BattleContent() {
     if (isCorrect) {
       handleCorrectAnswer();
     } else {
-      handleWrongAnswer();
+      handleWrongAnswer('ตอบไม่ถูกต้อง!');
     }
   };
 
-  const claimTile = async () => {
+  const claimTile = async (survivingTroops: HeroUnitStack[]) => {
     if (!tile || !appUser) return;
     const tileRef = doc(db, 'empire_tiles', tile.id);
-    
+
     const isOutpostTile = tile.type === 'outpost' || tile.isOutpost;
     const todayDate = new Date().toISOString().split('T')[0];
     const nowIso = new Date().toISOString();
 
-    // Check if player had 0 bases before this claim (First Base / Drop Pod placement)
     const isFirstBase = !appUser.conqueredTiles || appUser.conqueredTiles <= 0;
     if (isFirstBase) {
       setIsFirstBaseClaimed(true);
     }
+
+    // Establish new garrison on the conquered tile (HoMM Garrisons)
+    const garrisonArmy: HeroUnitStack[] = survivingTroops.map((s, idx) => ({
+      ...s,
+      id: `garrison_${idx + 1}`,
+      count: Math.max(1, Math.floor(s.count * 0.3)), // Station 30% of surviving units as defensive guard
+    }));
 
     const updatedTile: Record<string, any> = {
       ...tile,
@@ -396,13 +576,15 @@ function BattleContent() {
       ownerName: appUser.fullname,
       ownerFamily: appUser.pet?.family || 'parvo',
       color: familyToColor(appUser.pet?.family || 'default'),
+      defenderStacks: garrisonArmy,
+      defenderEquipment: attackerHero.equipment,
+      heroStationedUid: appUser.uid, // Attacker's Hero is now stationed here!
       lastAttacked: nowIso,
-      lastActive: nowIso, // Upkeep tracking
+      lastActive: nowIso,
     };
 
     if (isFirstBase) {
       updatedTile.isCapital = true;
-      // 48-Hour Beginner Shield protection
       updatedTile.shieldUntil = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
     }
 
@@ -418,39 +600,34 @@ function BattleContent() {
       updatedTile.guildName = appUser.guildName;
     }
 
-    // Reset conquered defense structures and persistent HP for new owner
+    // Reset old siege damage keys
     delete updatedTile.buildingType;
     delete updatedTile.buildingName;
     delete updatedTile.buildingHp;
     delete updatedTile.maxBuildingHp;
-    delete updatedTile.buildingLevel;
-    delete updatedTile.builtBy;
-    delete updatedTile.builtByName;
     delete updatedTile.currentDefenderHp;
     delete updatedTile.maxDefenderHp;
     delete updatedTile.lastAttackedBy;
     delete updatedTile.lastAttackedByName;
 
-    // Safety: remove all keys with undefined value to prevent Firestore setDoc error
     Object.keys(updatedTile).forEach((key) => {
       if (updatedTile[key] === undefined) {
         delete updatedTile[key];
       }
     });
-    
+
     await setDoc(tileRef, updatedTile);
 
-    // Give balanced EXP reward
+    // Calculate EXP rewards
     let expReward = 15;
     if (tile.isCitadel) {
-      expReward = 120; // Massive EXP reward for conquering an enemy Guild Citadel!
+      expReward = 120;
       if (tile.guildId) {
         try {
           const gDoc = await getDoc(doc(db, 'guilds', tile.guildId));
           if (gDoc.exists()) {
             const gData = gDoc.data() as Guild;
             const cList = gData.citadelCoords || (gData.citadelCoord ? [gData.citadelCoord] : []);
-            // Clear isCitadel flag on all citadel tiles of this defeated guild
             const clearPromises = cList.map((cid: string) =>
               updateDoc(doc(db, 'empire_tiles', cid), { isCitadel: false }).catch(() => {})
             );
@@ -466,256 +643,435 @@ function BattleContent() {
       }
       updatedTile.isCitadel = false;
     } else if (isOutpostTile) {
-      expReward = 100; // Outpost captured bonus!
+      expReward = 100;
     } else if (tile.type === 'boss') {
-      expReward = 35; // บอสผู้พิทักษ์: 35 EXP
+      expReward = 35;
     } else if (tile.type === 'player') {
-      expReward = 30;
+      // 65 EXP for defeating a Hero Commander in a duel, 25 EXP for Garrison siege!
+      expReward = isHeroDuel ? 65 : 25;
     }
 
-    const finalEarnedExp = expReward;
     setAwardedExp(expReward);
 
+    // Persist user army survival, hero new location & EXP reward in 1 atomic write
     const userRef = doc(db, 'users', appUser.uid);
     await updateDoc(userRef, {
       exp: increment(expReward),
-      conqueredTiles: increment(1)
+      conqueredTiles: increment(1),
+      'pet.hero.stacks': survivingTroops,
+      'pet.currentTileCoord': tile.id,
     });
 
-    // If tile was previously owned by another student, decrement their conqueredTiles
-    if (tile.type === 'player' && tile.ownerUid && tile.ownerUid !== appUser.uid) {
-      updateDoc(doc(db, 'users', tile.ownerUid), {
-        conqueredTiles: increment(-1)
-      }).catch(console.error);
+    if (typeof window !== 'undefined' && tile.id) {
+      localStorage.setItem('virusgo_hero_coord', tile.id);
     }
 
-    // Log match history
+    // If tile was previously owned by another student
+    if (tile.type === 'player' && tile.ownerUid && tile.ownerUid !== appUser.uid) {
+      const defUid = tile.ownerUid;
+      if (isHeroDuel) {
+        // Hero Duel Victory: Enemy Hero is severely wounded and retreats to Capital HQ!
+        updateDoc(doc(db, 'users', defUid), {
+          conqueredTiles: increment(-1),
+          'pet.isInjured': true,
+          'pet.currentHp': 0,
+          'pet.currentTileCoord': '25,25',
+        }).catch(console.error);
+      } else {
+        // Regular Garrison Siege: Defender only loses this tile, their hero is safe elsewhere!
+        updateDoc(doc(db, 'users', defUid), {
+          conqueredTiles: increment(-1),
+        }).catch(console.error);
+      }
+    }
+
+    // Match history
     try {
       const { addDoc, collection: col } = await import('firebase/firestore');
       await addDoc(col(db, 'users', appUser.uid, 'history'), {
         gameId: 'empire-battle',
-        gameName: `Empire: ${tile.type === 'boss' ? 'บอสผู้พิทักษ์' : isOutpostTile ? 'ยึดป้อมวิจัย' : 'ยึดครองดินแดน'} (${tile.id})`,
-        score: finalEarnedExp,
-        expEarned: finalEarnedExp,
+        gameName: isHeroDuel 
+          ? `⚔️ HoMM Hero Duel: พิชิตจอมทัพ ${defenderInfo.name} (${tile.id})`
+          : `🏰 HoMM Siege: ยึดครองเซกเตอร์ (${tile.id})`,
+        score: expReward,
+        expEarned: expReward,
         playedAt: new Date().toISOString()
       });
     } catch (e) {
       console.error('Failed to log empire battle history:', e);
     }
 
-    // Update Guild totalTiles in real time
     if (appUser.guildId) {
       updateDoc(doc(db, 'guilds', appUser.guildId), {
         totalTiles: increment(1)
       }).catch(console.error);
     }
-    if (tile.guildId && tile.guildId !== appUser.guildId) {
-      updateDoc(doc(db, 'guilds', tile.guildId), {
-        totalTiles: increment(-1)
-      }).catch(console.error);
-    }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-cyan-500"/></div>;
-  if (!tileId) return <div>No tile selected</div>;
+
+
+  if (!tileId) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 font-mono text-sm">ไม่พบพิกัดสมรภูมิที่ระบุ</div>;
 
   const currentQ = questionsBank[currentQIndex % questionsBank.length];
 
   return (
     <div className={`min-h-screen bg-slate-950 flex flex-col relative overflow-hidden transition-colors duration-100 ${isHit ? 'bg-red-950/80' : ''}`}>
       {isHit && <div className="absolute inset-0 bg-red-500/20 z-50 pointer-events-none mix-blend-overlay" />}
-      {/* Header */}
-      <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-slate-900 to-transparent z-10 flex justify-between items-center px-8">
+
+      {/* Header Bar */}
+      <div className="absolute top-0 inset-x-0 h-20 bg-gradient-to-b from-slate-900 to-transparent z-10 flex justify-between items-center px-4 sm:px-8 border-b border-slate-800/40">
         <Link href="/student/empire">
-          <Button variant="secondary" className="font-bold">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Retreat
+          <Button variant="secondary" className="font-bold text-xs sm:text-sm">
+            <ArrowLeft className="w-4 h-4 mr-1.5" /> ถอยทัพ (Retreat)
           </Button>
         </Link>
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setIs3DMode(!is3DMode)}
-            className="text-xs font-mono tracking-wider px-3 py-1.5 rounded-xl border border-cyan-500/40 bg-slate-900/80 text-cyan-300 hover:bg-cyan-950/60 hover:text-white transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+            className="text-xs font-mono tracking-wider px-3 py-1.5 rounded-xl border border-cyan-500/40 bg-slate-900/80 text-cyan-300 hover:bg-cyan-950/60 transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(6,182,212,0.2)]"
           >
             <Box className="w-3.5 h-3.5 text-cyan-400" />
             {is3DMode ? '3D ARENA' : '2D ARENA'}
           </button>
-          <div className="text-xl font-black text-white uppercase tracking-widest text-glow flex items-center gap-2">
-            <Swords className="text-cyan-400" /> Sector RAID
-          </div>
+          {isHeroDuel ? (
+            <div className="text-xs sm:text-sm font-black text-amber-300 uppercase tracking-widest flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-950/80 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)] animate-pulse">
+              <Crown className="text-amber-400 w-4 h-4" /> HERO DUEL (ดวลจอมทัพ)
+            </div>
+          ) : tile?.type === 'player' ? (
+            <div className="text-xs sm:text-sm font-black text-cyan-300 uppercase tracking-widest flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-cyan-500/40">
+              <Shield className="text-cyan-400 w-4 h-4" /> GARRISON SIEGE (ตีกองรักษาการ)
+            </div>
+          ) : tile?.type === 'boss' ? (
+            <div className="text-xs sm:text-sm font-black text-rose-300 uppercase tracking-widest flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-950/80 border border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.3)]">
+              <Swords className="text-rose-400 w-4 h-4" /> BOSS RAID
+            </div>
+          ) : (
+            <div className="text-xs sm:text-sm font-black text-white uppercase tracking-widest text-glow flex items-center gap-1.5">
+              <Swords className="text-cyan-400 w-4 h-4 sm:w-5 sm:h-5" /> TACTICAL BATTLE
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Battle Arena */}
-      <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-8 md:gap-20 p-8 pt-24 z-10">
+      {/* Battle Arena Field (HoMM 3-Stack Armies) */}
+      <div className="flex-1 flex flex-col lg:flex-row items-center justify-between gap-6 p-4 sm:p-6 pt-24 z-10 max-w-7xl mx-auto w-full">
         
-        {/* Attacker */}
-        <motion.div 
-          className="flex flex-col items-center"
-          animate={isHit ? { x: [-10, 10, -10, 10, 0] } : {}}
-          transition={{ duration: 0.4 }}
-        >
-          <div className="text-xl font-black text-cyan-400 mb-2 tracking-widest">{attackerStats.name}</div>
-          <div className="relative w-36 h-36 md:w-52 md:h-52 flex items-center justify-center">
-            {is3DMode ? (
-              <VirusViewer3D 
-                type={familyToVirusType(appUser?.pet?.family || 'parvo')} 
-                color={isHit ? '#ef4444' : '#06b6d4'}
-                isSick={isHit}
-                interactive={false}
-              />
-            ) : (
-              <SVGVirus type={appUser?.pet?.family as any || 'parvo'} className={`w-32 h-32 md:w-48 md:h-48 drop-shadow-[0_0_15px_rgba(6,182,212,0.5)] ${isHit ? 'text-red-500' : 'text-cyan-500'}`} />
-            )}
-            <AnimatePresence>
-              {showDamage?.target === 'attacker' && (
-                <motion.div initial={{ opacity: 0, y: 0, scale: 0.5 }} animate={{ opacity: 1, y: -50, scale: 1.5 }} exit={{ opacity: 0 }} className="absolute -top-10 left-1/2 -translate-x-1/2 text-5xl font-black text-red-500 drop-shadow-[0_0_10px_rgba(255,0,0,0.8)] z-50">
-                  -{showDamage.amount}
-                </motion.div>
+        {/* Attacker Hero & 3 Stacks (Player Left Side) */}
+        <div className="w-full lg:w-[45%] flex flex-col items-center">
+          {/* Hero Avatar & Equipment Badges */}
+          <div className="flex items-center gap-4 mb-3 w-full justify-center">
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0">
+              {is3DMode ? (
+                <VirusViewer3D 
+                  type={familyToVirusType(appUser?.pet?.family || 'parvo')} 
+                  color={isHit ? '#ef4444' : '#06b6d4'}
+                  isSick={isHit}
+                  interactive={false}
+                />
+              ) : (
+                <SVGVirus type={appUser?.pet?.family as any || 'parvo'} className={`w-full h-full drop-shadow-[0_0_15px_rgba(6,182,212,0.5)] ${isHit ? 'text-red-500' : 'text-cyan-400'}`} />
               )}
-            </AnimatePresence>
-          </div>
-          <div className="mt-4 w-48 md:w-64">
-            <div className="flex justify-between text-xs font-bold text-slate-400 mb-1">
-              <span>HP</span>
-              <motion.span 
-                animate={isHit ? { color: ['#ef4444', '#94a3b8'] } : {}}
-              >
-                {attackerStats.hp} / {attackerStats.maxHp}
-              </motion.span>
             </div>
-            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-              <motion.div className="h-full bg-cyan-500" animate={{ width: `${(attackerStats.hp / attackerStats.maxHp) * 100}%`, backgroundColor: isHit ? '#ef4444' : '#06b6d4' }} transition={{ duration: 0.3 }} />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <Crown className="w-4 h-4 text-amber-400" />
+                <span className="text-sm font-black text-cyan-300 uppercase tracking-wider">{appUser?.fullname || 'You'}</span>
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono">HERO COMMANDER</div>
+              {/* Equipped Artifacts mini bar */}
+              <div className="flex items-center gap-1.5 mt-1">
+                {Object.entries(attackerHero.equipment || {}).map(([slot, itemId]) => {
+                  const item = BIO_ARTIFACTS[itemId];
+                  if (!item) return null;
+                  return (
+                    <span key={slot} title={`${item.name} (${item.bonusText})`} className="w-6 h-6 rounded-lg bg-amber-950/60 border border-amber-500/40 text-xs flex items-center justify-center cursor-help">
+                      {item.icon}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </motion.div>
 
-        <div className="text-4xl font-black text-slate-700 italic">VS</div>
+          {/* Attacker 3 Army Stacks Cards */}
+          <div className="w-full space-y-2">
+            <div className="text-[11px] font-black uppercase tracking-wider text-cyan-400 flex items-center justify-between px-1">
+              <span>กองกำลังฮีโร่ (คลิกเลือกออกคำสั่ง):</span>
+              <span className="font-mono text-[10px] text-slate-400">
+                {attackerStacks.reduce((acc, s) => acc + s.count, 0)} virions รวม
+              </span>
+            </div>
 
-        {/* Defender */}
-        <div className="flex flex-col items-center">
-          <div className="text-xl font-black text-red-400 mb-2 tracking-widest">{defenderStats.name}</div>
-          <div className="relative w-36 h-36 md:w-52 md:h-52 flex items-center justify-center">
-            {is3DMode ? (
-              <VirusViewer3D 
-                type={familyToVirusType(defenderStats.family || 'corona')} 
-                color="#ef4444"
-                isSick={false}
-                interactive={false}
-              />
-            ) : (
-              <SVGVirus type={defenderStats.family as any} className="w-32 h-32 md:w-48 md:h-48 text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
-            )}
-            <AnimatePresence>
-              {showDamage?.target === 'defender' && (
-                <motion.div initial={{ opacity: 0, y: 0, scale: 0.5 }} animate={{ opacity: 1, y: -50, scale: 1.5 }} exit={{ opacity: 0 }} className={`absolute -top-10 left-1/2 -translate-x-1/2 text-4xl font-black z-50 drop-shadow-lg ${showDamage.isCrit ? 'text-yellow-400 scale-150' : 'text-white'}`}>
-                  {showDamage.isCrit && "CRIT! "}-{showDamage.amount}
-                </motion.div>
+            {attackerStacks.map((stack) => {
+              const isSelected = selectedAttackerId === stack.id;
+              const isDead = stack.count <= 0;
+              const totalStackHp = stack.count * stack.baseHp;
+              const totalStackAtk = stack.count * stack.baseAtk;
+
+              return (
+                <div
+                  key={stack.id}
+                  onClick={() => !isDead && setSelectedAttackerId(stack.id)}
+                  className={`p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex items-center justify-between ${
+                    isDead
+                      ? 'bg-slate-950/40 border-slate-900 opacity-40 cursor-not-allowed'
+                      : isSelected
+                      ? 'bg-cyan-950/40 border-cyan-400 ring-2 ring-cyan-400/50 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
+                      : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center p-1 shrink-0">
+                      <SVGVirus type={familyToVirusType(stack.family)} className="w-full h-full" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-xs text-white">{stack.virusName}</span>
+                        {isSelected && !isDead && (
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-cyan-500 text-slate-950">
+                            ⚔️ ACTIVE
+                          </span>
+                        )}
+                        {isDead && (
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-red-950 text-red-400 border border-red-800">
+                            💀 สูญสิ้น
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-2 mt-0.5">
+                        <span className="text-red-300">HP: {totalStackHp.toLocaleString()}</span>
+                        <span className="text-orange-300">ATK: {totalStackAtk.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stack Virion Count Badge */}
+                  <div className="text-right">
+                    <span className="text-lg font-black font-mono text-cyan-300">
+                      {stack.count.toLocaleString()}
+                    </span>
+                    <span className="block text-[9px] font-mono text-slate-400">อนุภาค</span>
+                  </div>
+
+                  {/* Floating Damage Animation for this stack */}
+                  <AnimatePresence>
+                    {showDamageAnim?.targetStackId === stack.id && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 0, scale: 0.6 }}
+                        animate={{ opacity: 1, y: -30, scale: 1.2 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-red-950/80 flex items-center justify-center text-red-400 font-black text-sm z-20 pointer-events-none"
+                      >
+                        ⚔️ -{showDamageAnim.casualties} อนุภาค (-{showDamageAnim.amount} HP)
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Center VS Indicator & Action Log */}
+        <div className="w-full lg:w-[10%] flex flex-col items-center justify-center my-2 lg:my-0">
+          <div className="text-2xl font-black text-slate-700 italic tracking-widest">VS</div>
+          {combatLog.length > 0 && (
+            <div className="w-full max-w-sm mt-2 p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-[10px] font-mono text-slate-300 space-y-1 text-center">
+              <div className="text-cyan-400 font-bold truncate">{combatLog[0]}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Defender Hero & 3 Stacks (Enemy Right Side) */}
+        <div className="w-full lg:w-[45%] flex flex-col items-center">
+          {/* Enemy Hero Info */}
+          <div className="flex items-center gap-4 mb-3 w-full justify-center">
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0">
+              {is3DMode ? (
+                <VirusViewer3D 
+                  type={familyToVirusType(defenderInfo.family || 'corona')} 
+                  color="#ef4444"
+                  isSick={false}
+                  interactive={false}
+                />
+              ) : (
+                <SVGVirus type={defenderInfo.family as any || 'corona'} className="w-full h-full text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
               )}
-            </AnimatePresence>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <ShieldAlert className="w-4 h-4 text-red-400" />
+                <span className="text-sm font-black text-red-400 uppercase tracking-wider">{defenderInfo.name}</span>
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono">
+                {defenderInfo.isBoss ? 'GUARDIAN BOSS' : defenderInfo.isOutpost ? 'BIO-OUTPOST GARRISON' : 'TERRITORY DEFENDER'}
+              </div>
+            </div>
           </div>
-          <div className="mt-4 w-48 md:w-64">
-            <div className="flex justify-between text-xs font-bold text-slate-400 mb-1">
-              <span>HP</span>
-              <span>{defenderStats.hp} / {defenderStats.maxHp}</span>
+
+          {/* Defender 3 Army Stacks Cards */}
+          <div className="w-full space-y-2">
+            <div className="text-[11px] font-black uppercase tracking-wider text-red-400 flex items-center justify-between px-1">
+              <span>กองกำลังศัตรู (คลิกเลือกเป้าหมาย):</span>
+              <span className="font-mono text-[10px] text-slate-400">
+                {defenderStacks.reduce((acc, s) => acc + s.count, 0)} virions รวม
+              </span>
             </div>
-            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-              <motion.div className="h-full bg-red-500" animate={{ width: `${(defenderStats.hp / defenderStats.maxHp) * 100}%` }} transition={{ duration: 0.3 }} />
-            </div>
+
+            {defenderStacks.map((stack) => {
+              const isSelected = selectedDefenderId === stack.id;
+              const isDead = stack.count <= 0;
+              const totalStackHp = stack.count * stack.baseHp;
+              const totalStackAtk = stack.count * stack.baseAtk;
+
+              return (
+                <div
+                  key={stack.id}
+                  onClick={() => !isDead && setSelectedDefenderId(stack.id)}
+                  className={`p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex items-center justify-between ${
+                    isDead
+                      ? 'bg-slate-950/40 border-slate-900 opacity-40 cursor-not-allowed'
+                      : isSelected
+                      ? 'bg-red-950/40 border-red-500 ring-2 ring-red-400/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                      : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center p-1 shrink-0">
+                      <SVGVirus type={familyToVirusType(stack.family)} className="w-full h-full text-red-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-xs text-white">{stack.virusName}</span>
+                        {isSelected && !isDead && (
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-red-600 text-white flex items-center gap-1">
+                            <Crosshair className="w-2.5 h-2.5" /> TARGET
+                          </span>
+                        )}
+                        {isDead && (
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-slate-900 text-slate-500 border border-slate-800">
+                            💀 แตกพ่าย
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-2 mt-0.5">
+                        <span className="text-red-400">HP: {totalStackHp.toLocaleString()}</span>
+                        <span className="text-orange-400">ATK: {totalStackAtk.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stack Virion Count Badge */}
+                  <div className="text-right">
+                    <span className="text-lg font-black font-mono text-red-400">
+                      {stack.count.toLocaleString()}
+                    </span>
+                    <span className="block text-[9px] font-mono text-slate-400">อนุภาค</span>
+                  </div>
+
+                  {/* Floating Damage Animation for this enemy stack */}
+                  <AnimatePresence>
+                    {showDamageAnim?.targetStackId === stack.id && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 0, scale: 0.6 }}
+                        animate={{ opacity: 1, y: -30, scale: 1.2 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-red-950/80 flex items-center justify-center text-amber-300 font-black text-sm z-20 pointer-events-none"
+                      >
+                        💥 -{showDamageAnim.casualties} อนุภาค (-{showDamageAnim.amount} HP){showDamageAnim.isCrit ? ' [CRIT!]' : ''}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Quiz UI */}
-      <div className="h-2/5 bg-slate-900 border-t border-slate-800 rounded-t-3xl p-6 md:p-8 flex flex-col z-10 relative">
+      {/* Quiz UI / Victory / Defeat Panel */}
+      <div className="bg-slate-900/95 border-t border-slate-800 rounded-t-3xl p-5 sm:p-7 flex flex-col z-10 relative backdrop-blur-md">
         {gameState === 'playing' ? (
           <>
-            <div className="flex justify-between items-center mb-6">
-              <div className="text-xl md:text-2xl font-bold text-white max-w-3xl leading-snug">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+              <div className="text-base sm:text-xl font-bold text-white max-w-3xl leading-snug">
                 {currentQ.q}
               </div>
-              <div className={`text-4xl font-black ${timeLeft <= 5 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>
-                {timeLeft}s
+              <div className="flex items-center gap-3 self-end sm:self-auto">
+                <div className={`text-3xl sm:text-4xl font-black font-mono ${timeLeft <= 5 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>
+                  {timeLeft}s
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1">
               {currentQ.choices.map((choice, i) => (
                 <Button 
                   key={i} 
                   onClick={() => handleAnswer(choice)}
-                  disabled={showDamage !== null}
-                  className="h-full text-lg md:text-xl font-bold bg-slate-800 hover:bg-cyan-900 text-slate-300 hover:text-cyan-100 border border-slate-700 hover:border-cyan-500 transition-all justify-start px-6 text-left whitespace-normal leading-tight"
+                  disabled={showDamageAnim !== null}
+                  className="py-4 sm:py-5 text-sm sm:text-base font-bold bg-slate-800/90 hover:bg-cyan-900/80 text-slate-200 hover:text-white border border-slate-700 hover:border-cyan-500 transition-all justify-start px-5 text-left whitespace-normal leading-snug rounded-xl active:scale-[0.99]"
                 >
-                  {choice}
+                  <span className="font-mono text-cyan-400 mr-2.5 font-black">{String.fromCharCode(65 + i)}.</span>
+                  <span>{choice}</span>
                 </Button>
               ))}
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center">
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-4">
             {gameState === 'won' ? (
               <>
-                {(tile?.type === 'outpost' || tile?.isOutpost) ? (
-                  <>
-                    <div className="w-20 h-20 rounded-3xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center mb-4 shadow-[0_0_25px_rgba(16,185,129,0.5)]">
-                      <Shield className="w-12 h-12 text-emerald-400 animate-pulse" />
-                    </div>
-                    <h2 className="text-3xl sm:text-4xl font-black text-emerald-400 uppercase tracking-widest text-glow mb-2">
-                      Bio-Farm Outpost Secured!
-                    </h2>
-                    <p className="text-slate-300 mb-4 font-bold">
-                      ยึดครองป้อมฟาร์มวิจัยสำเร็จ! คุณได้รับสิทธิ์เก็บเกี่ยวผลผลิตวันละ 100 EXP
-                    </p>
-                    <div className="text-2xl font-black text-emerald-300 mb-8 bg-emerald-950/60 border border-emerald-500/50 px-6 py-2 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)]">
-                      🌾 +100 EXP (ยึดป้อม) & สิทธิ์เก็บเกี่ยววันละ 100 EXP!
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Shield className="w-20 h-20 text-emerald-500 mb-4" />
-                    <h2 className="text-4xl font-black text-emerald-400 uppercase tracking-widest text-glow mb-2">Sector Secured!</h2>
-                    <p className="text-slate-400 mb-6">คุณได้ทำการยึดครองพื้นที่นี้เรียบร้อยแล้ว</p>
-                    <div className="text-2xl font-black text-yellow-400 mb-6 bg-slate-800/80 border border-yellow-500/30 px-6 py-2 rounded-2xl shadow-[0_0_20px_rgba(234,179,8,0.2)]">
-                      🎉 +{awardedExp} EXP
-                    </div>
-                  </>
-                )}
+                <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center mb-3 shadow-[0_0_25px_rgba(16,185,129,0.5)]">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-400 animate-pulse" />
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-emerald-400 uppercase tracking-widest text-glow mb-1">
+                  Tactical Victory! ยึดครองเซกเตอร์สำเร็จ!
+                </h2>
+                <p className="text-slate-300 text-xs sm:text-sm mb-3 font-medium max-w-lg">
+                  กองทัพไวรัสของคุณได้รับชัยชนะ! ได้ทำการจัดตั้งกองกำลังพิทักษ์พื้นที่ (30% ของกองทัพที่รอดชีวิต) ไว้ประจำการเรียบร้อยแล้ว
+                </p>
+                <div className="text-xl font-black text-yellow-400 mb-5 bg-slate-800/80 border border-yellow-500/30 px-6 py-2 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.2)]">
+                  🎉 +{awardedExp} EXP
+                </div>
 
                 {isFirstBaseClaimed && (
-                  <div className="mb-4 bg-cyan-950/90 border border-cyan-400 text-cyan-200 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.4)] animate-in fade-in zoom-in-95">
+                  <div className="mb-4 bg-cyan-950/90 border border-cyan-400 text-cyan-200 px-5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.4)]">
                     <Shield className="w-4 h-4 text-cyan-400 animate-pulse" />
-                    <span>🛡️ สถาปนาฐานแรกสำเร็จ! เปิดใช้งานบาเรียมือใหม่คุ้มครอง 48 ชม. ปลอดภัยจากการถูกตี</span>
+                    <span>🛡️ สถาปนาฐานแรกสำเร็จ! เปิดใช้งานบาเรียคุ้มครอง 48 ชม.</span>
                   </div>
                 )}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md pt-2">
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md">
                   <Link href="/student/empire" className="w-full">
-                    <Button className="w-full py-6 text-lg font-black bg-cyan-600 hover:bg-cyan-500 text-white uppercase tracking-widest shadow-[0_0_20px_rgba(6,182,212,0.4)]">
+                    <Button className="w-full py-5 text-base font-black bg-cyan-600 hover:bg-cyan-500 text-white uppercase tracking-widest shadow-[0_0_20px_rgba(6,182,212,0.4)]">
                       🗺️ กลับสู่แผนที่ (Empire Map)
                     </Button>
                   </Link>
                   <Link href="/student/virus-pet" className="w-full">
-                    <Button variant="secondary" className="w-full py-6 text-lg font-bold text-slate-300 uppercase tracking-wider">
-                      🧬 ดูสัตว์เลี้ยง (Virus Pet)
+                    <Button variant="secondary" className="w-full py-5 text-base font-bold text-slate-300 uppercase tracking-wider">
+                      🧬 จัดทัพ & สัตว์เลี้ยง (Hero Army)
                     </Button>
                   </Link>
                 </div>
               </>
             ) : (
               <>
-                <Heart className="w-20 h-20 text-red-500 mb-4 animate-pulse" />
-                <h2 className="text-4xl font-black text-red-500 uppercase tracking-widest mb-2">Defeated</h2>
-                <p className="text-red-300 font-bold mb-2">ไวรัสของคุณได้รับบาดเจ็บสาหัสจากการรบ!</p>
-                <p className="text-slate-400 mb-8 max-w-md">
-                  พลังชีวิต (HP) ลดเหลือ 0 กรุณานำไวรัสกลับเข้าห้องเพาะเลี้ยงเพื่อทำหัตถการรักษาและฟื้นฟู HP ก่อนออกรบอีกครั้ง
+                <Heart className="w-16 h-16 text-red-500 mb-3 animate-pulse" />
+                <h2 className="text-2xl sm:text-3xl font-black text-red-500 uppercase tracking-widest mb-1">Army Defeated!</h2>
+                <p className="text-red-300 font-bold text-xs sm:text-sm mb-1">กองทัพไวรัสของคุณแตกพ่ายในการรบ!</p>
+                <p className="text-slate-400 text-xs mb-5 max-w-md">
+                  อนุภาคไวรัสสูญสิ้น กรุณานำไวรัสกลับห้องเพาะเลี้ยงเพื่อทำหัตถการฟื้นฟู HP และเพาะเลี้ยงอนุภาคใหม่ก่อนออกรบ
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md">
                   <Link href="/student/virus-pet" className="w-full">
-                    <Button className="w-full py-6 text-lg font-black bg-emerald-600 hover:bg-emerald-500 text-white uppercase tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+                    <Button className="w-full py-5 text-base font-black bg-emerald-600 hover:bg-emerald-500 text-white uppercase tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.4)]">
                       💉 ไปห้องพยาบาลเพาะเลี้ยง
                     </Button>
                   </Link>
                   <Link href="/student/empire" className="w-full">
-                    <Button variant="secondary" className="w-full py-6 text-lg font-bold text-slate-300 uppercase tracking-wider">
+                    <Button variant="secondary" className="w-full py-5 text-base font-bold text-slate-300 uppercase tracking-wider">
                       กลับแผนที่
                     </Button>
                   </Link>
@@ -731,7 +1087,7 @@ function BattleContent() {
 
 export default function EmpireBattle() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 text-cyan-500 animate-spin" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950"><Loader2 className="w-12 h-12 text-cyan-500 animate-spin" /></div>}>
       <BattleContent />
     </Suspense>
   );

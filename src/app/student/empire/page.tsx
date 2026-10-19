@@ -73,6 +73,7 @@ import {
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 
 export * from '@/lib/empireConstants';
+import type { MarchOrder } from '@/components/empire/EmpireCanvas3D';
 
 // Dynamically import Three.js Tactical Canvas (no SSR)
 const EmpireCanvas3D = dynamic(() => import('@/components/empire/EmpireCanvas3D'), {
@@ -407,11 +408,25 @@ export default function StudentEmpirePage() {
     return isShieldedTile(currentTile);
   }, [currentTile]);
 
+  // Helper to validate coordinate on 50x50 map
+  const isValidCoord = useCallback((coord: string | null | undefined): boolean => {
+    if (!coord || typeof coord !== 'string') return false;
+    const parts = coord.split(',');
+    if (parts.length !== 2) return false;
+    const x = Number(parts[0]);
+    const y = Number(parts[1]);
+    return !isNaN(x) && !isNaN(y) && x >= 0 && x < MAP_SIZE && y >= 0 && y < MAP_SIZE;
+  }, []);
+
   // ── 7. Handlers: Camera Navigation ────────────────────────────────
   const handleSelectCoord = useCallback((coord: string) => {
     sfx.click();
     setSelectedCoord(coord);
-  }, []);
+    // Prefetch battle page bundle in background immediately when sector is tapped
+    if (coord) {
+      router.prefetch(`/student/empire/battle?tile=${coord}`);
+    }
+  }, [router]);
 
   const handleJumpToCenter = () => {
     sfx.click();
@@ -445,7 +460,52 @@ export default function StudentEmpirePage() {
     }
   };
 
-  // ── 8. Handler: Infiltrate / Attack (Routes to Battle Page) ───────
+  // ── 8. Handler: Infiltrate / Attack (HoMM Marching to Target Tile) ──
+  const [marchOrder, setMarchOrder] = useState<MarchOrder | null>(null);
+  const [isMarching, setIsMarching] = useState(false);
+
+  const heroPetCoord = useMemo(() => {
+    // 1. Check pet.currentTileCoord from Firestore
+    if (isValidCoord(appUser?.pet?.currentTileCoord)) {
+      return appUser!.pet!.currentTileCoord!;
+    }
+    // 2. Synchronous fallback to localStorage (solves instant page refresh before Firestore snapshot)
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('virusgo_hero_coord');
+      if (isValidCoord(cached)) {
+        return cached!;
+      }
+    }
+    // 3. Fallback to player's capital base
+    const capital = Object.values(tiles).find(t => t.ownerUid === appUser?.uid && t.isCapital);
+    if (capital) return `${capital.x},${capital.y}`;
+    // 4. Fallback to any owned tile
+    const anyTile = Object.values(tiles).find(t => t.ownerUid === appUser?.uid);
+    if (anyTile) return `${anyTile.x},${anyTile.y}`;
+    return null;
+  }, [appUser?.pet?.currentTileCoord, appUser?.uid, tiles, isValidCoord]);
+
+  // Sync localStorage whenever appUser.pet.currentTileCoord updates
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isValidCoord(appUser?.pet?.currentTileCoord)) {
+      localStorage.setItem('virusgo_hero_coord', appUser!.pet!.currentTileCoord!);
+    }
+  }, [appUser?.pet?.currentTileCoord, isValidCoord]);
+
+  // Auto-focus camera on hero's location upon initial loading
+  const hasInitiallyFocused = useRef(false);
+  useEffect(() => {
+    if (hasInitiallyFocused.current) return;
+    if (heroPetCoord) {
+      const [hx, hy] = heroPetCoord.split(',').map(Number);
+      if (!isNaN(hx) && !isNaN(hy)) {
+        setTargetFocus({ x: hx, y: hy });
+        setSelectedCoord(heroPetCoord);
+        hasInitiallyFocused.current = true;
+      }
+    }
+  }, [heroPetCoord]);
+
   const handleStartAttack = () => {
     if (!selectedCoord) return;
     sfx.click();
@@ -464,8 +524,20 @@ export default function StudentEmpirePage() {
       return;
     }
 
-    // Route to full 3D Battle Arena
-    router.push(`/student/empire/battle?tile=${selectedCoord}`);
+    const target = selectedCoord;
+
+    // Immediately cache target in localStorage and Firestore for persistence
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('virusgo_hero_coord', target);
+    }
+    if (appUser?.uid) {
+      updateDoc(doc(db, 'users', appUser.uid), {
+        'pet.currentTileCoord': target,
+      }).catch(console.error);
+    }
+
+    // Direct, instantaneous route into battle (คลิกเข้าได้เลย 0ms delay!)
+    router.push(`/student/empire/battle?tile=${target}`);
   };
 
   // ── 8.1 Handler: Bio-Radar Minimap Interaction (Tap or Drag) ──────
@@ -1131,7 +1203,13 @@ export default function StudentEmpirePage() {
           targetFocus={targetFocus}
           cameraMode={cameraMode}
           isGmUser={Boolean(isGmUser && gmViewMode === 'all')}
+          petCoord={heroPetCoord}
+          petFamily={appUser?.pet?.family}
+          ownerName={appUser?.pet?.nickname || appUser?.fullname}
+          marchOrder={marchOrder}
         />
+
+
 
         {/* ── FLOATING TACTICAL CONTROLS (RIGHT DOCK) ────────────────────────── */}
         <div className="absolute right-2.5 sm:right-5 top-2.5 sm:top-4 z-20 flex flex-col gap-1.5 sm:gap-2 pointer-events-auto">
@@ -1383,6 +1461,25 @@ export default function StudentEmpirePage() {
                           🛡️ กิลด์: <span className="text-slate-200 font-bold">[{currentTile.guildName}]</span>
                         </div>
                       )}
+
+                      {/* Hero Duel vs Garrison Status Tag */}
+                      {(() => {
+                        const isHeroHere = Boolean(
+                          (isMyTile && heroPetCoord === selectedCoord) ||
+                          (currentTile.heroStationedUid && currentTile.heroStationedUid === currentTile.ownerUid)
+                        );
+                        return isHeroHere ? (
+                          <div className="mt-1 px-2 py-0.5 rounded-lg bg-amber-950/80 border border-amber-500/50 flex items-center gap-1.5 text-[10px] text-amber-300 font-bold shadow-sm">
+                            <span>👑</span>
+                            <span>{isMyTile ? 'ฮีโร่ของคุณประจำการอยู่ที่นี่' : 'ตรวจพบจอมทัพประจำการ (Hero Duel • ทัพเต็ม 3 กองพัน)'}</span>
+                          </div>
+                        ) : (
+                          <div className="mt-1 px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-700/80 flex items-center gap-1.5 text-[9px] text-slate-300">
+                            <span>🛡️</span>
+                            <span>กองกำลังรักษาการประจำเซกเตอร์ ({currentTile.defenderStacks?.reduce((acc, s) => acc + s.count, 0) || 60} virions เฝ้าป้อม)</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
@@ -1535,26 +1632,50 @@ export default function StudentEmpirePage() {
                 ) : (
                   <>
                     {/* 2. Attack / Infiltrate Button (Enemy, Neutral, Boss, Decayed) */}
-                    {!isMyTile && (
-                      <button
-                        type="button"
-                        onClick={handleStartAttack}
-                        className={`w-full py-3 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all hover:scale-[1.02] active:scale-98 cursor-pointer ${
-                          isCurrentTileDecayed
-                            ? 'bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 hover:from-amber-500 hover:via-rose-500 hover:to-red-500 text-white shadow-amber-950/60 ring-2 ring-amber-400/60 animate-pulse'
-                            : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-950/50'
-                        }`}
-                      >
-                        <Swords className="w-4 h-4" />
-                        <span>
-                          {isBoss 
-                            ? 'โจมตีบอสไวรัส (Boss Raid 3D)' 
-                            : isCurrentTileDecayed
-                            ? '⚔️ บุกยึดฐานรกร้างเสื่อมสภาพ (-50% HP)'
-                            : 'เข้าสู่สมรภูมิรบ (Infiltrate & Battle)'}
-                        </span>
-                      </button>
-                    )}
+                    {!isMyTile && (() => {
+                      const isEnemyHeroStationed = Boolean(
+                        currentTile?.ownerUid && 
+                        currentTile.heroStationedUid === currentTile.ownerUid
+                      );
+
+                      return (
+                        <button
+                          type="button"
+                          disabled={isMarching}
+                          onClick={handleStartAttack}
+                          className={`w-full py-3 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all hover:scale-[1.02] active:scale-98 cursor-pointer ${
+                            isMarching
+                              ? 'bg-slate-800 text-rose-300 border border-rose-500/50 cursor-not-allowed animate-pulse'
+                              : isEnemyHeroStationed
+                              ? 'bg-gradient-to-r from-amber-500 via-rose-600 to-amber-600 hover:from-amber-400 hover:via-rose-500 hover:to-amber-500 text-slate-950 shadow-amber-950/60 ring-2 ring-amber-400/80 animate-pulse font-black'
+                              : isCurrentTileDecayed
+                              ? 'bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 hover:from-amber-500 hover:via-rose-500 hover:to-red-500 text-white shadow-amber-950/60 ring-2 ring-amber-400/60 animate-pulse'
+                              : currentTile?.type === 'player'
+                              ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-cyan-950/50'
+                              : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-950/50'
+                          }`}
+                        >
+                          {isEnemyHeroStationed ? (
+                            <Crown className="w-4 h-4 text-slate-950" />
+                          ) : (
+                            <Swords className={`w-4 h-4 ${isMarching ? 'animate-spin' : ''}`} />
+                          )}
+                          <span>
+                            {isMarching
+                              ? '👑 ไวรัสฮีโร่กำลังเคลื่อนทัพ...'
+                              : isBoss 
+                              ? 'โจมตีบอสไวรัส (Boss Raid 3D)' 
+                              : isEnemyHeroStationed
+                              ? '⚔️ ท้าดวลจอมทัพ (Hero Duel • ชิงชัยชนะ)'
+                              : currentTile?.type === 'player'
+                              ? '🏰 บุกตีกองรักษาการ (Garrison Siege)'
+                              : isCurrentTileDecayed
+                              ? '⚔️ บุกยึดฐานรกร้างเสื่อมสภาพ (-50% HP)'
+                              : 'เข้าสู่สมรภูมิรบ (Infiltrate & Battle)'}
+                          </span>
+                        </button>
+                      );
+                    })()}
 
                     {/* 2.1 Restore Upkeep for Owned Decayed Base */}
                     {isMyTile && isCurrentTileDecayed && (

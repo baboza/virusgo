@@ -7,7 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Zap, Crosshair, Target, Moon, ArrowLeft, Loader2, Star, 
   ShieldAlert, Box, Heart, Swords, Clock, Sparkles, BookOpen, 
-  Edit3, Check, Stethoscope, ChevronRight, HelpCircle
+  Edit3, Check, Stethoscope, ChevronRight, HelpCircle,
+  Shield, Crown, Layers, Plus
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -19,6 +20,12 @@ import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 import { sfx } from '@/utils/sound';
 import { VirusPetData, Virus } from '@/types';
 import { getEffectivePetStats, MAX_PET_STAT_POINTS, MAX_PER_STAT } from '@/lib/petBalance';
+import { 
+  BIO_ARTIFACTS, 
+  VIRUS_UNIT_TEMPLATES, 
+  getDefaultHeroArmy, 
+  EquipmentItem 
+} from '@/lib/heroArmy';
 
 const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
   ssr: false,
@@ -75,7 +82,7 @@ export default function VirusPet() {
   const [savingName, setSavingName] = useState(false);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'stats' | 'dossier' | 'ward'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'army' | 'dossier' | 'ward'>('stats');
 
   // Emergency Recovery Ward State
   const [quizIdx, setQuizIdx] = useState(0);
@@ -312,6 +319,97 @@ export default function VirusPet() {
       await updateDoc(doc(db, 'users', appUser.uid), { pet: newPet });
     } catch (e) {
       console.error("Failed to upgrade stat", e);
+    }
+  };
+
+  // ── Hero Army & Bio-Artifacts Handlers (HoMM System) ──────────────
+  const heroArmy = pet?.hero || getDefaultHeroArmy(pet?.family);
+
+  const handleToggleEquip = async (item: EquipmentItem) => {
+    if (!pet || !appUser) return;
+    sfx.click();
+
+    const currentEquip = { ...(pet.hero?.equipment || heroArmy.equipment || {}) };
+    const currentEquippedInSlot = currentEquip[item.slot];
+
+    if (currentEquippedInSlot === item.id) {
+      delete currentEquip[item.slot];
+    } else {
+      currentEquip[item.slot] = item.id;
+    }
+
+    const updatedHero = {
+      ...(pet.hero || heroArmy),
+      equipment: currentEquip,
+    };
+    const updatedPet: VirusPetData = {
+      ...pet,
+      hero: updatedHero,
+    };
+    setPet(updatedPet);
+
+    try {
+      await updateDoc(doc(db, 'users', appUser.uid), {
+        'pet.hero': updatedHero,
+      });
+      sfx.levelUp();
+    } catch (e) {
+      console.error('Failed to update equipment:', e);
+    }
+  };
+
+  const handleReplicateTroops = async (templateKey: string) => {
+    if (!pet || !appUser) return;
+    const template = VIRUS_UNIT_TEMPLATES[templateKey];
+    if (!template) return;
+
+    const userExp = Number(appUser.exp || 0);
+    if (userExp < template.replicateCostExp) {
+      alert(`⚠️ EXP ไม่เพียงพอ! การเพาะเลี้ยงขยายพันธุ์ "${template.virusName}" ต้องการ ${template.replicateCostExp} EXP (คุณมี ${userExp} EXP)`);
+      return;
+    }
+
+    sfx.click();
+    const currentStacks = [...(pet.hero?.stacks || heroArmy.stacks || [])];
+    const stackIdx = currentStacks.findIndex(s => s.family === template.family || s.virusId === template.virusId);
+
+    if (stackIdx >= 0) {
+      currentStacks[stackIdx] = {
+        ...currentStacks[stackIdx],
+        count: currentStacks[stackIdx].count + template.replicateBatch,
+      };
+    } else {
+      currentStacks.push({
+        id: `stack_${currentStacks.length + 1}`,
+        virusId: template.virusId,
+        virusName: template.virusName,
+        family: template.family,
+        tier: template.tier,
+        count: template.replicateBatch,
+        baseHp: template.baseHp,
+        baseAtk: template.baseAtk,
+      });
+    }
+
+    const updatedHero = {
+      ...(pet.hero || heroArmy),
+      stacks: currentStacks.slice(0, 3), // Max 3 stacks
+      lastReplicated: new Date().toISOString(),
+    };
+    const updatedPet: VirusPetData = {
+      ...pet,
+      hero: updatedHero,
+    };
+    setPet(updatedPet);
+
+    try {
+      await updateDoc(doc(db, 'users', appUser.uid), {
+        'pet.hero': updatedHero,
+        exp: userExp - template.replicateCostExp,
+      });
+      sfx.victory();
+    } catch (e) {
+      console.error('Failed to replicate troops:', e);
     }
   };
 
@@ -729,7 +827,7 @@ export default function VirusPet() {
       <div className="space-y-4">
         
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-2">
           <button
             type="button"
             onClick={() => setActiveTab('stats')}
@@ -741,6 +839,19 @@ export default function VirusPet() {
           >
             <Star className="w-4 h-4 text-yellow-400" />
             <span>อัปแต้มสเตตัส (RPG Stats)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('army')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 ${
+              activeTab === 'army'
+                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Shield className="w-4 h-4 text-rose-400" />
+            <span>กองทัพ & อุปกรณ์ชีวภาพ (HoMM Army)</span>
           </button>
 
           <button
@@ -841,6 +952,189 @@ export default function VirusPet() {
               ได้แต้มจากสะสม EXP (ทุกๆ 100 EXP = 1 แต้ม, สูงสุด {MAX_PET_STAT_POINTS} แต้ม) เพื่อความเท่าเทียมในห้องเรียน
             </div>
           </Card>
+        )}
+
+        {/* Tab: HoMM Army & Bio-Artifacts System */}
+        {activeTab === 'army' && (
+          <div className="space-y-6">
+            <Card className="p-5 md:p-6 glass border-rose-500/30 bg-slate-900/80 shadow-[0_0_25px_rgba(244,63,94,0.1)]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3 mb-4">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Crown className="w-5 h-5 text-amber-400" />
+                    <span>กองทัพไวรัสและอุปกรณ์ชีวภาพ (HoMM Army & Bio-Artifacts)</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    ฮีโร่ไวรัสควบคุมกองกำลังได้สูงสุด 3 ฝูงอนุภาค (Stacks) ยิ่งมีจำนวนมาก พลังโจมตีและพลังป้องกันยิ่งสูง!
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-mono bg-slate-950/70 px-3 py-1.5 rounded-xl border border-rose-500/30 self-start sm:self-auto">
+                  <span className="text-slate-400">EXP คงเหลือ:</span>
+                  <span className="text-rose-400 font-black text-sm">{Number(appUser?.exp || 0).toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* 3 Army Stacks Grid */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-rose-300 flex items-center gap-1.5">
+                    <Layers className="w-4 h-4" /> กองกำลังประจำทัพ (Max 3 Stacks)
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    จำนวนอนุภาค x ค่าสถานะพื้นฐาน
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {(heroArmy.stacks || []).map((stack, idx) => {
+                    const templateKey = stack.family === 'parvo' ? 'parvo' : stack.family === 'rabies' ? 'rabies' : 'corona';
+                    const template = VIRUS_UNIT_TEMPLATES[templateKey];
+                    const totalHp = stack.count * stack.baseHp;
+                    const totalAtk = stack.count * stack.baseAtk;
+                    const tierLabel = stack.tier === 1 ? 'Tier 1: Swarm' : stack.tier === 2 ? 'Tier 2: Core' : 'Tier 3: Elite';
+                    const tierColor = stack.tier === 1 ? 'border-emerald-500/40 text-emerald-300 bg-emerald-950/30' : stack.tier === 2 ? 'border-cyan-500/40 text-cyan-300 bg-cyan-950/30' : 'border-purple-500/40 text-purple-300 bg-purple-950/30';
+                    const canReplicate = template && Number(appUser?.exp || 0) >= template.replicateCostExp;
+
+                    return (
+                      <div
+                        key={stack.id || idx}
+                        className="bg-slate-950/60 rounded-2xl border border-slate-800 p-4 relative overflow-hidden flex flex-col justify-between hover:border-slate-700 transition-all shadow-md"
+                      >
+                        <div>
+                          {/* Tier & Name Header */}
+                          <div className="flex items-start justify-between gap-2 mb-3">
+                            <div>
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${tierColor}`}>
+                                {tierLabel}
+                              </span>
+                              <h4 className="font-black text-white text-sm mt-1.5">{stack.virusName}</h4>
+                              <span className="text-[10px] text-slate-400 font-mono capitalize">({stack.family})</span>
+                            </div>
+                            <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center p-1.5 shrink-0">
+                              <SVGVirus type={familyToVirusType(stack.family)} className="w-full h-full" />
+                            </div>
+                          </div>
+
+                          {/* Stack Count Badge */}
+                          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800/80 mb-3">
+                            <div className="flex items-baseline justify-between">
+                              <span className="text-[11px] font-mono text-slate-400">ขนาดกองทัพ (Count)</span>
+                              <span className="text-xl font-black text-rose-400 font-mono">
+                                {stack.count.toLocaleString()} <span className="text-xs text-slate-300">virions</span>
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-800 text-[10px] font-mono">
+                              <div className="text-red-400 flex items-center justify-between">
+                                <span>Total HP:</span>
+                                <span className="font-bold text-white">{totalHp.toLocaleString()}</span>
+                              </div>
+                              <div className="text-orange-400 flex items-center justify-between">
+                                <span>Total ATK:</span>
+                                <span className="font-bold text-white">{totalAtk.toLocaleString()}</span>
+                              </div>
+                            </div>
+                            <div className="text-[9px] text-slate-500 mt-1 font-mono text-center">
+                              (Base: {stack.baseHp} HP / {stack.baseAtk} ATK ต่ออนุภาค)
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Replicate Action Button */}
+                        {template && (
+                          <Button
+                            onClick={() => handleReplicateTroops(templateKey)}
+                            disabled={!canReplicate}
+                            className={`w-full py-2.5 text-xs font-black uppercase flex items-center justify-center gap-1.5 rounded-xl transition-all ${
+                              canReplicate
+                                ? 'bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white shadow-md active:scale-95'
+                                : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
+                            }`}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>เพาะเลี้ยง +{template.replicateBatch} ({template.replicateCostExp} EXP)</span>
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Bio-Artifacts Equipment Section */}
+              <div className="mt-6 pt-5 border-t border-slate-800">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <Crown className="w-4 h-4 text-amber-400" /> อุปกรณ์ชีวภาพฮีโร่ (Bio-Artifacts)
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    คลิกเพื่อสวมใส่ / ถอดออก เพื่อเพิ่มบัฟให้กองทัพ
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {Object.values(BIO_ARTIFACTS).map((item) => {
+                    const isEquipped = (pet?.hero?.equipment || heroArmy.equipment)?.[item.slot] === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
+                          isEquipped
+                            ? 'bg-amber-950/30 border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.15)] ring-1 ring-amber-400/40'
+                            : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">{item.icon}</span>
+                              <div>
+                                <h5 className="font-black text-xs text-white">{item.name}</h5>
+                                <span className="text-[9px] font-mono uppercase text-slate-400">
+                                  Slot: {item.slot}
+                                </span>
+                              </div>
+                            </div>
+                            {isEquipped && (
+                              <span className="text-[9px] font-black text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-500/40">
+                                ติดตั้งอยู่
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-amber-200/90 font-medium my-2">
+                            {item.bonusText}
+                          </p>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          onClick={() => handleToggleEquip(item)}
+                          className={`w-full mt-2 text-[11px] font-black uppercase tracking-wider h-8 ${
+                            isEquipped
+                              ? 'bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800'
+                              : 'bg-slate-800 hover:bg-amber-600 hover:text-white text-slate-200 border border-slate-700'
+                          }`}
+                        >
+                          {isEquipped ? 'ถอดอุปกรณ์' : 'สวมใส่'}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* HoMM Tactical Guide Info Box */}
+              <div className="mt-5 p-3.5 rounded-xl bg-slate-950/70 border border-cyan-500/30 text-xs text-slate-300 space-y-1.5">
+                <div className="font-black text-cyan-300 flex items-center gap-1.5">
+                  <Swords className="w-4 h-4 text-cyan-400" /> กลยุทธ์การรบแบบ Heroes of Might & Magic (HoMM):
+                </div>
+                <ul className="list-disc list-inside text-[11px] text-slate-400 space-y-1 pl-1">
+                  <li><strong className="text-slate-200">อนุภาคไวรัสรวมพลัง (Stack Mechanics):</strong> ความเสียหายคำนวณจากจำนวนอนุภาคไวรัสในฝูงนั้นๆ ยิ่งเพาะเลี้ยงเยอะ ยิ่งโจมตีหนัก</li>
+                  <li><strong className="text-slate-200">การสวนกลับอัตโนมัติ (Auto-Retaliation):</strong> เมื่อคุณโจมตีกองทัพศัตรู อนุภาคที่รอดชีวิตจะสวนกลับทันที จงระวังการเข้าตีศัตรูที่มีจำนวนมหาศาล!</li>
+                  <li><strong className="text-slate-200">ความรู้คืออาวุธ:</strong> การตอบคำถามไวรัสวิทยาถูกจะปล่อยพลังโจมตีเต็มพิกัด หากตอบผิดจะสูญเสียเทิร์นและอาจโดนศัตรูสวนกลับ</li>
+                </ul>
+              </div>
+            </Card>
+          </div>
         )}
 
         {/* Tab 2: Virology Research Dossier */}
