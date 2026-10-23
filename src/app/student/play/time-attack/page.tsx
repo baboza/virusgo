@@ -61,19 +61,24 @@ export default function TimeAttack() {
   }, [appUser]);
 
 
+  // Questions are pre-bundled from ALL_15_CHAPTER_QUESTIONS (0ms delay, 0 Firestore reads)
   useEffect(() => {
-    import('firebase/firestore').then(({ getDoc, doc }) => {
-      getDoc(doc(db, 'game_content', 'quiz_general')).then((docSnap) => {
-        if (docSnap.exists() && docSnap.data().questions?.length > 0) {
-          const mapped = docSnap.data().questions.map((q: any) => ({
+    if (typeof window === 'undefined') return;
+    const cached = sessionStorage.getItem('virusgo_quiz_general');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setQuestionsBank(parsed.map((q: any) => ({
             q: q.q,
-            choices: q.opts || [],
-            answer: q.opts ? q.opts[q.ans] : ''
-          }));
-          setQuestionsBank(mapped);
+            choices: shuffle([...(q.choices || q.opts || [])]),
+            answer: q.answer || (q.opts && q.opts[q.ans]) || '',
+            chapter: q.chapter,
+            chapterTitle: q.chapterTitle
+          })));
         }
-      }).catch(console.error);
-    });
+      } catch (_) {}
+    }
   }, []);
 
   const endGame = useCallback(async (finalScore: number, correct: number) => {
@@ -124,7 +129,11 @@ export default function TimeAttack() {
   }, [phase, endGame]);
 
   const startGame = () => {
-    setQuestions(shuffle(questionsBank));
+    const prepared = shuffle(questionsBank).map(q => ({
+      ...q,
+      choices: shuffle([...q.choices])
+    }));
+    setQuestions(prepared);
     setCurrentIndex(0);
     setTimeLeft(TOTAL_TIME);
     setScore(0);

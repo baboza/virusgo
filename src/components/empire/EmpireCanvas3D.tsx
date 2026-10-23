@@ -145,6 +145,7 @@ function BossVirusMesh({ position }: { position: [number, number, number] }) {
 }
 
 // ── 3D Landmark: Grand Guild Capital Citadel (HQ-Style Castle Landmark) ─────
+// ── 3D Landmark: Guild Citadel (Grand 4-Bastion Imperial Fortress 2x2) ────────
 function GuildCitadelMesh({ 
   position, 
   color, 
@@ -155,36 +156,39 @@ function GuildCitadelMesh({
   guildName?: string;
 }) {
   const castleRef = useRef<THREE.Group>(null);
+  const bannerRef = useRef<THREE.Group>(null);
 
   useFrame((state, delta) => {
     if (castleRef.current) {
-      castleRef.current.rotation.y += delta * 0.5;
-      castleRef.current.position.y = 0.40 + Math.sin(state.clock.elapsedTime * 2.0) * 0.03;
+      castleRef.current.rotation.y += delta * 0.35;
+      castleRef.current.position.y = 0.45 + Math.sin(state.clock.elapsedTime * 1.8) * 0.025;
+    }
+    if (bannerRef.current) {
+      bannerRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 2.5) * 0.15;
     }
   });
 
   return (
     <group position={position}>
-      {/* 1. Solid High-Tech Raised Hexagonal Pedestal (HQ Style) */}
-      <mesh position={[0, 0.04, 0]}>
-        <cylinderGeometry args={[0.36, 0.44, 0.08, 6]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.7} />
+      {/* 1. Massive Raised Obsidian Hexagonal Courtyard Pedestal (Footprint for 2x2 Citadel) */}
+      <mesh position={[0, 0.05, 0]}>
+        <cylinderGeometry args={[0.55, 0.65, 0.10, 6]} />
+        <meshStandardMaterial color="#020617" roughness={0.2} metalness={0.8} />
       </mesh>
 
-      {/* 2. Glowing Neon Guild Energy Ring */}
-      <mesh position={[0, 0.082, 0]}>
-        <cylinderGeometry args={[0.32, 0.34, 0.02, 6]} />
-        <meshStandardMaterial 
-          color={color} 
-          emissive={color} 
-          emissiveIntensity={1.4} 
-          roughness={0.2} 
-        />
+      {/* 2. Concentric Grand Imperial Energy Rings */}
+      <mesh position={[0, 0.105, 0]}>
+        <cylinderGeometry args={[0.48, 0.52, 0.02, 6]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} roughness={0.2} />
+      </mesh>
+      <mesh position={[0, 0.112, 0]}>
+        <cylinderGeometry args={[0.34, 0.38, 0.02, 6]} />
+        <meshStandardMaterial color="#f59e0b" emissive="#d97706" emissiveIntensity={1.2} />
       </mesh>
 
-      {/* 3. Holographic Vertical Beacon Light Beam */}
-      <mesh position={[0, 0.55, 0]}>
-        <cylinderGeometry args={[0.08, 0.22, 1.0, 12, 1, true]} />
+      {/* 3. Wide Twin Imperial Beacon Beams (Golden & Guild Aura) */}
+      <mesh position={[0, 0.95, 0]}>
+        <cylinderGeometry args={[0.14, 0.38, 1.8, 16, 1, true]} />
         <meshBasicMaterial 
           color={color} 
           transparent 
@@ -193,53 +197,80 @@ function GuildCitadelMesh({
           depthWrite={false} 
         />
       </mesh>
+      <mesh position={[0, 1.15, 0]}>
+        <cylinderGeometry args={[0.06, 0.18, 2.2, 12, 1, true]} />
+        <meshBasicMaterial 
+          color="#fde047" 
+          transparent 
+          opacity={0.45} 
+          side={THREE.DoubleSide} 
+          depthWrite={false} 
+        />
+      </mesh>
 
-      {/* 4. Majestic 3D Castle Mascot (HQ Mascot Style) */}
-      <group ref={castleRef} position={[0, 0.40, 0]} scale={1.4}>
-        {/* Central Castle Keep Tower */}
-        <mesh position={[0, 0, 0]}>
-          <cylinderGeometry args={[0.16, 0.20, 0.30, 6]} />
-          <meshStandardMaterial 
-            color="#1e293b" 
-            roughness={0.25} 
-            metalness={0.7} 
-          />
+      {/* 4. Grand 4-Bastion Imperial Fortress Castle */}
+      <group ref={castleRef} position={[0, 0.45, 0]} scale={1.8}>
+        {/* Central High Keep (Heavy dark stone fortress) */}
+        <mesh position={[0, 0.05, 0]}>
+          <cylinderGeometry args={[0.22, 0.28, 0.38, 6]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.8} />
         </mesh>
-        {/* Castle Crown Battlements */}
-        <mesh position={[0, 0.16, 0]}>
-          <cylinderGeometry args={[0.22, 0.18, 0.08, 6]} />
-          <meshStandardMaterial 
-            color={color} 
-            emissive={color} 
-            emissiveIntensity={0.8} 
-            roughness={0.2} 
-            metalness={0.5} 
-          />
+
+        {/* 4 Corner Defense Watchtowers / Bastions */}
+        {[
+          [-0.20, -0.20],
+          [0.20, -0.20],
+          [-0.20, 0.20],
+          [0.20, 0.20]
+        ].map(([bx, bz], i) => (
+          <group key={i} position={[bx, 0, bz]}>
+            <mesh position={[0, 0.04, 0]}>
+              <cylinderGeometry args={[0.07, 0.09, 0.32, 6]} />
+              <meshStandardMaterial color="#1e293b" metalness={0.7} roughness={0.3} />
+            </mesh>
+            <mesh position={[0, 0.20, 0]}>
+              <coneGeometry args={[0.08, 0.14, 6]} />
+              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.9} />
+            </mesh>
+          </group>
+        ))}
+
+        {/* Central Imperial Battlements with Gold Trim */}
+        <mesh position={[0, 0.26, 0]}>
+          <cylinderGeometry args={[0.26, 0.22, 0.10, 6]} />
+          <meshStandardMaterial color="#1e293b" emissive={color} emissiveIntensity={0.6} metalness={0.7} />
         </mesh>
-        {/* Golden Central Imperial Spire */}
-        <mesh position={[0, 0.28, 0]}>
-          <coneGeometry args={[0.12, 0.22, 6]} />
-          <meshStandardMaterial 
-            color="#fbbf24" 
-            emissive="#f59e0b" 
-            emissiveIntensity={0.9} 
-            metalness={0.8} 
-            roughness={0.2} 
-          />
+
+        {/* Golden Central Imperial Spire Dome */}
+        <mesh position={[0, 0.40, 0]}>
+          <coneGeometry args={[0.15, 0.30, 6]} />
+          <meshStandardMaterial color="#fde047" emissive="#f59e0b" emissiveIntensity={1.2} metalness={0.9} roughness={0.15} />
         </mesh>
+
+        {/* Flying Guild War Flag / Banner on Top */}
+        <group ref={bannerRef} position={[0, 0.58, 0]}>
+          <mesh position={[0, 0, 0]}>
+            <cylinderGeometry args={[0.015, 0.015, 0.26, 6]} />
+            <meshStandardMaterial color="#f59e0b" metalness={0.9} />
+          </mesh>
+          <mesh position={[0.07, 0.06, 0]} rotation={[0, 0, 0]}>
+            <boxGeometry args={[0.14, 0.09, 0.01]} />
+            <meshStandardMaterial color="#ef4444" emissive="#dc2626" emissiveIntensity={0.7} />
+          </mesh>
+        </group>
       </group>
 
-      {/* 5. Floating Guild Name Billboard */}
-      <Billboard position={[0, 0.95, 0]}>
+      {/* 5. Majestic Guild Name Billboard (High in the sky) */}
+      <Billboard position={[0, 1.45, 0]}>
         <Text
-          fontSize={0.16}
-          color="#fef08a"
-          outlineWidth={0.03}
+          fontSize={0.18}
+          color="#fde047"
+          outlineWidth={0.035}
           outlineColor="#000000"
           anchorX="center"
           anchorY="middle"
         >
-          {`🏰 ${guildName || 'นครหลวงกิลด์'}`}
+          {`🚩 มหานครกิลด์: ${guildName || 'นครหลวงพันธมิตร'}`}
         </Text>
       </Billboard>
     </group>
@@ -617,7 +648,7 @@ function VirusArchetypeDecalMesh({
       args={[undefined as any, undefined as any, maxInstances]}
       frustumCulled={false}
     >
-      <planeGeometry args={[HEX_MESH_RADIUS * 0.92, HEX_MESH_RADIUS * 0.92]} />
+      <planeGeometry args={[HEX_MESH_RADIUS * 0.94, HEX_MESH_RADIUS * 0.94]} />
       <meshBasicMaterial
         map={texture}
         transparent
@@ -1062,6 +1093,7 @@ function HeroVirusPetStationed({
 }
 
 // ── 3D Landmark: Player HQ Capital Base (Majestic 3D Mascot Landmark) ──
+// ── 3D Landmark: Player HQ Capital Base (Distinct Personal Capital vs Other Players) ──
 function PlayerHQMesh({
   position,
   ownerName,
@@ -1076,13 +1108,15 @@ function PlayerHQMesh({
   color: string;
 }) {
   const mascotRef = useRef<THREE.Group>(null);
+  const ringRef1 = useRef<THREE.Group>(null);
+  const ringRef2 = useRef<THREE.Group>(null);
   const virusType = useMemo(() => familyToVirusType(ownerFamily || 'parvo'), [ownerFamily]);
 
   const shortName = useMemo(() => {
-    if (isMine) return '👑 ฐานหลักของคุณ (HQ)';
-    if (!ownerName) return '🏰 ผู้เล่น (HQ)';
+    if (isMine) return '👑 เมืองหลวงของคุณ (Capital HQ)';
+    if (!ownerName) return '🏰 ฐานผู้เล่น (HQ)';
     const clean = ownerName.length > 8 ? `${ownerName.slice(0, 7)}…` : ownerName;
-    return `🏰 ${clean} (HQ)`;
+    return `🏰 ฐาน: ${clean}`;
   }, [isMine, ownerName]);
 
   // Gentle float & rotation for the HQ commander
@@ -1091,50 +1125,108 @@ function PlayerHQMesh({
       mascotRef.current.rotation.y += delta * (isMine ? 1.0 : 0.6);
       mascotRef.current.position.y = 0.40 + Math.sin(state.clock.elapsedTime * 2.2 + (isMine ? 0 : 1.2)) * 0.035;
     }
+    if (ringRef1.current) {
+      ringRef1.current.rotation.z += delta * 1.5;
+    }
+    if (ringRef2.current) {
+      ringRef2.current.rotation.x -= delta * 1.2;
+    }
   });
+
+  const effectiveColor = isMine ? '#06b6d4' : color;
 
   return (
     <group position={position}>
-      {/* 1. Solid High-Tech Raised Hexagonal Pedestal (Lifts mascot cleanly above hex surface) */}
+      {/* 1. Solid High-Tech Raised Hexagonal Pedestal */}
       <mesh position={[0, 0.04, 0]}>
-        <cylinderGeometry args={[0.30, 0.36, 0.08, 6]} />
+        <cylinderGeometry args={[isMine ? 0.38 : 0.28, isMine ? 0.44 : 0.34, 0.08, 6]} />
         <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.7} />
       </mesh>
 
       {/* 2. Glowing Neon Energy Ring on Pedestal */}
       <mesh position={[0, 0.082, 0]}>
-        <cylinderGeometry args={[0.26, 0.28, 0.02, 6]} />
+        <cylinderGeometry args={[isMine ? 0.34 : 0.24, isMine ? 0.36 : 0.26, 0.02, 6]} />
         <meshStandardMaterial 
-          color={color} 
-          emissive={color} 
-          emissiveIntensity={isMine ? 1.2 : 0.8} 
+          color={effectiveColor} 
+          emissive={effectiveColor} 
+          emissiveIntensity={isMine ? 1.6 : 0.8} 
           roughness={0.2} 
         />
       </mesh>
 
-      {/* 3. Holographic Vertical Beacon Light Beam */}
-      <mesh position={[0, 0.50, 0]}>
-        <cylinderGeometry args={[0.06, 0.18, 0.85, 12, 1, true]} />
-        <meshBasicMaterial 
-          color={color} 
-          transparent 
-          opacity={isMine ? 0.35 : 0.22} 
-          side={THREE.DoubleSide} 
-          depthWrite={false} 
-        />
-      </mesh>
+      {/* 3. Beacon Light Beam (Sky-Piercing Royal Cyan Aurora Beam for Player's Capital!) */}
+      {isMine ? (
+        <group>
+          {/* Main sky-piercing celestial pillar reaching high into the sky */}
+          <mesh position={[0, 1.4, 0]}>
+            <cylinderGeometry args={[0.06, 0.22, 2.8, 16, 1, true]} />
+            <meshBasicMaterial 
+              color="#00f0ff" 
+              transparent 
+              opacity={0.50} 
+              side={THREE.DoubleSide} 
+              depthWrite={false} 
+            />
+          </mesh>
+          {/* Inner intense light core */}
+          <mesh position={[0, 1.2, 0]}>
+            <cylinderGeometry args={[0.02, 0.08, 2.4, 12, 1, true]} />
+            <meshBasicMaterial 
+              color="#ffffff" 
+              transparent 
+              opacity={0.70} 
+              side={THREE.DoubleSide} 
+              depthWrite={false} 
+            />
+          </mesh>
+          {/* Pulsing Ground Radar scanning ring */}
+          <mesh position={[0, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.15, 0.32, 24]} />
+            <meshBasicMaterial color="#38bdf8" transparent opacity={0.65} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      ) : (
+        <mesh position={[0, 0.45, 0]}>
+          <cylinderGeometry args={[0.05, 0.15, 0.75, 12, 1, true]} />
+          <meshBasicMaterial 
+            color={effectiveColor} 
+            transparent 
+            opacity={0.20} 
+            side={THREE.DoubleSide} 
+            depthWrite={false} 
+          />
+        </mesh>
+      )}
 
-      {/* 4. Majestic 3D Virus Mascot */}
-      <group ref={mascotRef} position={[0, 0.40, 0]} scale={1.5}>
-        <VirusHero3DGeometry virusType={virusType} color={color} hasCrown={isMine} isMine={isMine} />
+      {/* 4. Majestic 3D Virus Mascot with Orbital Command Shield Rings */}
+      <group ref={mascotRef} position={[0, 0.42, 0]} scale={isMine ? 1.6 : 1.2}>
+        <VirusHero3DGeometry virusType={virusType} color={effectiveColor} hasCrown={true} isMine={isMine} />
+        
+        {/* Holographic Orbital Shield Rings for Player's Personal Capital */}
+        {isMine && (
+          <group>
+            <group ref={ringRef1} rotation={[Math.PI / 3, 0, 0]}>
+              <mesh>
+                <torusGeometry args={[0.26, 0.012, 8, 24]} />
+                <meshBasicMaterial color="#38bdf8" transparent opacity={0.85} />
+              </mesh>
+            </group>
+            <group ref={ringRef2} rotation={[-Math.PI / 3, Math.PI / 4, 0]}>
+              <mesh>
+                <torusGeometry args={[0.28, 0.010, 8, 24]} />
+                <meshBasicMaterial color="#00f0ff" transparent opacity={0.75} />
+              </mesh>
+            </group>
+          </group>
+        )}
       </group>
 
       {/* 5. Floating High-Contrast HQ Name Tag */}
-      <Billboard position={[0, 0.88, 0]}>
+      <Billboard position={[0, isMine ? 1.20 : 0.85, 0]}>
         <Text
-          fontSize={0.13}
-          color={isMine ? "#38bdf8" : "#f1f5f9"}
-          outlineWidth={0.025}
+          fontSize={isMine ? 0.16 : 0.12}
+          color={isMine ? "#38bdf8" : "#cbd5e1"}
+          outlineWidth={0.03}
           outlineColor="#000000"
           anchorX="center"
           anchorY="middle"
@@ -1239,6 +1331,11 @@ function HexInstancedBoard({
           tempColor.set(actualGuildColor || '#f59e0b');
           elevation = 0.15;
           scaleY = 2.0;
+        } else if (tile?.isCapital && isMine) {
+          // 👑 PLAYER'S PERSONAL CAPITAL BASE: HIGHLIGHT WITH GLOWING NEON CYAN!
+          tempColor.set('#06b6d4');
+          elevation = 0.14;
+          scaleY = 1.8;
         } else if (actualGuildColor) {
           // 🏆 TILE BELONGS TO A GUILD: USE THE REAL GUILD COLOR (EVEN WHEN DECAYED)!
           tempColor.set(actualGuildColor);
@@ -1697,6 +1794,34 @@ export default function EmpireCanvas3D({
     return Boolean(selectedCoord && playerHQs.some((hq) => hq.coord === selectedCoord));
   }, [selectedCoord, playerHQs]);
 
+  // Exactly 1 Stationed Hero Virus Pet per Rival Player (Strict HoMM Rules & 60-144 FPS)
+  // Deduplicates multiple conquered tiles of the same owner to the latest active sector
+  const rivalHeroes = useMemo(() => {
+    const map: Record<string, EmpireTile> = {};
+    const hqCoordSet = new Set(playerHQs.map(hq => hq.coord));
+
+    Object.values(tiles).forEach((t) => {
+      const coord = `${t.x},${t.y}`;
+      if (!isGmUser && !exploredTiles.has(coord)) return;
+      if (!t.heroStationedUid || t.heroStationedUid === myUid || t.id === petCoord) return;
+
+      const uid = t.heroStationedUid;
+      const prev = map[uid];
+      if (!prev) {
+        map[uid] = t;
+      } else {
+        const prevTime = new Date(prev.lastAttacked || prev.lastActive || 0).getTime();
+        const curTime = new Date(t.lastAttacked || t.lastActive || 0).getTime();
+        if (curTime > prevTime) {
+          map[uid] = t;
+        }
+      }
+    });
+
+    // Avoid double-rendering a 3D mascot if the rival hero is currently stationed at their own Capital HQ
+    return Object.values(map).filter(t => !hqCoordSet.has(t.id));
+  }, [tiles, exploredTiles, isGmUser, myUid, petCoord, playerHQs]);
+
   return (
     <div className="w-full h-full select-none cursor-grab active:cursor-grabbing bg-slate-950">
       <Canvas
@@ -1807,18 +1932,16 @@ export default function EmpireCanvas3D({
           />
         )}
 
-        {/* 6.1.1 Rival Player Stationed Hero Virus Pets on the Field */}
-        {Object.values(tiles)
-          .filter(t => t.heroStationedUid && t.heroStationedUid !== myUid && t.id !== petCoord)
-          .map(t => (
-            <HeroVirusPetStationed
-              key={`rival_hero_${t.id}`}
-              coord={t.id}
-              petFamily={t.ownerFamily}
-              ownerName={t.ownerName}
-              isMine={false}
-            />
-          ))}
+        {/* 6.1.1 Rival Player Stationed Hero Virus Pets on the Field (Strictly 1 Hero per Rival) */}
+        {rivalHeroes.map(t => (
+          <HeroVirusPetStationed
+            key={`rival_hero_${t.heroStationedUid}_${t.id}`}
+            coord={t.id}
+            petFamily={t.ownerFamily}
+            ownerName={t.ownerName}
+            isMine={false}
+          />
+        ))}
 
         {/* 6.2 HoMM Marching Hero Virus Pet (Traveling towards attacked tile!) */}
         {marchOrder && (

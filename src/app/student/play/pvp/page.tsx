@@ -215,7 +215,17 @@ export default function PvpDuel() {
     try {
       sfx.click();
       const code = generateRoomCode();
-      const chosenQuestions = shuffle(DEFAULT_QUESTIONS).slice(0, 5);
+      const chosenQuestions = shuffle(DEFAULT_QUESTIONS).slice(0, 5).map(q => {
+        const opts = [...q.opts];
+        const correctText = opts[q.ans] !== undefined ? opts[q.ans] : opts[0];
+        const shuffledOpts = shuffle(opts);
+        const newAnsIdx = shuffledOpts.indexOf(correctText);
+        return {
+          ...q,
+          opts: shuffledOpts,
+          ans: newAnsIdx !== -1 ? newAnsIdx : 0
+        };
+      });
 
       const hostPlayer: PlayerState = {
         id: myPlayerKey,

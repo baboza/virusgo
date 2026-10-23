@@ -46,14 +46,18 @@ export default function LabDetective() {
     }
   }, [appUser]);
 
+  // Cases are pre-bundled from ALL_15_LAB_CASES (0ms delay, 0 Firestore reads)
   useEffect(() => {
-    import('firebase/firestore').then(({ getDoc, doc }) => {
-      getDoc(doc(db, 'game_content', 'lab_detective')).then(docSnap => {
-        if (docSnap.exists() && docSnap.data().data?.length > 0) {
-          setCases(formatAndShuffleCases(docSnap.data().data));
+    if (typeof window === 'undefined') return;
+    const cached = sessionStorage.getItem('virusgo_lab_detective_cases');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCases(formatAndShuffleCases(parsed));
         }
-      }).catch(console.error);
-    });
+      } catch (_) {}
+    }
   }, []);
 
   const currentCase = cases[currentCaseIndex];
@@ -188,7 +192,7 @@ export default function LabDetective() {
                   <Activity className="w-4 h-4" /> อาการทางคลินิก (Clinical Signs)
                 </div>
                 <ul className="list-disc list-inside text-slate-200 leading-relaxed pl-6 space-y-1 border-l-2 border-slate-800">
-                  {currentCase.symptoms.map((sym, i) => (
+                  {currentCase.symptoms.map((sym: string, i: number) => (
                     <li key={i}>{sym}</li>
                   ))}
                 </ul>
@@ -214,7 +218,7 @@ export default function LabDetective() {
             </h3>
             
             <div className="space-y-3">
-              {currentCase.choices.map((choice, idx) => {
+              {currentCase.choices.map((choice: string, idx: number) => {
                 const isSelected = selectedAnswer === choice;
                 const isCorrectChoice = choice === currentCase.answer;
                 

@@ -79,19 +79,18 @@ export default function ClassroomBattle() {
   const currentScore = roomData?.scores?.[myUid] || 0;
   useLiveTracking('classroom-battle', `สถานะ: ${roomData?.status || 'waiting'} | ห้อง: ${roomCode || '-'} | คะแนน: ${currentScore}`);
 
-  // Fetch Questions from Firestore (if custom pool uploaded by instructor)
+  // Synchronously uses bundled 150 balanced questions (0ms delay, 0 Firestore reads)
   useEffect(() => {
-    const fetchQ = async () => {
+    if (typeof window === 'undefined') return;
+    const cached = sessionStorage.getItem('virusgo_classroom_battle_quiz');
+    if (cached) {
       try {
-        const docSnap = await getDoc(doc(db, 'game_content', 'classroom_battle'));
-        if (docSnap.exists() && docSnap.data().questions?.length > 0) {
-          setQuestions(docSnap.data().questions);
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setQuestions(parsed);
         }
-      } catch (e) {
-        console.error("Failed to load custom questions", e);
-      }
-    };
-    fetchQ();
+      } catch (_) {}
+    }
   }, []);
   
   // Real-time Room Sync (ONLY depends on roomCode to prevent subscription churn)
@@ -202,9 +201,19 @@ export default function ClassroomBattle() {
     };
     
     if (nextQ === 0) {
-      // Pick randomized pool based on question count choice
+      // Pick randomized pool based on question count choice and ensure choices are freshly shuffled
       const pool = [...questions].sort(() => Math.random() - 0.5);
-      const chosen = questionCountChoice >= pool.length ? pool : pool.slice(0, questionCountChoice);
+      const chosen = (questionCountChoice >= pool.length ? pool : pool.slice(0, questionCountChoice)).map(q => {
+        const opts = [...(q.opts || [])];
+        const correctText = opts[q.ans] !== undefined ? opts[q.ans] : opts[0];
+        const shuffledOpts = [...opts].sort(() => Math.random() - 0.5);
+        const newAnsIdx = shuffledOpts.indexOf(correctText);
+        return {
+          ...q,
+          opts: shuffledOpts,
+          ans: newAnsIdx !== -1 ? newAnsIdx : 0
+        };
+      });
       updates.roomQuestions = chosen;
       updates.questionCount = chosen.length;
     }

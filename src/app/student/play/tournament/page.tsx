@@ -21,6 +21,7 @@ import {
 } from 'firebase/firestore';
 import { useLiveTracking } from '@/hooks/useLiveTracking';
 import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyExpCap';
+import { ALL_15_CHAPTER_QUESTIONS } from '@/data/veterinaryVirologyContent';
 
 const BOT_NAMES = [
   "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta",
@@ -29,18 +30,21 @@ const BOT_NAMES = [
   "Falcon", "Eagle", "Hawk", "Raven", "Owl", "Wolf", "Tiger"
 ];
 
-const QUESTIONS = [
-  { q: "เชื้อ FMD เป็นเชื้อกลุ่มใด?", opts: ["DNA Virus", "RNA Virus", "Bacteria", "Fungi"], ans: 1 },
-  { q: "สัตว์ชนิดใดไม่ติดเชื้อ FMD?", opts: ["โค", "สุกร", "ม้า", "แพะ"], ans: 2 },
-  { q: "โรค PEDV ในสุกร ทำให้เกิดอาการใดเด่นชัดที่สุด?", opts: ["ไข้สูง", "ท้องเสียรุนแรง", "ไอเรื้อรัง", "แท้งลูก"], ans: 1 },
-  { q: "โรคพิษสุนัขบ้า (Rabies) ติดต่อทางใดเป็นหลัก?", opts: ["ทางอากาศ", "น้ำลายผ่านแผล", "กินอาหารปนเปื้อน", "ยุงกัด"], ans: 1 },
-  { q: "การส่งตรวจยืนยันเชื้อ Rabies นิยมใช้วิธีใด?", opts: ["FA Test จากสมอง", "Blood smear", "ELISA serum", "PCR อุจจาระ"], ans: 0 },
-  { q: "CPV (Canine Parvovirus) มักพบในสุนัขอายุเท่าใด?", opts: ["แรกเกิด", "1-6 เดือน", "3-5 ปี", "สุนัขแก่"], ans: 1 },
-  { q: "พาหะนำโรค PRRS คืออะไร?", opts: ["ยุง", "เห็บ", "สุกรป่วย", "นก"], ans: 2 },
-  { q: "เชื้อ ASF ในสุกร เป็นเชื้อชนิดใด?", opts: ["DNA Virus", "RNA Virus", "Prion", "Bacteria"], ans: 0 },
-  { q: "วัคซีน ASF ในปัจจุบันมีประสิทธิภาพระดับใด?", opts: ["ป้องกันได้ 100%", "ป้องกันได้ 80%", "ป้องกันได้เฉพาะบางสายพันธุ์", "ยังไม่มีวัคซีนที่สมบูรณ์"], ans: 3 },
-  { q: "อาการ 'หงอนม่วง' ในไก่ มักพบในโรคใด?", opts: ["NDV (Newcastle)", "AI (Avian Influenza)", "IB (Infectious Bronchitis)", "Fowl Pox"], ans: 1 },
-];
+function shuffle<T>(arr: T[]): T[] {
+  return [...arr].sort(() => Math.random() - 0.5);
+}
+
+// 150 Balanced Veterinary Virology Curriculum Questions with Shuffled Choices
+const QUESTIONS = ALL_15_CHAPTER_QUESTIONS.map(q => {
+  const shuffledChoices = shuffle([...q.choices]);
+  const ansIdx = shuffledChoices.indexOf(q.answer);
+  return {
+    q: q.q,
+    opts: shuffledChoices,
+    ans: ansIdx !== -1 ? ansIdx : 0,
+    explanation: q.explanation || ''
+  };
+});
 
 const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -149,7 +153,16 @@ export default function TournamentMultiplayer() {
       matchData,
       currentRound: 0,
       questionIndex: 0,
-      roomQuestions: [...QUESTIONS].sort(() => Math.random() - 0.5)
+      roomQuestions: shuffle(ALL_15_CHAPTER_QUESTIONS).map(q => {
+        const shuffledOpts = shuffle([...q.choices]);
+        const ansIdx = shuffledOpts.indexOf(q.answer);
+        return {
+          q: q.q,
+          opts: shuffledOpts,
+          ans: ansIdx !== -1 ? ansIdx : 0,
+          explanation: q.explanation || ''
+        };
+      })
     });
   };
 
@@ -531,7 +544,7 @@ export default function TournamentMultiplayer() {
           <h2 className="text-2xl font-bold text-white mb-8">{q.q}</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {q.opts.map((opt, i) => {
+            {q.opts.map((opt: string, i: number) => {
               let btnClass = "bg-slate-800 hover:bg-slate-700 border-slate-700";
               if (showExplanation) {
                 if (i === q.ans) btnClass = "bg-emerald-500/20 border-emerald-500 text-emerald-400";

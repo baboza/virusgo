@@ -14,6 +14,7 @@ import { sfx } from '@/utils/sound';
 import Link from 'next/link';
 import { ArrowLeft, Users, ShieldAlert, Zap, Trophy, Skull } from 'lucide-react';
 import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyExpCap';
+import { ALL_15_CHAPTER_QUESTIONS } from '@/data/veterinaryVirologyContent';
 
 // --- Types ---
 interface PlayerState {
@@ -33,24 +34,16 @@ interface Room {
   players: Record<string, PlayerState>;
 }
 
-// --- Hardcoded Questions for Demo ---
-const DEFAULT_QUESTIONS = [
-  { q: "ไวรัสชนิดใดที่มีรูปร่างคล้ายกระสุนปืน (Bullet-shaped)?", choices: ["Rabies Virus", "Influenza Virus", "Parvovirus", "Rotavirus"], answer: "Rabies Virus" },
-  { q: "Negri bodies เป็นลักษณะเฉพาะของโรคใด?", choices: ["Canine Distemper", "Rabies", "Feline Panleukopenia", "FIV"], answer: "Rabies" },
-  { q: "เชื้อ FMD เป็นเชื้อกลุ่มใด?", choices: ["DNA Virus", "RNA Virus", "Bacteria", "Fungi"], answer: "RNA Virus" },
-  { q: "สัตว์ชนิดใดไม่ติดเชื้อ FMD (โรคปากและเท้าเปื่อย)?", choices: ["โค", "สุกร", "ม้า", "แพะ"], answer: "ม้า" },
-  { q: "โรค PEDV ในสุกร ทำให้เกิดอาการใดเด่นชัดที่สุด?", choices: ["ไข้สูง", "ท้องเสียรุนแรง", "ไอเรื้อรัง", "แท้งลูก"], answer: "ท้องเสียรุนแรง" },
-  { q: "การส่งตรวจยืนยันเชื้อ Rabies นิยมใช้วิธีใด?", choices: ["FA Test จากสมอง", "Blood smear", "ELISA serum", "PCR อุจจาระ"], answer: "FA Test จากสมอง" },
-  { q: "CPV (Canine Parvovirus) มักพบในสุนัขอายุเท่าใด?", choices: ["แรกเกิด", "1-6 เดือน", "3-5 ปี", "สุนัขแก่"], answer: "1-6 เดือน" },
-  { q: "พาหะนำโรค PRRS คืออะไร?", choices: ["ยุง", "เห็บ", "สุกรป่วย", "นก"], answer: "สุกรป่วย" },
-  { q: "วัคซีน ASF ในปัจจุบันมีประสิทธิภาพระดับใด?", choices: ["ป้องกันได้ 100%", "ป้องกันได้ 80%", "ป้องกันได้เฉพาะบางสายพันธุ์", "ยังไม่มีวัคซีนที่สมบูรณ์"], answer: "ยังไม่มีวัคซีนที่สมบูรณ์" },
-  { q: "ข้อใดคือลักษณะทางพยาธิวิทยาของโรคไข้หัดสุนัข (CDV)?", choices: ["Encephalitis", "Pneumonia", "Hyperkeratosis (Hardpad)", "ถูกทุกข้อ"], answer: "ถูกทุกข้อ" },
-  { q: "Feline Leukemia Virus (FeLV) เป็นไวรัสกลุ่มใด?", choices: ["Retrovirus", "Parvovirus", "Coronavirus", "Herpesvirus"], answer: "Retrovirus" },
-  { q: "การวินิจฉัย FIV ในคลินิก นิยมตรวจหาอะไร?", choices: ["Antigen", "Antibody", "DNA", "RNA"], answer: "Antibody" },
-  { q: "โรคใดในแมวที่มักเกิดจากเชื้อ Feline Coronavirus กลายพันธุ์?", choices: ["FIV", "FeLV", "FIP", "FPLV"], answer: "FIP" },
-  { q: "African Horse Sickness (AHS) มีพาหะนำโรคคือสัตว์ชนิดใด?", choices: ["ริ้น (Culicoides)", "ยุง (Aedes)", "แมลงวันคอก (Stomoxys)", "เห็บ (Ticks)"], answer: "ริ้น (Culicoides)" },
-  { q: "ไวรัสชนิดใดเป็นสาเหตุของโรค Orf (Contagious ecthyma) ในแกะ?", choices: ["Poxvirus", "Herpesvirus", "Papillomavirus", "Parvovirus"], answer: "Poxvirus" }
-];
+function shuffle<T>(arr: T[]): T[] {
+  return [...arr].sort(() => Math.random() - 0.5);
+}
+
+// Full 150-Question Veterinary Virology Curriculum Bank with Shuffled Choices
+const DEFAULT_QUESTIONS = ALL_15_CHAPTER_QUESTIONS.map(q => ({
+  q: q.q,
+  choices: shuffle([...q.choices]),
+  answer: q.answer
+}));
 
 const MAX_PLAYER_HP = 100;
 const MAX_BOSS_HP = 300;
@@ -63,7 +56,7 @@ export default function VirusBattle() {
   const [joinCode, setJoinCode] = useState<string>('');
   const [roomData, setRoomData] = useState<Room | null>(null);
   const [error, setError] = useState<string>('');
-  const [questions, setQuestions] = useState<typeof DEFAULT_QUESTIONS>(DEFAULT_QUESTIONS);
+  const [questions, setQuestions] = useState<typeof DEFAULT_QUESTIONS>(() => shuffle([...DEFAULT_QUESTIONS]));
   const [currentQ, setCurrentQ] = useState(0);
 
   const myUid = appUser?.uid || user?.uid || '';
@@ -78,31 +71,24 @@ export default function VirusBattle() {
 
   useLiveTracking('virus-battle', `ห้อง: ${roomData?.roomId || '-'} | สถานะ: ${roomData?.status || 'waiting'} | เลือดบอส: ${roomData?.bossHp ?? '-'}/${roomData?.maxBossHp ?? '-'}`);
 
-
+  // Questions are pre-bundled in client memory (0ms delay, 0 Firestore reads)
   useEffect(() => {
-    const fetchQ = async () => {
+    if (typeof window === 'undefined') return;
+    const cached = sessionStorage.getItem('virusgo_quiz_general');
+    if (cached) {
       try {
-        const docSnap = await getDoc(doc(db, 'game_content', 'quiz_general'));
-        if (docSnap.exists() && docSnap.data().questions?.length > 0) {
-          const mapped = docSnap.data().questions.map((q: any) => ({
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setQuestions(shuffle(parsed.map((q: any) => ({
             q: q.q,
-            choices: q.opts || [],
-            answer: q.opts ? q.opts[q.ans] : ''
-          }));
-          setQuestions(mapped);
+            choices: shuffle([...(q.choices || q.opts || [])]),
+            answer: q.answer || (q.opts && q.opts[q.ans]) || ''
+          }))));
         }
-      } catch (e) {
-        console.error("Failed to load custom questions", e);
-      }
-    };
-    fetchQ();
+      } catch (_) {}
+    }
   }, []);
   const [myDamageText, setMyDamageText] = useState<{val: number, type: 'damage'|'heal'|'hit'} | null>(null);
-  
-  useEffect(() => {
-    // Shuffle defaults just in case
-    setQuestions(prev => [...prev].sort(() => Math.random() - 0.5));
-  }, []);
 
   // Subscribe to Room
   useEffect(() => {

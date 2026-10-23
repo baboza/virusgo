@@ -15,6 +15,10 @@ import {
   increment, 
   arrayUnion, 
   getDoc,
+  getDocs,
+  query,
+  where,
+  limit,
   deleteDoc
 } from 'firebase/firestore';
 import { EmpireTile, Guild, User } from '@/types';
@@ -46,7 +50,10 @@ import {
   HelpCircle,
   ShieldAlert,
   Coins,
-  Heart
+  Heart,
+  Plus,
+  Check,
+  ShieldCheck
 } from 'lucide-react';
 import { sfx } from '@/utils/sound';
 import { 
@@ -68,7 +75,8 @@ import {
   DEFENSE_STRUCTURES, 
   DefenseStructureConfig,
   SCOUT_FALLBACK_QUIZ,
-  getPlayerUniqueColor
+  getPlayerUniqueColor,
+  PLAYER_PALETTE
 } from '@/lib/empireConstants';
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 
@@ -109,6 +117,19 @@ export default function StudentEmpirePage() {
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showScoutModal, setShowScoutModal] = useState(false);
   const [showBuildModal, setShowBuildModal] = useState(false);
+  const [showGuildModal, setShowGuildModal] = useState(false);
+
+  // Guild / Alliance Management & Recruitment State
+  const [newGuildName, setNewGuildName] = useState('');
+  const [newGuildTag, setNewGuildTag] = useState('');
+  const [newGuildColor, setNewGuildColor] = useState(PLAYER_PALETTE[0] || '#a855f7');
+  const [isCreatingGuild, setIsCreatingGuild] = useState(false);
+  const [isJoiningGuild, setIsJoiningGuild] = useState<string | null>(null);
+  const [previewGuildId, setPreviewGuildId] = useState<string | null>(null);
+  const [guildMembers, setGuildMembers] = useState<User[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [previewMembersMap, setPreviewMembersMap] = useState<Record<string, User[]>>({});
+  const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null);
 
   // Action Drawer Messages & Feedback
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
@@ -456,7 +477,12 @@ export default function StudentEmpirePage() {
       setTargetFocus({ x: cx, y: cy });
       setSelectedCoord(g.citadelCoord);
     } else {
-      alert('กิลด์ของคุณยังไม่ได้สถาปนานครหลวง');
+      const isLeader = guilds[appUser.guildId]?.leaderUid === appUser.uid || isGmUser;
+      if (isLeader) {
+        alert('กิลด์ของคุณยังไม่มีนครหลวง!\n\n👑 ในฐานะหัวหน้ากิลด์ คุณสามารถคลิกเลือกเซกเตอร์ของกิลด์ แล้วกดปุ่ม "🏛️ สถาปนานครหลวงกิลด์" ในเมนูด้านล่างเพื่อสร้างได้ทันที');
+      } else {
+        alert('กิลด์ของคุณยังไม่ได้สถาปนานครหลวง กรุณาแจ้งหัวหน้ากิลด์ให้สถาปนานครหลวงกิลด์');
+      }
     }
   };
 
@@ -484,6 +510,22 @@ export default function StudentEmpirePage() {
     if (anyTile) return `${anyTile.x},${anyTile.y}`;
     return null;
   }, [appUser?.pet?.currentTileCoord, appUser?.uid, tiles, isValidCoord]);
+
+  // Map of rival ownerUid -> single latest coord where their hero is stationed (Strict 1 Hero per player)
+  const rivalStationedHeroCoords = useMemo(() => {
+    const map: Record<string, { coord: string; timestamp: number }> = {};
+    Object.values(tiles).forEach((t) => {
+      if (t.ownerUid && t.heroStationedUid === t.ownerUid && t.ownerUid !== appUser?.uid) {
+        const time = new Date(t.lastAttacked || t.lastActive || 0).getTime();
+        if (!map[t.ownerUid] || time > map[t.ownerUid].timestamp) {
+          map[t.ownerUid] = { coord: t.id, timestamp: time };
+        }
+      }
+    });
+    const set = new Set<string>();
+    Object.values(map).forEach(m => set.add(m.coord));
+    return set;
+  }, [tiles, appUser?.uid]);
 
   // Sync localStorage whenever appUser.pet.currentTileCoord updates
   useEffect(() => {
@@ -606,19 +648,24 @@ export default function StudentEmpirePage() {
     };
     if (ALL_15_CHAPTER_QUESTIONS && ALL_15_CHAPTER_QUESTIONS.length > 0) {
       const randomQ = ALL_15_CHAPTER_QUESTIONS[Math.floor(Math.random() * ALL_15_CHAPTER_QUESTIONS.length)];
-      const answerIdx = randomQ.choices.findIndex((c) => c === randomQ.answer);
+      const answerText = randomQ.answer;
+      const shuffledOptions = [...randomQ.choices].sort(() => Math.random() - 0.5);
+      const answerIdx = shuffledOptions.indexOf(answerText);
       qObj = {
         q: randomQ.q,
-        options: randomQ.choices,
+        options: shuffledOptions,
         answer: answerIdx >= 0 ? answerIdx : 0,
         explanation: randomQ.explanation
       };
     } else {
       const randomFallback = SCOUT_FALLBACK_QUIZ[Math.floor(Math.random() * SCOUT_FALLBACK_QUIZ.length)];
+      const answerText = randomFallback.options[randomFallback.answer];
+      const shuffledOptions = [...randomFallback.options].sort(() => Math.random() - 0.5);
+      const answerIdx = shuffledOptions.indexOf(answerText);
       qObj = {
         q: randomFallback.q,
-        options: randomFallback.options,
-        answer: randomFallback.answer,
+        options: shuffledOptions,
+        answer: answerIdx >= 0 ? answerIdx : 0,
         explanation: randomFallback.explanation
       };
     }
@@ -855,6 +902,352 @@ export default function StudentEmpirePage() {
       alert('เกิดข้อผิดพลาดในการฟื้นฟูอาณาเขต');
     } finally {
       setRestoringUpkeep(false);
+    }
+  };
+
+  // ── 12.2 Handler: Establish Guild Citadel (1 Tile or 2x2 Grand Fortress) ──
+  const [establishingCitadel, setEstablishingCitadel] = useState(false);
+
+  const handleEstablishCitadel = async (tileId: string) => {
+    if (!appUser?.guildId) return;
+    const currentG = guilds[appUser.guildId];
+    const isLeader = currentG?.leaderUid === appUser.uid || isGmUser;
+    if (!currentG || !isLeader) {
+      alert('เฉพาะหัวหน้ากิลด์ (👑) เท่านั้นที่สามารถสถาปนานครหลวงกิลด์ได้');
+      return;
+    }
+
+    const [tx, ty] = tileId.split(',').map(Number);
+    // 1. Try finding a 2x2 square containing (tx, ty) where all 4 tiles belong to the guild
+    const candidateOffsets = [
+      [0, 0],   // (tx, ty) as top-left
+      [-1, 0],  // (tx, ty) as top-right
+      [0, -1],  // (tx, ty) as bottom-left
+      [-1, -1], // (tx, ty) as bottom-right
+    ];
+
+    let validCoords: string[] | null = null;
+    let anchorCoord: string = tileId;
+
+    for (const [ox, oy] of candidateOffsets) {
+      const ax = tx + ox;
+      const ay = ty + oy;
+      if (ax < 0 || ax + 1 >= MAP_SIZE || ay < 0 || ay + 1 >= MAP_SIZE) continue;
+
+      const cluster = getCitadel2x2Coords(ax, ay);
+      const allGuildOwnedAndValid = cluster.every((cid) => {
+        const [cx, cy] = cid.split(',').map(Number);
+        if (isCentralVaultZone(cx, cy)) return false;
+        const t = tiles[cid];
+        if (!t) return false;
+        if (t.isOutpost || t.type === 'outpost') return false;
+        const isOwnedByGuild = t.guildId === appUser.guildId || t.ownerUid === appUser.uid;
+        return isOwnedByGuild;
+      });
+
+      if (allGuildOwnedAndValid) {
+        validCoords = cluster;
+        anchorCoord = `${ax},${ay}`;
+        break;
+      }
+    }
+
+    const is2x2Block = Boolean(validCoords && validCoords.length === 4);
+    const finalCoords = is2x2Block ? validCoords! : [tileId];
+
+    setEstablishingCitadel(true);
+    try {
+      // 1. Clear previous citadel flag on old tiles
+      const oldCoords = currentG.citadelCoords || (currentG.citadelCoord ? [currentG.citadelCoord] : []);
+      const clearPromises = oldCoords
+        .filter((cid) => tiles[cid]?.isCitadel)
+        .map((cid) => updateDoc(doc(db, 'empire_tiles', cid), { isCitadel: false }));
+      await Promise.all(clearPromises);
+
+      // 2. Set new citadel flag on the new tiles
+      const setPromises = finalCoords.map((cid) =>
+        updateDoc(doc(db, 'empire_tiles', cid), {
+          isCitadel: true,
+          guildId: appUser.guildId,
+          guildName: currentG.name,
+        })
+      );
+      await Promise.all(setPromises);
+
+      // 3. Update guild record with coordinates
+      const lvl = currentG.citadelLevel || 1;
+      await updateDoc(doc(db, 'guilds', currentG.id), {
+        citadelCoord: anchorCoord,
+        citadelCoords: finalCoords,
+        citadelLevel: lvl,
+        citadelExp: currentG.citadelExp || 0,
+        citadelHp: lvl * 1000 + 2500,
+        maxCitadelHp: lvl * 1000 + 2500,
+      });
+
+      sfx.levelUp();
+      setActionSuccessMsg(
+        is2x2Block
+          ? `🏛️ สถาปนานครหลวงกิลด์ [${currentG.tag || currentG.name}] แบบมหาปราสาท 4 ช่อง [${finalCoords.join(', ')}] สำเร็จ!`
+          : `🏛️ สถาปนานครหลวงกิลด์ [${currentG.tag || currentG.name}] ณ เซกเตอร์ [${tileId}] สำเร็จ! (ยึดครบ 4 ช่อง 2×2 เพื่อขยายเป็นมหาปราสาท)`
+      );
+      setTimeout(() => setActionSuccessMsg(null), 5000);
+    } catch (err) {
+      console.error('Error establishing citadel:', err);
+      alert('เกิดข้อผิดพลาดในการสถาปนานครหลวงกิลด์');
+    } finally {
+      setEstablishingCitadel(false);
+    }
+  };
+
+  // ── 12.3 Handler: Donate EXP to Upgrade Guild Citadel ─────────────
+  const [donatingCitadelExp, setDonatingCitadelExp] = useState(false);
+
+  const handleDonateCitadelExp = async (amount: number = 25) => {
+    if (!appUser?.guildId || donatingCitadelExp) return;
+    const currentG = guilds[appUser.guildId];
+    if (!currentG || (!currentG.citadelCoord && !currentG.citadelCoords)) {
+      alert('กิลด์ของคุณยังไม่มีนครหลวง กรุณาให้หัวหน้ากิลด์สถาปนานครหลวงก่อน');
+      return;
+    }
+    const userExp = Number(appUser.exp || 0);
+    if (userExp < amount + 20) {
+      alert(`คุณมี EXP ไม่เพียงพอสำหรับการบริจาค (ต้องการขั้นต่ำ ${amount + 20} EXP, คุณมี ${userExp} EXP)`);
+      return;
+    }
+
+    setDonatingCitadelExp(true);
+    try {
+      // 1. Deduct user EXP
+      await updateDoc(doc(db, 'users', appUser.uid), {
+        exp: increment(-amount),
+      });
+
+      // 2. Add to guild citadel exp and check for level up
+      const currentLevel = currentG.citadelLevel || 1;
+      const currentExp = (currentG.citadelExp || 0) + amount;
+      const neededExpForNext = currentLevel * 150; // LV1->2: 150 EXP, LV2->3: 300 EXP
+      let newLevel = currentLevel;
+      if (currentExp >= neededExpForNext && currentLevel < 5) {
+        newLevel = currentLevel + 1;
+      }
+
+      await updateDoc(doc(db, 'guilds', currentG.id), {
+        citadelExp: currentExp,
+        citadelLevel: newLevel,
+        maxCitadelHp: newLevel * 1000 + 2500,
+      });
+
+      sfx.levelUp();
+      setActionSuccessMsg(
+        newLevel > currentLevel
+          ? `🎉 นครหลวงกิลด์เลเวลอัป! ก้าวสู่ระดับ LV.${newLevel} รัศมีคุ้มกันและพลังป้องกันเพิ่มขึ้น!`
+          : `🧪 บริจาค ${amount} EXP พัฒนานครหลวงกิลด์สำเร็จ!`
+      );
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Error donating to citadel:', err);
+    } finally {
+      setDonatingCitadelExp(false);
+    }
+  };
+
+  // ── 12.4 Guild Members Fetch & Preview ────────────────────────────
+  useEffect(() => {
+    if (!showGuildModal || !appUser?.guildId) {
+      setGuildMembers([]);
+      return;
+    }
+    let isCancelled = false;
+    setLoadingMembers(true);
+    const q = query(
+      collection(db, 'users'),
+      where('guildId', '==', appUser.guildId),
+      limit(50)
+    );
+    getDocs(q)
+      .then((snap) => {
+        if (isCancelled) return;
+        const list: User[] = [];
+        snap.forEach((d) => list.push(d.data() as User));
+        setGuildMembers(list);
+      })
+      .catch((err) => console.error('Error fetching guild members:', err))
+      .finally(() => {
+        if (!isCancelled) setLoadingMembers(false);
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [showGuildModal, appUser?.guildId]);
+
+  const handleTogglePreviewGuild = async (targetGuildId: string) => {
+    if (previewGuildId === targetGuildId) {
+      setPreviewGuildId(null);
+      return;
+    }
+    setPreviewGuildId(targetGuildId);
+    if (previewMembersMap[targetGuildId]) return;
+
+    setLoadingPreviewId(targetGuildId);
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('guildId', '==', targetGuildId),
+        limit(30)
+      );
+      const snap = await getDocs(q);
+      const list: User[] = [];
+      snap.forEach((d) => list.push(d.data() as User));
+      setPreviewMembersMap((prev) => ({ ...prev, [targetGuildId]: list }));
+    } catch (err) {
+      console.error('Error previewing guild members:', err);
+    } finally {
+      setLoadingPreviewId(null);
+    }
+  };
+
+  // ── 12.5 Guild Lifecycle Handlers (Create, Join, Leave, Color) ────
+  const handleCreateGuild = async () => {
+    if (!appUser || !newGuildName.trim() || !newGuildTag.trim() || isCreatingGuild) return;
+    setIsCreatingGuild(true);
+    try {
+      const gId = `guild_${Date.now()}`;
+      const creatorTilesCount = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length;
+      const cleanName = newGuildName.trim();
+      const cleanTag = newGuildTag.trim().toUpperCase().slice(0, 5);
+
+      const newGuild: Guild = {
+        id: gId,
+        name: cleanName,
+        tag: cleanTag,
+        color: newGuildColor,
+        leaderUid: appUser.uid,
+        leaderName: appUser.fullname || 'ผู้บัญชาการ',
+        membersCount: 1,
+        totalTiles: creatorTilesCount,
+        createdAt: new Date().toISOString(),
+      };
+
+      await setDoc(doc(db, 'guilds', gId), newGuild);
+      await updateDoc(doc(db, 'users', appUser.uid), {
+        guildId: gId,
+        guildName: cleanName,
+      });
+
+      // Update current user's tiles to reflect new guild
+      const tileUpdates = Object.values(tiles)
+        .filter((t) => t.ownerUid === appUser.uid)
+        .map((t) =>
+          updateDoc(doc(db, 'empire_tiles', t.id), {
+            guildId: gId,
+            guildName: cleanName,
+          })
+        );
+      await Promise.all(tileUpdates);
+
+      setNewGuildName('');
+      setNewGuildTag('');
+      sfx.levelUp();
+      setActionSuccessMsg(`👑 สถาปนาพันธมิตรกิลด์ [${cleanTag}] ${cleanName} สำเร็จ! คุณคือหัวหน้ากิลด์`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Error creating guild:', err);
+      alert('เกิดข้อผิดพลาดในการสร้างกิลด์ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsCreatingGuild(false);
+    }
+  };
+
+  const handleJoinGuild = async (targetGuild: Guild) => {
+    if (!appUser || isJoiningGuild) return;
+    setIsJoiningGuild(targetGuild.id);
+    try {
+      const joiningUserTilesCount = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length;
+
+      await updateDoc(doc(db, 'guilds', targetGuild.id), {
+        membersCount: increment(1),
+        totalTiles: increment(joiningUserTilesCount),
+      });
+      await updateDoc(doc(db, 'users', appUser.uid), {
+        guildId: targetGuild.id,
+        guildName: targetGuild.name,
+      });
+
+      // Update user's tiles to match new guild
+      const tileUpdates = Object.values(tiles)
+        .filter((t) => t.ownerUid === appUser.uid)
+        .map((t) =>
+          updateDoc(doc(db, 'empire_tiles', t.id), {
+            guildId: targetGuild.id,
+            guildName: targetGuild.name,
+          })
+        );
+      await Promise.all(tileUpdates);
+
+      sfx.levelUp();
+      setShowGuildModal(false);
+      setActionSuccessMsg(`🛡️ คุณได้เข้าร่วมพันธมิตร [${targetGuild.tag}] ${targetGuild.name} เรียบร้อยแล้ว!`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Error joining guild:', err);
+      alert('เกิดข้อผิดพลาดในการเข้าร่วมกิลด์');
+    } finally {
+      setIsJoiningGuild(null);
+    }
+  };
+
+  const handleLeaveGuild = async () => {
+    if (!appUser || !appUser.guildId) return;
+    const currentG = guilds[appUser.guildId];
+    if (!confirm(`คุณต้องการออกจากพันธมิตรกิลด์ [${currentG?.tag || ''}] ${currentG?.name || ''} ใช่หรือไม่?`)) {
+      return;
+    }
+    try {
+      const leavingUserTilesCount = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length;
+      if (currentG) {
+        await updateDoc(doc(db, 'guilds', currentG.id), {
+          membersCount: increment(-1),
+          totalTiles: increment(-leavingUserTilesCount),
+        });
+      }
+      await updateDoc(doc(db, 'users', appUser.uid), {
+        guildId: null,
+        guildName: null,
+      });
+
+      // Remove guild tag from tiles
+      const tileUpdates = Object.values(tiles)
+        .filter((t) => t.ownerUid === appUser.uid)
+        .map((t) =>
+          updateDoc(doc(db, 'empire_tiles', t.id), {
+            guildId: null,
+            guildName: null,
+          })
+        );
+      await Promise.all(tileUpdates);
+
+      sfx.click();
+      setShowGuildModal(false);
+      setActionSuccessMsg('คุณได้ออกจากกิลด์เรียบร้อยแล้ว');
+      setTimeout(() => setActionSuccessMsg(null), 3000);
+    } catch (err) {
+      console.error('Error leaving guild:', err);
+      alert('เกิดข้อผิดพลาดในการออกจากกิลด์');
+    }
+  };
+
+  const handleUpdateGuildColor = async (color: string) => {
+    if (!appUser?.guildId) return;
+    const currentG = guilds[appUser.guildId];
+    if (!currentG || (currentG.leaderUid !== appUser.uid && !isGmUser)) return;
+    try {
+      await updateDoc(doc(db, 'guilds', currentG.id), { color });
+      sfx.click();
+      setActionSuccessMsg(`เปลี่ยนสีกิลด์ประจำอาณาจักรเป็น ${color} เรียบร้อย!`);
+      setTimeout(() => setActionSuccessMsg(null), 2500);
+    } catch (err) {
+      console.error('Error updating guild color:', err);
     }
   };
 
@@ -1107,6 +1500,35 @@ export default function StudentEmpirePage() {
             title="ดูสถิติและทำเนียบเกียรติยศกิลด์"
           >
             <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </button>
+
+          {/* Guild / Alliance Management Button */}
+          <button
+            type="button"
+            onClick={() => {
+              sfx.click();
+              setShowGuildModal(true);
+            }}
+            className={`px-2 sm:px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all shadow-md cursor-pointer hover:scale-105 active:scale-95 ${
+              appUser?.guildId
+                ? 'bg-amber-950/80 hover:bg-amber-900/80 border-amber-500/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
+                : 'bg-indigo-950/90 hover:bg-indigo-900/90 border-indigo-500/60 text-indigo-300 ring-1 ring-indigo-400/50 shadow-[0_0_12px_rgba(99,102,241,0.35)] animate-pulse'
+            }`}
+            title={
+              appUser?.guildId
+                ? `พันธมิตรกิลด์: [${guilds[appUser.guildId]?.tag || 'กิลด์'}] ${guilds[appUser.guildId]?.name || ''}`
+                : 'ระบบพันธมิตรกิลด์ - ยังไม่มีกิลด์ (คลิกเพื่อเข้าร่วมหรือก่อตั้ง)'
+            }
+          >
+            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+            <span className="hidden sm:inline">
+              {appUser?.guildId
+                ? `[${guilds[appUser.guildId]?.tag || 'กิลด์'}]`
+                : 'พันธมิตรกิลด์'}
+            </span>
+            {!appUser?.guildId && (
+              <span className="text-[10px] sm:hidden font-mono text-indigo-300 font-black">กิลด์</span>
+            )}
           </button>
 
           {/* GM View Mode Toggle Button */}
@@ -1462,11 +1884,19 @@ export default function StudentEmpirePage() {
                         </div>
                       )}
 
+                      {/* Citadel Badge */}
+                      {currentTile?.isCitadel && (
+                        <div className="mt-1 px-2 py-0.5 rounded-lg bg-amber-950/90 border border-amber-500/60 flex items-center gap-1.5 text-[10px] text-amber-300 font-bold shadow-sm">
+                          <span>🚩</span>
+                          <span>มหานครกิลด์ (Guild Citadel) LV.{currentTileGuild?.citadelLevel || 1} • รัศมีคุ้มกันป้องกันรกร้าง 2 ช่อง</span>
+                        </div>
+                      )}
+
                       {/* Hero Duel vs Garrison Status Tag */}
-                      {(() => {
+                      {!currentTile?.isCitadel && (() => {
                         const isHeroHere = Boolean(
                           (isMyTile && heroPetCoord === selectedCoord) ||
-                          (currentTile.heroStationedUid && currentTile.heroStationedUid === currentTile.ownerUid)
+                          (currentTile.heroStationedUid && currentTile.heroStationedUid === currentTile.ownerUid && rivalStationedHeroCoords.has(currentTile.id))
                         );
                         return isHeroHere ? (
                           <div className="mt-1 px-2 py-0.5 rounded-lg bg-amber-950/80 border border-amber-500/50 flex items-center gap-1.5 text-[10px] text-amber-300 font-bold shadow-sm">
@@ -1635,7 +2065,8 @@ export default function StudentEmpirePage() {
                     {!isMyTile && (() => {
                       const isEnemyHeroStationed = Boolean(
                         currentTile?.ownerUid && 
-                        currentTile.heroStationedUid === currentTile.ownerUid
+                        currentTile.heroStationedUid === currentTile.ownerUid &&
+                        rivalStationedHeroCoords.has(currentTile.id)
                       );
 
                       return (
@@ -1732,6 +2163,61 @@ export default function StudentEmpirePage() {
                       >
                         <Building2 className="w-4 h-4" />
                         <span>สร้างป้อมปราการชีวภาพ (Build Defense)</span>
+                      </button>
+                    )}
+
+                    {/* 5.1 Guild Leader: Establish Citadel Button */}
+                    {appUser?.guildId &&
+                      (guilds[appUser.guildId]?.leaderUid === appUser.uid || isGmUser) &&
+                      (isMyTile || isGuildTile) &&
+                      !currentTile?.isCitadel &&
+                      !currentTile?.isOutpost &&
+                      selectedCoord && (() => {
+                        const [tx, ty] = selectedCoord.split(',').map(Number);
+                        return !isCentralVaultZone(tx, ty);
+                      })() && (
+                        <button
+                          type="button"
+                          disabled={establishingCitadel}
+                          onClick={() => handleEstablishCitadel(selectedCoord)}
+                          className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:via-yellow-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-950/60 ring-2 ring-amber-400/80 transition-all hover:scale-[1.02] active:scale-98 cursor-pointer animate-pulse"
+                          title="สถาปนานครหลวงกิลด์ ณ บริเวณนี้"
+                        >
+                          <Building2 className="w-4 h-4 text-slate-950" />
+                          <span>{establishingCitadel ? 'กำลังสถาปนา...' : '🏛️ สถาปนานครหลวงกิลด์ (Guild Citadel)'}</span>
+                        </button>
+                    )}
+
+                    {/* 5.2 Guild Member: Donate EXP to Upgrade Guild Citadel */}
+                    {appUser?.guildId && currentTile?.isCitadel && (isGuildTile || currentTile?.guildId === appUser.guildId) && (
+                      <button
+                        type="button"
+                        disabled={donatingCitadelExp}
+                        onClick={() => handleDonateCitadelExp(25)}
+                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:via-amber-300 hover:to-yellow-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-950/60 transition-all hover:scale-[1.02] active:scale-98 cursor-pointer"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>{donatingCitadelExp ? 'กำลังบริจาค...' : `🧪 บริจาค 25 EXP พัฒนานครหลวง (LV.${currentTileGuild?.citadelLevel || 1})`}</span>
+                      </button>
+                    )}
+
+                    {/* 5.3 Player with no guild: Guild invitation call-to-action */}
+                    {!appUser?.guildId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sfx.click();
+                          setShowGuildModal(true);
+                        }}
+                        className="w-full py-2.5 px-3 rounded-2xl bg-indigo-950/70 hover:bg-indigo-900/80 border border-indigo-500/50 text-indigo-200 text-xs font-mono flex items-center justify-between transition-all hover:scale-[1.01] active:scale-98 shadow-md cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5 font-bold">
+                          <Users className="w-4 h-4 text-indigo-400 animate-pulse" />
+                          <span>คุณยังไม่มีพันธมิตรกิลด์</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold">
+                          เข้าร่วม / ก่อตั้งกิลด์ →
+                        </span>
                       </button>
                     )}
 
@@ -2134,6 +2620,518 @@ export default function StudentEmpirePage() {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 5: GUILD ALLIANCE & RECRUITMENT MODAL ───────────────────── */}
+      {showGuildModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-2 text-amber-400 font-bold">
+                <Users className="w-5 h-5 text-amber-400" />
+                <h2 className="text-base font-black uppercase tracking-wider text-white">
+                  ระบบพันธมิตรกิลด์ (Alliance)
+                </h2>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowGuildModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
+              {appUser?.guildId ? (
+                (() => {
+                  const currentG = guilds[appUser.guildId];
+                  const isLeader = currentG?.leaderUid === appUser.uid || isGmUser;
+                  const guildTilesCount = Object.values(tiles).filter((t) => t.guildId === appUser.guildId).length;
+
+                  return (
+                    <div className="space-y-4">
+                      {/* 1. Guild Overview Card */}
+                      <div 
+                        className="rounded-2xl p-4 border relative overflow-hidden space-y-3 shadow-lg"
+                        style={{
+                          backgroundColor: `${currentG?.color || '#a855f7'}18`,
+                          borderColor: `${currentG?.color || '#a855f7'}60`,
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span 
+                                className="w-3.5 h-3.5 rounded-full border border-white/80 shadow-[0_0_8px_rgba(255,255,255,0.5)] shrink-0" 
+                                style={{ backgroundColor: currentG?.color || '#a855f7' }} 
+                              />
+                              <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400 font-bold">
+                                พันธมิตรกิลด์ของคุณ
+                              </span>
+                            </div>
+                            <h3 className="text-xl font-black text-white flex items-center gap-2 mt-1">
+                              <span className="font-mono text-cyan-400">[{currentG?.tag || 'TAG'}]</span>
+                              <span>{currentG?.name || appUser.guildName}</span>
+                            </h3>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              {isLeader ? (
+                                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1 font-mono">
+                                  <Crown className="w-3.5 h-3.5 text-amber-400" /> คุณคือหัวหน้ากิลด์
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-[11px] font-mono flex items-center gap-1">
+                                  <Users className="w-3.5 h-3.5 text-cyan-400" /> สมาชิกกิลด์
+                                </span>
+                              )}
+                              <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/50 border border-cyan-500/30 px-2 py-0.5 rounded-full">
+                                รวมยึดครอง {guildTilesCount} เซกเตอร์
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleLeaveGuild}
+                            className="text-xs px-3 py-1.5 rounded-xl bg-red-950/70 border border-red-500/40 text-red-300 hover:bg-red-900/60 transition-colors shrink-0 font-medium active:scale-95 cursor-pointer"
+                          >
+                            ออกจากกิลด์
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 2. Guild Citadel Status & Upgrade Card */}
+                      <div className="bg-slate-950/70 border border-amber-500/40 rounded-2xl p-3.5 space-y-3 shadow-md">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-amber-400" />
+                            <span className="text-xs font-black uppercase text-white tracking-wide font-mono">
+                              นครหลวงกิลด์ (Guild Citadel)
+                            </span>
+                          </div>
+                          {currentG?.citadelCoord ? (
+                            <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full">
+                              LV.{currentG?.citadelLevel || 1}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                              ยังไม่มีนครหลวง
+                            </span>
+                          )}
+                        </div>
+
+                        {currentG?.citadelCoord ? (
+                          <div className="space-y-2.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-300 font-mono">
+                                พิกัด: <strong className="text-amber-300">[{currentG.citadelCoord}]</strong>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleJumpToCitadel();
+                                  setShowGuildModal(false);
+                                }}
+                                className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
+                              >
+                                <Compass className="w-3 h-3 text-amber-400" /> วาร์ปไปนครหลวง
+                              </button>
+                            </div>
+
+                            {/* Progress Bar towards Next Level */}
+                            <div>
+                              {(() => {
+                                const lvl = currentG.citadelLevel || 1;
+                                const neededExp = lvl * 150;
+                                const currentExp = currentG.citadelExp || 0;
+                                const pct = Math.min(100, Math.round((currentExp / neededExp) * 100));
+                                return (
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px] font-mono text-slate-400">
+                                      <span>ความเจริญนครหลวง (EXP กิลด์)</span>
+                                      <span className="text-amber-300 font-bold">
+                                        {lvl >= 5 ? 'MAX LEVEL' : `${currentExp} / ${neededExp} EXP (${pct}%)`}
+                                      </span>
+                                    </div>
+                                    <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden border border-slate-700">
+                                      <div
+                                        className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-300"
+                                        style={{ width: `${lvl >= 5 ? 100 : pct}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
+                            {/* Perks & Mechanics Info */}
+                            <div className="bg-slate-900/80 rounded-xl p-2.5 border border-slate-800 text-[11px] text-slate-300 space-y-1">
+                              <div className="flex items-center gap-1.5 text-amber-400 font-bold font-mono text-[10px]">
+                                <ShieldCheck className="w-3.5 h-3.5" /> สิทธิประโยชน์ของนครหลวง:
+                              </div>
+                              <ul className="text-[10px] text-slate-400 list-disc list-inside space-y-0.5 leading-relaxed font-mono">
+                                <li>สร้างรัศมีคุ้มกันรอบตัว 2 ช่อง: <strong className="text-amber-200">ไม่มีวันรกร้าง (Decay-Immune)</strong></li>
+                                <li>กำแพงป้องกันหนาแน่น 2 เท่า (HP {(currentG.citadelLevel || 1) * 1000 + 2500} หน่วย) ทุกช่องในกลุ่มนครหลวง</li>
+                                <li>สมาชิกสามารถร่วมบริจาค EXP ส่วนตัวเพื่ออัปเกรดความรุ่งเรืองของนครหลวงได้</li>
+                              </ul>
+                            </div>
+
+                            {/* Donate EXP Button */}
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                EXP ของคุณ: <strong className="text-cyan-400">{appUser.exp || 0}</strong>
+                              </span>
+                              <button
+                                type="button"
+                                disabled={donatingCitadelExp || (currentG.citadelLevel || 1) >= 5 || (appUser.exp || 0) < 45}
+                                onClick={() => handleDonateCitadelExp(25)}
+                                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs font-mono transition-all disabled:opacity-40 active:scale-95 shadow-[0_0_10px_rgba(245,158,11,0.4)] flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+                                <span>{donatingCitadelExp ? 'กำลังบริจาค...' : 'บริจาค 25 EXP'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-400 space-y-1.5 leading-relaxed font-mono">
+                            <p>
+                              กิลด์ของคุณยังไม่มีนครหลวง! <strong className="text-white">หัวหน้ากิลด์ (👑)</strong> สามารถเลือกช่องในอาณาเขตกิลด์ที่เป็น <strong className="text-amber-300">กลุ่มบล็อก 4 ช่อง (สี่เหลี่ยม 2×2)</strong> หรือช่องใดก็ได้ แล้วกดปุ่ม <strong>[🏛️ สถาปนานครหลวงกิลด์]</strong> ในแถบด้านล่าง
+                            </p>
+                            <div className="text-[10px] text-amber-400/90 font-mono">
+                              ⚡ สมาชิกกิลด์สามารถช่วยกันยึดขยายพื้นที่ให้ติดกันเป็นบล็อกสี่เหลี่ยม 2×2 เพื่อให้หัวหน้ากิลด์สถาปนานครหลวงมหาปราสาทได้
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 3. Guild Color Selector (Leader can pick color, members see it) */}
+                      <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5 font-mono">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> สีกิลด์บนแผนที่ 3D
+                            </span>
+                            <span 
+                              className="w-4 h-4 rounded-full border border-white shadow-sm inline-block"
+                              style={{ backgroundColor: currentG?.color || '#a855f7' }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {isLeader ? 'หัวหน้าสามารถเปลี่ยนสีได้' : 'สีเดียวกันทั้งกิลด์'}
+                          </span>
+                        </div>
+
+                        {isLeader ? (
+                          <div>
+                            <div className="text-[11px] text-slate-300 mb-2 leading-relaxed font-mono">
+                              แตะเลือกสีประจำกิลด์ (ทุกช่องในแผนที่ที่คนในกิลด์ยึดไว้จะเปลี่ยนเป็นสีนี้พร้อมกัน):
+                            </div>
+                            <div className="grid grid-cols-6 gap-2">
+                              {PLAYER_PALETTE.map((c) => {
+                                const isSelected = (currentG?.color || '') === c;
+                                return (
+                                  <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => handleUpdateGuildColor(c)}
+                                    className={`h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                                      isSelected 
+                                        ? 'ring-2 ring-white scale-105 shadow-md shadow-white/20' 
+                                        : 'opacity-70 hover:opacity-100 hover:scale-105'
+                                    }`}
+                                    style={{ backgroundColor: c }}
+                                    title={c}
+                                  >
+                                    {isSelected && <Check className="w-4 h-4 text-white drop-shadow font-bold" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-400 font-mono">
+                            ดินแดนทั้งหมดของกิลด์จะเปล่งแสงเป็นสีนี้บนแผนที่ขนาด 50×50 เพื่อแสดงอาณาเขตพันธมิตร
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4. Guild Members List */}
+                      <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-black uppercase text-amber-400 flex items-center gap-1.5 font-mono">
+                            <Users className="w-3.5 h-3.5" /> รายชื่อสมาชิก ({guildMembers.length || currentG?.membersCount || 1} คน)
+                          </h4>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            พรมแดนเชื่อมถึงกัน
+                          </span>
+                        </div>
+
+                        {loadingMembers ? (
+                          <div className="flex items-center justify-center py-6 gap-2 text-xs font-mono text-slate-400">
+                            <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                            <span>กำลังโหลดข้อมูลสมาชิก...</span>
+                          </div>
+                        ) : (
+                          <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                            {guildMembers
+                              .slice()
+                              .sort((a, b) => {
+                                if (a.uid === currentG?.leaderUid) return -1;
+                                if (b.uid === currentG?.leaderUid) return 1;
+                                return (b.exp || 0) - (a.exp || 0);
+                              })
+                              .map((member) => {
+                                const isMemberLeader = member.uid === currentG?.leaderUid;
+                                const isMe = member.uid === appUser.uid;
+                                const memberTileCount = Object.values(tiles).filter((t) => t.ownerUid === member.uid).length;
+
+                                return (
+                                  <div
+                                    key={member.uid}
+                                    className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition-colors ${
+                                      isMe
+                                        ? 'bg-cyan-950/40 border-cyan-500/50'
+                                        : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className="w-7 h-7 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center shrink-0">
+                                        <SVGVirus
+                                          type={(member.pet?.family as any) || 'parvo'}
+                                          className="w-5 h-5 text-cyan-400"
+                                        />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="font-bold text-white truncate flex items-center gap-1.5">
+                                          <span>{member.fullname || 'นิสิต'}</span>
+                                          {isMe && (
+                                            <span className="text-[10px] font-mono text-cyan-400 font-bold">(คุณ)</span>
+                                          )}
+                                        </div>
+                                        <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                          <span>LV.{Math.floor((member.exp || 0) / 100) + 1}</span>
+                                          <span>•</span>
+                                          <span className="text-cyan-300 font-semibold">ครอง {memberTileCount} เซกเตอร์</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="shrink-0 ml-2">
+                                      {isMemberLeader ? (
+                                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[10px] font-bold flex items-center gap-1 font-mono shadow-sm">
+                                          <Crown className="w-3 h-3 text-amber-400" /> หัวหน้า
+                                        </span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[10px] font-mono">
+                                          สมาชิก
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="space-y-4">
+                  {/* Create New Guild Form */}
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <h4 className="text-xs font-black uppercase text-cyan-400 flex items-center gap-1.5 font-mono">
+                      <Plus className="w-3.5 h-3.5 text-cyan-400" /> ก่อตั้งพันธมิตรใหม่ (คุณจะเป็นหัวหน้ากิลด์ 👑)
+                    </h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      <input
+                        type="text"
+                        placeholder="ชื่อกิลด์ (เช่น Phage Clan)"
+                        value={newGuildName}
+                        onChange={(e) => setNewGuildName(e.target.value)}
+                        className="col-span-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-sans"
+                      />
+                      <input
+                        type="text"
+                        placeholder="แท็ก [TAG]"
+                        maxLength={5}
+                        value={newGuildTag}
+                        onChange={(e) => setNewGuildTag(e.target.value)}
+                        className="col-span-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 uppercase focus:outline-none focus:border-cyan-400 font-mono"
+                      />
+                    </div>
+
+                    {/* Choose Guild Color for creation */}
+                    <div>
+                      <div className="text-[11px] font-mono text-slate-400 mb-1.5 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <span>เลือกสีกิลด์ประจำอาณาจักร:</span>
+                          <span 
+                            className="w-3.5 h-3.5 rounded-full border border-white inline-block shadow-sm"
+                            style={{ backgroundColor: newGuildColor }}
+                          />
+                        </span>
+                        <span className="text-[10px] text-slate-500">แสดงบนแผนที่ 3D</span>
+                      </div>
+                      <div className="grid grid-cols-6 gap-2">
+                        {PLAYER_PALETTE.map((c) => {
+                          const isSelected = newGuildColor === c;
+                          return (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setNewGuildColor(c)}
+                              className={`h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                                isSelected 
+                                  ? 'ring-2 ring-white scale-105 shadow-md shadow-white/20' 
+                                  : 'opacity-70 hover:opacity-100 hover:scale-105'
+                              }`}
+                              style={{ backgroundColor: c }}
+                              title={c}
+                            >
+                              {isSelected && <Check className="w-4 h-4 text-white drop-shadow font-bold" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCreateGuild}
+                      disabled={isCreatingGuild || !newGuildName.trim() || !newGuildTag.trim()}
+                      className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs uppercase tracking-wider transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-md active:scale-95 cursor-pointer font-mono"
+                    >
+                      <Crown className="w-4 h-4 text-slate-950" />
+                      <span>{isCreatingGuild ? 'กำลังก่อตั้ง...' : 'ก่อตั้งกิลด์และเป็นหัวหน้า (Found Guild)'}</span>
+                    </button>
+                  </div>
+
+                  {/* Join Existing Guild List */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-mono text-slate-400 uppercase flex items-center justify-between">
+                      <span>กิลด์ที่เปิดรับสมัคร ({Object.keys(guilds).length} กิลด์)</span>
+                      <span className="text-[10px] text-slate-500">คลิกเพื่อเข้าร่วมได้ทันที</span>
+                    </h4>
+                    <div className="max-h-60 overflow-y-auto space-y-2 custom-scrollbar">
+                      {Object.values(guilds).length > 0 ? (
+                        Object.values(guilds).map((g) => {
+                          const isExpanded = previewGuildId === g.id;
+                          const cachedMembers = previewMembersMap[g.id] || [];
+
+                          return (
+                            <div 
+                              key={g.id} 
+                              className="bg-slate-950/50 border border-slate-800 rounded-xl p-3 space-y-2 hover:border-slate-700 transition-colors"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span 
+                                    className="w-3.5 h-3.5 rounded-full border border-white/60 shrink-0 shadow-sm" 
+                                    style={{ backgroundColor: g.color || '#a855f7' }}
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="font-bold text-sm text-white flex items-center gap-1.5 truncate">
+                                      <span className="font-mono text-cyan-400">[{g.tag}]</span> 
+                                      <span className="truncate">{g.name}</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
+                                      <span className="flex items-center gap-0.5 text-amber-300 font-semibold truncate">
+                                        <Crown className="w-2.5 h-2.5 text-amber-400 shrink-0" /> {g.leaderName}
+                                      </span>
+                                      <span>•</span>
+                                      <span className="shrink-0">สมาชิก {g.membersCount || 1} คน</span>
+                                      <span>•</span>
+                                      <span className="text-cyan-300 shrink-0">ครอง {g.totalTiles || 0} ช่อง</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTogglePreviewGuild(g.id)}
+                                    className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[10px] transition-colors cursor-pointer"
+                                  >
+                                    {isExpanded ? 'ย่อ' : 'ดูสมาชิก'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isJoiningGuild === g.id}
+                                    onClick={() => handleJoinGuild(g)}
+                                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer font-mono"
+                                  >
+                                    {isJoiningGuild === g.id ? '...' : 'เข้าร่วม'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Expanded Member List for previewing prior to joining */}
+                              {isExpanded && (
+                                <div className="pt-2 border-t border-slate-800/80 space-y-1">
+                                  <div className="text-[10px] font-mono text-slate-400 uppercase flex items-center justify-between">
+                                    <span>รายชื่อสมาชิกในกิลด์นี้:</span>
+                                    {loadingPreviewId === g.id && (
+                                      <span className="flex items-center gap-1 text-cyan-400">
+                                        <Loader2 className="w-2.5 h-2.5 animate-spin" /> กำลังโหลด...
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="space-y-1 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                                    {cachedMembers.length > 0 ? (
+                                      cachedMembers.map((m) => (
+                                        <div 
+                                          key={m.uid} 
+                                          className="flex items-center justify-between text-[11px] bg-slate-900/90 rounded-lg px-2.5 py-1 border border-slate-800"
+                                        >
+                                          <span className="text-white truncate font-medium">{m.fullname}</span>
+                                          {m.uid === g.leaderUid ? (
+                                            <span className="text-[9px] text-amber-300 font-mono font-bold flex items-center gap-0.5">
+                                              <Crown className="w-2.5 h-2.5 text-amber-400" /> หัวหน้า
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9px] text-slate-400 font-mono">สมาชิก</span>
+                                          )}
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div className="text-[10px] text-slate-500 font-mono py-1">
+                                        {loadingPreviewId === g.id ? 'กำลังค้นหาสมาชิก...' : `${g.leaderName} (หัวหน้ากิลด์)`}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-6 text-xs font-mono text-slate-500 bg-slate-950/40 rounded-xl border border-slate-800">
+                          ยังไม่มีกิลด์ในระบบ เป็นคนแรกที่ก่อตั้งเลย!
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-2 border-t border-slate-800 shrink-0 text-center">
+              <button 
+                type="button"
+                onClick={() => setShowGuildModal(false)}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs uppercase font-mono transition-all cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+
           </div>
         </div>
       )}

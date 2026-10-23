@@ -54,14 +54,18 @@ export default function IdentificationGame() {
   }, [appUser]);
 
 
+  // Questions are pre-bundled from ALL_15_CHAPTER_QUESTIONS (0ms delay, 0 Firestore reads)
   React.useEffect(() => {
-    import('firebase/firestore').then(({ getDoc, doc }) => {
-      getDoc(doc(db, 'game_content', 'identification')).then(docSnap => {
-        if (docSnap.exists() && docSnap.data().data?.length > 0) {
-          setQuestions(formatAndShuffleQuestions(docSnap.data().data));
+    if (typeof window === 'undefined') return;
+    const cached = sessionStorage.getItem('virusgo_identification_quiz');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setQuestions(formatAndShuffleQuestions(parsed));
         }
-      }).catch(console.error);
-    });
+      } catch (_) {}
+    }
   }, []);
 
   const question = questions[currentQ];
@@ -221,7 +225,7 @@ export default function IdentificationGame() {
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                  {question.choices.map((choice) => {
+                  {question.choices.map((choice: string) => {
                     const isSelected = selectedAnswer === choice;
                     const isWinner = choice === question.answer;
                     
