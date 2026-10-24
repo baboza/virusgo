@@ -10,7 +10,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
   // Determine SVG type based on pathname
   let svgType: 'virus' | 'lab' | 'defense' | 'medical' = 'virus';
   if (pathname.includes('lab-detective')) svgType = 'lab';
-  else if (pathname.includes('farm-defense') || pathname.includes('boss-battle') || pathname.includes('virus-battle')) svgType = 'defense';
+  else if (pathname.includes('farm-defense') || pathname.includes('bio-defense') || pathname.includes('boss-battle') || pathname.includes('virus-battle')) svgType = 'defense';
   else if (pathname.includes('diagnosis-duel') || pathname.includes('outbreak')) svgType = 'medical';
 
   return (

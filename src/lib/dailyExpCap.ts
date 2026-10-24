@@ -9,6 +9,7 @@ export const DAILY_EXP_CAPS: Record<string, number> = {
   'lab-detective': 150, // 3 เคสแล็บ (50x3)
   outbreak: 150,        // 1-2 ครั้ง
   'boss-battle': 150,   // พิชิต 3 บอส (50x3)
+  'bio-defense': 240,   // พิชิตด่านภูมิคุ้มกัน TD 10 Waves (80-120 EXP/ด่าน)
 
   // Multiplayer & Team / Co-op Modes
   pvp: 200,             // ~4 ชัยชนะ หรือเข้าร่วม 13 แมตช์

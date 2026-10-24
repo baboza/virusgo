@@ -140,6 +140,8 @@ export default function LiveTrackingDashboard() {
         return { label: 'Diagnosis Duel', color: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' };
       case 'farm-defense':
         return { label: 'Farm Defense', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' };
+      case 'bio-defense':
+        return { label: 'Bio-Defense TD', color: 'bg-teal-500/10 text-teal-400 border-teal-500/30' };
       case 'lab-detective':
         return { label: 'Lab Detective', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' };
       case 'identification':

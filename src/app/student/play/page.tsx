@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import dynamic from 'next/dynamic';
 import { motion, Variants } from 'framer-motion';
 import { 
@@ -17,6 +17,7 @@ import {
   Zap,
   Heart,
   ChevronRight,
+  Shield,
   ShieldCheck,
   Award,
   Users
@@ -24,8 +25,6 @@ import {
 import Link from 'next/link';
 import { sfx } from '@/utils/sound';
 import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase/config';
-import { doc, getDoc } from 'firebase/firestore';
 import { DAILY_EXP_CAPS, getTodayDateString } from '@/lib/dailyExpCap';
 
 // Dynamic 3D Ambient Particle Background
@@ -54,37 +53,11 @@ interface GameMode {
 }
 
 export default function StageSelect() {
-  const { user } = useAuth();
-  const [dailyExpRecord, setDailyExpRecord] = useState<Record<string, number>>({});
-  const [loadingExp, setLoadingExp] = useState(true);
-
-  // Fetch student's daily game EXP record
-  useEffect(() => {
-    let isMounted = true;
-    async function fetchDailyExp() {
-      if (!user) {
-        setLoadingExp(false);
-        return;
-      }
-      try {
-        const today = getTodayDateString();
-        const userSnap = await getDoc(doc(db, 'users', user.uid));
-        if (userSnap.exists() && isMounted) {
-          const data = userSnap.data();
-          if (data.dailyGameExp && data.dailyGameExp.date === today) {
-            setDailyExpRecord(data.dailyGameExp);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load daily game exp:", err);
-      } finally {
-        if (isMounted) setLoadingExp(false);
-      }
-    }
-
-    fetchDailyExp();
-    return () => { isMounted = false; };
-  }, [user]);
+  const { appUser, loading: loadingExp } = useAuth();
+  const today = getTodayDateString();
+  const rawDaily = (appUser as any)?.dailyGameExp;
+  const dailyExpRecord: Record<string, number> =
+    rawDaily && rawDaily.date === today ? rawDaily : {};
 
   // ── Category 1: Clinical & Diagnostic Training (Solo) ──────────────────────
   const clinicalModes: GameMode[] = [
@@ -193,6 +166,23 @@ export default function StageSelect() {
       exp: '+50 EXP / บอส',
       tag: 'Solo Raid',
       stage: '06'
+    },
+    {
+      id: 'bio-defense',
+      title: 'Bio-Defense TD',
+      titleTh: 'ป้อมปราการภูมิคุ้มกัน & ไบโอซีคิวริตี้',
+      description: 'วางป้อม Alcohol, Bleach, B-Cell และ CD8+ T-Cell สกัดฝูงไวรัส Naked vs Enveloped พร้อมตอบคำถามสังเคราะห์ ATP',
+      icon: Shield,
+      color: 'text-teal-400',
+      glowColor: 'group-hover:border-teal-500/60 group-hover:shadow-[0_0_30px_rgba(20,184,166,0.22)]',
+      border: 'border-teal-500/30',
+      bg: 'bg-teal-500/10 text-teal-400',
+      badgeBg: 'bg-teal-500/15 text-teal-300 border-teal-500/40',
+      href: '/student/play/bio-defense',
+      capKey: 'bio-defense',
+      exp: '+80 - 120 EXP / 10 Waves',
+      tag: 'Tower Defense • 10 Waves',
+      stage: '07'
     }
   ];
 
@@ -255,7 +245,7 @@ export default function StageSelect() {
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className={`grid grid-cols-1 ${isTwoCol ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'} gap-5`}
+      className={`grid grid-cols-1 ${isTwoCol || modes.length === 4 ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'} gap-5`}
     >
       {modes.map((mode) => {
         const Icon = mode.icon;
@@ -390,7 +380,7 @@ export default function StageSelect() {
                 Mission Select
               </span>
               <span className="text-xs text-slate-400 font-mono hidden sm:inline">
-                ศูนย์รวมด่านจำลองสัตวแพทย์ (8 โหมด)
+                ศูนย์รวมด่านจำลองสัตวแพทย์ (9 โหมด)
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-wide mt-1">
@@ -447,7 +437,7 @@ export default function StageSelect() {
               <span>ท้าทายความเร็วและความแม่นยำ (Speed & Arcade Drills)</span>
             </h2>
             <p className="text-xs font-mono text-slate-400 mt-0.5">
-              ฝึกจำแนกตระกูลไวรัส ตอบเร็วคอมโบ และดวลความรู้พิชิตบอส (3 ด่าน)
+              ฝึกจำแนกตระกูลไวรัส วางป้อมสกัดเชื้อ ตอบเร็วคอมโบ และดวลความรู้พิชิตบอส (4 ด่าน)
             </p>
           </div>
         </div>
