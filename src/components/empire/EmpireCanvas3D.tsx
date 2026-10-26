@@ -4,8 +4,16 @@ import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { MapControls, Float, Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
-import { EmpireTile, Guild } from '@/types';
-import { MAP_SIZE, isSanctuaryZone, isCentralVaultZone, getPlayerUniqueColor } from '@/lib/empireConstants';
+import { ContinentId, EmpireTile, Guild } from '@/types';
+import {
+  CONTINENTS,
+  MAP_SIZE,
+  getMapSizeForContinent,
+  getPangaeaTerrain,
+  getPlayerUniqueColor,
+  isCentralVaultZone,
+  isSanctuaryZone,
+} from '@/lib/empireConstants';
 import { familyToVirusType } from '@/components/ui/SVGVirus';
 
 // ── Hexagonal Grid Math & Constants (Pointy-Topped, Civilization Style) ──
@@ -17,17 +25,23 @@ export const HEX_STEP_Z = 1.5 * HEX_RADIUS; // 0.87000
 export const TOTAL_GRID_WIDTH = (MAP_SIZE - 1 + 0.5) * HEX_STEP_X; // ~49.73
 export const TOTAL_GRID_HEIGHT = (MAP_SIZE - 1) * HEX_STEP_Z; // ~42.63
 
+// Dynamic active map size synced with active continent (50x50 or 120x120 Pangaea)
+let activeBoardMapSize = MAP_SIZE;
+
 /**
  * Calculates world coordinates for a given (x, y) grid tile
  */
 export function getHexWorldPos(
   x: number, 
   y: number, 
-  elevation = 0
+  elevation = 0,
+  mapSize = activeBoardMapSize
 ): { worldX: number; worldY: number; worldZ: number } {
+  const gridWidth = (mapSize - 1 + 0.5) * HEX_STEP_X;
+  const gridHeight = (mapSize - 1) * HEX_STEP_Z;
   const rowOffset = (Math.round(y) % 2 === 1) ? 0.5 * HEX_STEP_X : 0;
-  const worldX = (x * HEX_STEP_X + rowOffset) - TOTAL_GRID_WIDTH / 2;
-  const worldZ = (y * HEX_STEP_Z) - TOTAL_GRID_HEIGHT / 2;
+  const worldX = (x * HEX_STEP_X + rowOffset) - gridWidth / 2;
+  const worldZ = (y * HEX_STEP_Z) - gridHeight / 2;
   return { worldX, worldY: elevation, worldZ };
 }
 
@@ -35,15 +49,21 @@ export function getHexWorldPos(
  * Pure math O(1) converter: converts world (wx, wz) to grid (x, y)
  * Zero raycasting against geometry = 100% fluid 60-144 FPS
  */
-export function worldToHexCoord(wx: number, wz: number): { x: number; y: number } | null {
-  const shiftedZ = wz + TOTAL_GRID_HEIGHT / 2;
+export function worldToHexCoord(
+  wx: number,
+  wz: number,
+  mapSize = activeBoardMapSize
+): { x: number; y: number } | null {
+  const gridWidth = (mapSize - 1 + 0.5) * HEX_STEP_X;
+  const gridHeight = (mapSize - 1) * HEX_STEP_Z;
+  const shiftedZ = wz + gridHeight / 2;
   const rawY = Math.round(shiftedZ / HEX_STEP_Z);
-  const y = Math.max(0, Math.min(MAP_SIZE - 1, rawY));
+  const y = Math.max(0, Math.min(mapSize - 1, rawY));
 
   const rowOffset = (y % 2 === 1) ? 0.5 * HEX_STEP_X : 0;
-  const shiftedX = wx + TOTAL_GRID_WIDTH / 2 - rowOffset;
+  const shiftedX = wx + gridWidth / 2 - rowOffset;
   const rawX = Math.round(shiftedX / HEX_STEP_X);
-  const x = Math.max(0, Math.min(MAP_SIZE - 1, rawX));
+  const x = Math.max(0, Math.min(mapSize - 1, rawX));
 
   // Test candidate and 6 adjacent neighbors for the exact closest center
   let bestX = x;
@@ -54,8 +74,8 @@ export function worldToHexCoord(wx: number, wz: number): { x: number; y: number 
     for (let dx = -1; dx <= 1; dx++) {
       const nx = x + dx;
       const ny = y + dy;
-      if (nx >= 0 && nx < MAP_SIZE && ny >= 0 && ny < MAP_SIZE) {
-        const { worldX: cx, worldZ: cz } = getHexWorldPos(nx, ny);
+      if (nx >= 0 && nx < mapSize && ny >= 0 && ny < mapSize) {
+        const { worldX: cx, worldZ: cz } = getHexWorldPos(nx, ny, 0, mapSize);
         const dSq = (wx - cx) * (wx - cx) + (wz - cz) * (wz - cz);
         if (dSq < bestDistSq) {
           bestDistSq = dSq;
@@ -79,6 +99,7 @@ export interface MarchOrder {
 }
 
 interface EmpireCanvas3DProps {
+  continentId?: ContinentId;
   tiles: Record<string, EmpireTile>;
   guilds: Record<string, Guild>;
   exploredTiles: Set<string>;
@@ -615,16 +636,18 @@ function getVirusDecalTextures(): Record<DecalArchetype, THREE.CanvasTexture> {
 function VirusArchetypeDecalMesh({
   texture,
   items,
+  mapSize,
 }: {
   texture: THREE.CanvasTexture;
   items: { x: number; y: number; topY: number; isMine: boolean; color: string }[];
+  mapSize: number;
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
 
   useEffect(() => {
     if (!meshRef.current) return;
     items.forEach((item, idx) => {
-      const { worldX, worldZ } = getHexWorldPos(item.x, item.y);
+      const { worldX, worldZ } = getHexWorldPos(item.x, item.y, 0, mapSize);
       tempPosition.set(worldX, item.topY + 0.003, worldZ);
       const s = item.isMine ? 1.08 : 0.96;
       tempScale.set(s, s, 1);
@@ -638,9 +661,9 @@ function VirusArchetypeDecalMesh({
     if (meshRef.current.instanceColor) {
       meshRef.current.instanceColor.needsUpdate = true;
     }
-  }, [items]);
+  }, [items, mapSize]);
 
-  const maxInstances = MAP_SIZE * MAP_SIZE;
+  const maxInstances = mapSize * mapSize;
 
   return (
     <instancedMesh
@@ -669,11 +692,13 @@ function HexInstancedVirusDecals({
   exploredTiles,
   myUid,
   isGmUser,
+  mapSize,
 }: {
   tiles: Record<string, EmpireTile>;
   exploredTiles: Set<string>;
   myUid?: string;
   isGmUser?: boolean;
+  mapSize: number;
 }) {
   const textures = useMemo(() => getVirusDecalTextures(), []);
 
@@ -714,11 +739,11 @@ function HexInstancedVirusDecals({
   }, [tiles, exploredTiles, myUid, isGmUser]);
 
   return (
-    <group>
-      <VirusArchetypeDecalMesh texture={textures.parvo} items={grouped.parvo} />
-      <VirusArchetypeDecalMesh texture={textures.corona} items={grouped.corona} />
-      <VirusArchetypeDecalMesh texture={textures.rabies} items={grouped.rabies} />
-      <VirusArchetypeDecalMesh texture={textures.retro} items={grouped.retro} />
+    <group key={`decals_${mapSize}`}>
+      <VirusArchetypeDecalMesh texture={textures.parvo} items={grouped.parvo} mapSize={mapSize} />
+      <VirusArchetypeDecalMesh texture={textures.corona} items={grouped.corona} mapSize={mapSize} />
+      <VirusArchetypeDecalMesh texture={textures.rabies} items={grouped.rabies} mapSize={mapSize} />
+      <VirusArchetypeDecalMesh texture={textures.retro} items={grouped.retro} mapSize={mapSize} />
     </group>
   );
 }
@@ -870,8 +895,8 @@ export function getHexPathWaypoints(from: { x: number; y: number }, to: { x: num
     const s = a.s + (b.s - a.s) * t;
     const rounded = cubeRound({ q, r, s });
     const offset = cubeToOffset(rounded.q, rounded.r);
-    const clampedX = Math.max(0, Math.min(MAP_SIZE - 1, offset.x));
-    const clampedY = Math.max(0, Math.min(MAP_SIZE - 1, offset.y));
+    const clampedX = Math.max(0, Math.min(activeBoardMapSize - 1, offset.x));
+    const clampedY = Math.max(0, Math.min(activeBoardMapSize - 1, offset.y));
     list.push({ x: clampedX, y: clampedY });
   }
   return list;
@@ -1273,6 +1298,8 @@ function SelectedSectorBadge({
 
 // ── High Performance Instanced Hexagonal Grid (Seamless, Edge-to-Edge)
 function HexInstancedBoard({
+  continentId = 'capsidia',
+  mapSize,
   tiles,
   guilds,
   exploredTiles,
@@ -1280,6 +1307,8 @@ function HexInstancedBoard({
   myGuildId,
   isGmUser,
 }: {
+  continentId?: ContinentId;
+  mapSize: number;
   tiles: Record<string, EmpireTile>;
   guilds: Record<string, Guild>;
   exploredTiles: Set<string>;
@@ -1288,28 +1317,29 @@ function HexInstancedBoard({
   isGmUser?: boolean;
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const totalCount = MAP_SIZE * MAP_SIZE;
+  const totalCount = mapSize * mapSize;
+  const cMeta = CONTINENTS[continentId] || CONTINENTS.capsidia;
 
   // Build matrix & colors ONCE or whenever data changes
   useEffect(() => {
     if (!meshRef.current) return;
 
-    for (let y = 0; y < MAP_SIZE; y++) {
-      for (let x = 0; x < MAP_SIZE; x++) {
-        const idx = y * MAP_SIZE + x;
+    for (let y = 0; y < mapSize; y++) {
+      for (let x = 0; x < mapSize; x++) {
+        const idx = y * mapSize + x;
         const coord = `${x},${y}`;
         const tile = tiles[coord];
 
-        const isExplored = isGmUser || exploredTiles.has(coord);
-        const isSanctuary = isSanctuaryZone(x, y);
-        const isVault = isCentralVaultZone(x, y);
+        const pangaeaInfo = continentId === 'pangaea' ? getPangaeaTerrain(x, y) : null;
+        const isOcean = pangaeaInfo?.terrain === 'ocean';
+
+        const isExplored = isOcean || isGmUser || exploredTiles.has(coord);
+        const isSanctuary = isSanctuaryZone(x, y, continentId);
+        const isVault = isCentralVaultZone(x, y, continentId);
         const isMine = Boolean(myUid && tile?.ownerUid === myUid);
         const hasBoss = tile?.type === 'boss';
         const isOutpost = Boolean(tile?.isOutpost || tile?.type === 'outpost');
 
-        // Resolve the actual guild object for this tile:
-        // 1. tile.guildId
-        // 2. If it's my tile and I have a guild, fallback to myGuildId
         const effectiveGuildId = tile?.guildId || (isMine && myGuildId ? myGuildId : undefined);
         const guildObj = effectiveGuildId ? guilds[effectiveGuildId] : undefined;
         const actualGuildColor = guildObj?.color;
@@ -1317,60 +1347,73 @@ function HexInstancedBoard({
         let elevation = 0.08;
         let scaleY = 1.0;
 
-        // Clean, high-contrast tactical color palette matching REAL guild colors
-        if (!isExplored) {
-          tempColor.set('#0b1324'); // Sleek dark cyber fog
+        if (isOcean) {
+          // Shimmering Deep Bio-Ocean separating the 3 Continents on Pangaea
+          const waveTint = ((x * 7 + y * 13) % 3 === 0) ? '#072244' : '#051933';
+          tempColor.set(waveTint);
+          elevation = 0.025;
+          scaleY = 0.35;
+        } else if (!isExplored) {
+          tempColor.set(cMeta.fogHex);
           elevation = 0.05;
           scaleY = 0.6;
         } else if (hasBoss) {
-          tempColor.set('#dc2626'); // Boss warning crimson
+          tempColor.set('#dc2626');
           elevation = 0.14;
           scaleY = 1.8;
         } else if (tile?.isCitadel) {
-          // Citadel uses its guild's real color, or gold fallback
           tempColor.set(actualGuildColor || '#f59e0b');
           elevation = 0.15;
           scaleY = 2.0;
         } else if (tile?.isCapital && isMine) {
-          // 👑 PLAYER'S PERSONAL CAPITAL BASE: HIGHLIGHT WITH GLOWING NEON CYAN!
           tempColor.set('#06b6d4');
           elevation = 0.14;
           scaleY = 1.8;
         } else if (actualGuildColor) {
-          // 🏆 TILE BELONGS TO A GUILD: USE THE REAL GUILD COLOR (EVEN WHEN DECAYED)!
           tempColor.set(actualGuildColor);
           if (isMine) {
             elevation = 0.12;
-            scaleY = 1.5; // Slightly elevated so player's personal base stands out
+            scaleY = 1.5;
           } else {
             elevation = 0.10;
             scaleY = 1.3;
           }
         } else if (tile?.ownerUid) {
-          // Player tile without a guild: use player's unique color
           const pColor = tile.color || getPlayerUniqueColor(tile.ownerUid, isMine);
           tempColor.set(pColor);
           elevation = isMine ? 0.12 : 0.09;
           scaleY = isMine ? 1.5 : 1.2;
         } else if (isOutpost) {
-          tempColor.set('#059669'); // Unclaimed Outpost emerald
+          tempColor.set('#059669');
           elevation = 0.09;
           scaleY = 1.2;
+        } else if (pangaeaInfo?.terrain === 'bridge') {
+          // Golden Strategic Bio-Isthmus Land Bridge
+          tempColor.set('#92400e');
+          elevation = 0.095;
+          scaleY = 1.15;
+        } else if (pangaeaInfo?.terrain === 'core') {
+          // Central Pangaea World Core Island
+          tempColor.set(isVault ? '#713f12' : '#3b2506');
+          elevation = isVault ? 0.12 : 0.10;
+          scaleY = isVault ? 1.45 : 1.2;
         } else if (isVault) {
-          tempColor.set('#1e293b'); // Central Core
+          tempColor.set(cMeta.vaultHex);
           elevation = 0.08;
           scaleY = 1.1;
         } else if (isSanctuary) {
-          tempColor.set('#16253b'); // Sanctuary safe zone
+          const homeMeta = pangaeaInfo?.homeland ? CONTINENTS[pangaeaInfo.homeland] : cMeta;
+          tempColor.set(homeMeta.sanctuaryHex);
           elevation = 0.06;
           scaleY = 0.8;
         } else {
-          tempColor.set('#111c30'); // Explored neutral
+          const homeMeta = pangaeaInfo?.homeland ? CONTINENTS[pangaeaInfo.homeland] : cMeta;
+          tempColor.set(homeMeta.neutralHex);
           elevation = 0.07;
           scaleY = 1.0;
         }
 
-        const { worldX, worldZ } = getHexWorldPos(x, y);
+        const { worldX, worldZ } = getHexWorldPos(x, y, 0, mapSize);
         tempPosition.set(worldX, elevation / 2, worldZ);
         tempScale.set(1, scaleY, 1);
         tempMatrix.compose(tempPosition, IDENTITY_QUAT, tempScale);
@@ -1384,10 +1427,11 @@ function HexInstancedBoard({
     if (meshRef.current.instanceColor) {
       meshRef.current.instanceColor.needsUpdate = true;
     }
-  }, [tiles, guilds, exploredTiles, myUid, myGuildId, isGmUser]);
+  }, [continentId, mapSize, cMeta, tiles, guilds, exploredTiles, myUid, myGuildId, isGmUser]);
 
   return (
     <instancedMesh
+      key={`board_${continentId}_${mapSize}`}
       ref={meshRef}
       args={[undefined as any, undefined as any, totalCount]}
       frustumCulled={false}
@@ -1560,10 +1604,12 @@ function CameraRig({
   targetFocus,
   cameraMode,
   marchingPos,
+  mapSize,
 }: {
   targetFocus: { x: number; y: number } | null;
   cameraMode: 'iso' | 'top';
   marchingPos?: { worldX: number; worldZ: number } | null;
+  mapSize: number;
 }) {
   const { camera, size } = useThree();
   const controlsRef = useRef<any>(null);
@@ -1582,9 +1628,10 @@ function CameraRig({
 
   useEffect(() => {
     if (!controlsRef.current || marchingPos) return;
-    const targetX = targetFocus ? targetFocus.x : 25;
-    const targetY = targetFocus ? targetFocus.y : 25;
-    const { worldX, worldZ } = getHexWorldPos(targetX, targetY);
+    const defaultCenter = Math.floor(mapSize / 2);
+    const targetX = targetFocus ? targetFocus.x : defaultCenter;
+    const targetY = targetFocus ? targetFocus.y : defaultCenter;
+    const { worldX, worldZ } = getHexWorldPos(targetX, targetY, 0, mapSize);
 
     controlsRef.current.target.set(worldX, 0, worldZ);
 
@@ -1600,7 +1647,7 @@ function CameraRig({
     camera.up.set(0, 1, 0);
     camera.lookAt(worldX, 0, worldZ);
     controlsRef.current.update();
-  }, [targetFocus, cameraMode, camera, isMobile, marchingPos]);
+  }, [targetFocus, cameraMode, camera, isMobile, marchingPos, mapSize]);
 
   return (
     <MapControls
@@ -1609,7 +1656,7 @@ function CameraRig({
       dampingFactor={0.08}
       enableRotate={false}
       minDistance={isMobile ? 8 : 10}
-      maxDistance={isMobile ? 38 : 55}
+      maxDistance={mapSize > 60 ? (isMobile ? 65 : 90) : (isMobile ? 38 : 55)}
       panSpeed={isMobile ? 1.2 : 1.0}
       zoomSpeed={isMobile ? 1.2 : 1.1}
       touches={{
@@ -1622,6 +1669,7 @@ function CameraRig({
 
 // ── Main Empire 3D Tactical Canvas (Edge-to-Edge Full Screen) ───────
 export default function EmpireCanvas3D({
+  continentId = 'capsidia',
   tiles,
   guilds,
   exploredTiles,
@@ -1637,6 +1685,9 @@ export default function EmpireCanvas3D({
   ownerName,
   marchOrder,
 }: EmpireCanvas3DProps) {
+  const mapSize = getMapSizeForContinent(continentId);
+  activeBoardMapSize = mapSize;
+  const cMeta = CONTINENTS[continentId] || CONTINENTS.capsidia;
   const [marchingWorldPos, setMarchingWorldPos] = useState<{ worldX: number; worldZ: number } | null>(null);
 
   // Deduplicate and group landmarks
@@ -1829,8 +1880,8 @@ export default function EmpireCanvas3D({
         gl={{ alpha: false, antialias: true, powerPreference: 'high-performance' }}
         dpr={[1, 1.5]}
       >
-        <color attach="background" args={['#020617']} />
-        <fog attach="fog" args={['#020617', 26, 60]} />
+        <color attach="background" args={[cMeta.skyHex]} />
+        <fog attach="fog" args={[cMeta.skyHex, mapSize > 60 ? 36 : 26, mapSize > 60 ? 96 : 60]} />
 
         {/* Crisp, clean ambient & directional lighting */}
         <ambientLight intensity={0.85} />
@@ -1840,8 +1891,10 @@ export default function EmpireCanvas3D({
           color="#f0f9ff" 
         />
 
-        {/* 1. 2,500 Hexagonal Sectors (Seamless, Full-Screen, No Box Frame) */}
+        {/* 1. Instanced Hexagonal Sectors (50x50 Continent or 120x120 Pangaea Merged World) */}
         <HexInstancedBoard
+          continentId={continentId}
+          mapSize={mapSize}
           tiles={tiles}
           guilds={guilds}
           exploredTiles={exploredTiles}
@@ -1856,7 +1909,36 @@ export default function EmpireCanvas3D({
           exploredTiles={exploredTiles}
           myUid={myUid}
           isGmUser={isGmUser}
+          mapSize={mapSize}
         />
+
+        {/* Pangaea Civilization Continental Landmark Banners */}
+        {continentId === 'pangaea' && (
+          <group>
+            {[
+              { x: 59, y: 26, label: '👑 ทวีป SYNAPSIA (ชั้นปีที่ 5)', color: '#c084fc' },
+              { x: 26, y: 92, label: '💎 ทวีป CAPSIDIA (ชั้นปีที่ 3)', color: '#38bdf8' },
+              { x: 92, y: 92, label: '🔥 ทวีป HEMORIA (ชั้นปีที่ 4)', color: '#fbbf24' },
+              { x: 59.5, y: 59.5, label: '🌍 PANGAEA WORLD CORE (ใจกลางมหาทวีป)', color: '#fde047' },
+            ].map((b, idx) => {
+              const { worldX, worldZ } = getHexWorldPos(b.x, b.y, 0, mapSize);
+              return (
+                <Billboard key={idx} position={[worldX, 2.4, worldZ]}>
+                  <Text
+                    fontSize={0.42}
+                    color={b.color}
+                    outlineWidth={0.06}
+                    outlineColor="#000000"
+                    anchorX="center"
+                    anchorY="middle"
+                  >
+                    {b.label}
+                  </Text>
+                </Billboard>
+              );
+            })}
+          </group>
+        )}
 
         {/* 2. Zero-Lag Picking & Reticles */}
         <HexInteractionController
@@ -1966,7 +2048,7 @@ export default function EmpireCanvas3D({
         )}
 
         {/* 9. Smooth Camera Rig with March Tracking */}
-        <CameraRig targetFocus={targetFocus} cameraMode={cameraMode} marchingPos={marchingWorldPos} />
+        <CameraRig targetFocus={targetFocus} cameraMode={cameraMode} marchingPos={marchingWorldPos} mapSize={mapSize} />
       </Canvas>
     </div>
   );

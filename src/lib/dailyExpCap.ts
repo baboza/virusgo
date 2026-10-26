@@ -103,7 +103,10 @@ export const awardDailyCappedExp = async (
     const actualExp = Math.min(intendedExp, remainingCap);
     const newEarned = currentEarned + actualExp;
 
-    const updates: any = {};
+    const updates: any = {
+      sessionsCount: increment(1),
+      lastPlayedAt: Date.now(),
+    };
     if (actualExp > 0) {
       updates.exp = increment(actualExp);
     }

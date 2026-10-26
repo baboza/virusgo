@@ -58,10 +58,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             userData.level = Number(userData.level) || 1; // Force number type
             let needsUpdate = false;
 
-            // --- ADMIN OVERRIDE (only check on first load to avoid loops) ---
+            // --- ADMIN OVERRIDE & LEGACY YEAR 3 COHORT STAMP (only check on first load) ---
             if (isFirstSnapshot) {
+              const firstLoadUpdates: Record<string, unknown> = {};
+
               if (firebaseUser.email === 'jirawat.s@msu.ac.th' && userData.role !== 'instructor') {
                 userData.role = 'instructor';
+                firstLoadUpdates.role = 'instructor';
                 needsUpdate = true;
                 console.log("Admin privileges granted to jirawat.s@msu.ac.th");
               }
@@ -69,14 +72,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               // --- UPDATE PHOTO URL from Google ---
               if (firebaseUser.photoURL && userData.photoURL !== firebaseUser.photoURL) {
                 userData.photoURL = firebaseUser.photoURL;
+                firstLoadUpdates.photoURL = firebaseUser.photoURL;
+                needsUpdate = true;
+              }
+
+              // Preserve 100% of existing Year 3 students: auto-tag legacy profiles as Year 3 (CAPSIDIA)
+              if (userData.role === 'student' && !userData.year && !userData.needsCohortSelection) {
+                userData.year = 3;
+                userData.continentId = 'capsidia';
+                firstLoadUpdates.year = 3;
+                firstLoadUpdates.continentId = 'capsidia';
                 needsUpdate = true;
               }
 
               if (needsUpdate) {
-                await updateDoc(userDocRef, {
-                  role: userData.role,
-                  photoURL: userData.photoURL || ''
-                });
+                await updateDoc(userDocRef, firstLoadUpdates);
               }
 
               isFirstSnapshot = false;

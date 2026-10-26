@@ -14,8 +14,10 @@ import {
   Flame, AlertTriangle, Layers, Swords, ShieldCheck, X
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, onSnapshot, query, deleteDoc, doc, getDocs, where, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
+import { StudentCohortYear } from '@/types';
+import { CONTINENTS, yearToContinent } from '@/lib/empireConstants';
 import { sfx } from '@/utils/sound';
 
 interface LiveSession {
@@ -29,6 +31,7 @@ interface LiveSession {
     email: string;
     photoURL?: string;
     level: number;
+    year?: number;
   };
 }
 
@@ -54,6 +57,7 @@ export default function LiveTrackingDashboard() {
   const [activeTab, setActiveTab] = useState<'cadets' | 'rooms'>('cadets');
   
   // Controls & Filters
+  const [cohortFilter, setCohortFilter] = useState<'all' | StudentCohortYear>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGame, setSelectedGame] = useState('all');
   const [sortBy, setSortBy] = useState<'newest' | 'level_desc' | 'name_asc'>('newest');
@@ -142,6 +146,8 @@ export default function LiveTrackingDashboard() {
         return { label: 'Farm Defense', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' };
       case 'bio-defense':
         return { label: 'Bio-Defense TD', color: 'bg-teal-500/10 text-teal-400 border-teal-500/30' };
+      case 'empire-battle':
+        return { label: 'Virus Empire', color: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/30' };
       case 'lab-detective':
         return { label: 'Lab Detective', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' };
       case 'identification':
@@ -212,9 +218,19 @@ export default function LiveTrackingDashboard() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
+  const resolveSessionYear = (s: LiveSession): StudentCohortYear => {
+    if (s.user?.year === 4) return 4;
+    if (s.user?.year === 5) return 5;
+    return 3;
+  };
+
   // Filtered Sessions
   const filteredSessions = useMemo(() => {
     let list = [...sessions];
+
+    if (cohortFilter !== 'all') {
+      list = list.filter((s) => resolveSessionYear(s) === cohortFilter);
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -246,15 +262,16 @@ export default function LiveTrackingDashboard() {
     });
 
     return list;
-  }, [sessions, searchQuery, selectedGame, sortBy]);
+  }, [sessions, cohortFilter, searchQuery, selectedGame, sortBy]);
 
-  // KPI Metrics
+  // KPI Metrics (Scoped to cohortFilter when filtered)
   const metrics = useMemo(() => {
-    const totalOnline = sessions.length;
+    const targetSessions = cohortFilter === 'all' ? sessions : sessions.filter(s => resolveSessionYear(s) === cohortFilter);
+    const totalOnline = targetSessions.length;
     const modeCounts: Record<string, number> = {};
     let totalLevels = 0;
 
-    sessions.forEach(s => {
+    targetSessions.forEach(s => {
       modeCounts[s.gameId] = (modeCounts[s.gameId] || 0) + 1;
       totalLevels += (s.user?.level || 1);
     });
@@ -272,7 +289,7 @@ export default function LiveTrackingDashboard() {
     const avgLevel = totalOnline > 0 ? (totalLevels / totalOnline).toFixed(1) : '1.0';
 
     return { totalOnline, topMode, topModeCount, activeRoomsCount, avgLevel };
-  }, [sessions, rooms]);
+  }, [sessions, rooms, cohortFilter]);
 
   if (authLoading) {
     return (
@@ -310,7 +327,7 @@ export default function LiveTrackingDashboard() {
             </h1>
           </div>
           <p className="text-slate-400 text-sm">
-            ติดตามสถานะและคะแนนการเรียนรู้ของนิสิตแบบเรียลไทม์ พร้อมตรวจสอบห้องแข่งขันในชั้นเรียน
+            ติดตามสถานะของนิสิตทั้ง 3 ชั้นปี (ปี 3 CAPSIDIA • ปี 4 HEMORIA • ปี 5 SYNAPSIA) แบบเรียลไทม์ พร้อมตรวจสอบห้องแข่งขันในชั้นเรียน
           </p>
         </div>
 
@@ -457,53 +474,88 @@ export default function LiveTrackingDashboard() {
 
         {/* Filters (Shown on Cadets Tab) */}
         {activeTab === 'cadets' && (
-          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-            {/* Search Box */}
-            <div className="relative flex-1">
-              <Input
-                placeholder="ค้นหาชื่อนิสิต, อีเมล, รหัสห้อง หรือสถานะ..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                leftIcon={<Search className="w-4 h-4 text-slate-400" />}
-                className="bg-slate-950 border-slate-800 text-xs rounded-xl"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+          <div className="space-y-3">
+            {/* Cohort Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setCohortFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  cohortFilter === 'all'
+                    ? 'bg-cyan-600 text-white shadow'
+                    : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
+                }`}
+              >
+                🌐 ทุกชั้นปี ({sessions.length})
+              </button>
+              {([3, 4, 5] as StudentCohortYear[]).map((yr) => {
+                const cont = CONTINENTS[yearToContinent(yr)];
+                const cnt = sessions.filter((s) => resolveSessionYear(s) === yr).length;
+                return (
+                  <button
+                    key={yr}
+                    onClick={() => setCohortFilter(yr)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                      cohortFilter === yr
+                        ? cont.badgeClass
+                        : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                    }`}
+                  >
+                    {cont.emoji} ปี {yr} • {cont.code} ({cnt})
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Filter Game Mode */}
-            <select
-              value={selectedGame}
-              onChange={(e) => setSelectedGame(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-            >
-              <option value="all">ทุกมินิเกม (All Modes)</option>
-              <option value="classroom-battle">Classroom Battle</option>
-              <option value="diagnosis-duel">Diagnosis Duel</option>
-              <option value="farm-defense">Farm Defense</option>
-              <option value="lab-detective">Lab Detective</option>
-              <option value="identification">Virus Identification</option>
-              <option value="matching">Virus Matching</option>
-              <option value="outbreak">Outbreak Simulator</option>
-              <option value="boss-battle">Boss Battle</option>
-            </select>
+            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+              {/* Search Box */}
+              <div className="relative flex-1">
+                <Input
+                  placeholder="ค้นหาชื่อนิสิต, อีเมล, รหัสห้อง หรือสถานะ..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+                  className="bg-slate-950 border-slate-800 text-xs rounded-xl"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
 
-            {/* Sort Options */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-            >
-              <option value="newest">อัปเดตล่าสุด (Newest)</option>
-              <option value="level_desc">เลเวลนิสิต (Level สูง → ต่ำ)</option>
-              <option value="name_asc">ชื่อนิสิต (A → Z)</option>
-            </select>
+              {/* Filter Game Mode */}
+              <select
+                value={selectedGame}
+                onChange={(e) => setSelectedGame(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                <option value="all">ทุกมินิเกม (All Modes)</option>
+                <option value="classroom-battle">Classroom Battle</option>
+                <option value="diagnosis-duel">Diagnosis Duel</option>
+                <option value="farm-defense">Farm Defense</option>
+                <option value="bio-defense">Bio-Defense TD</option>
+                <option value="empire-battle">Virus Empire</option>
+                <option value="lab-detective">Lab Detective</option>
+                <option value="identification">Virus Identification</option>
+                <option value="matching">Virus Matching</option>
+                <option value="outbreak">Outbreak Simulator</option>
+                <option value="boss-battle">Boss Battle</option>
+              </select>
+
+              {/* Sort Options */}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                <option value="newest">อัปเดตล่าสุด (Newest)</option>
+                <option value="level_desc">เลเวลนิสิต (Level สูง → ต่ำ)</option>
+                <option value="name_asc">ชื่อนิสิต (A → Z)</option>
+              </select>
+            </div>
           </div>
         )}
       </Card>
@@ -531,8 +583,10 @@ export default function LiveTrackingDashboard() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <AnimatePresence>
-              {filteredSessions.map((session, index) => {
+              {filteredSessions.map((session) => {
                 const badge = getGameBadge(session.gameId);
+                const sYear = resolveSessionYear(session);
+                const cMeta = CONTINENTS[yearToContinent(sYear)];
                 return (
                   <motion.div
                     key={session.id}
@@ -551,7 +605,7 @@ export default function LiveTrackingDashboard() {
                       <div className="space-y-3">
                         {/* Header: Cadet Avatar & Identity */}
                         <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
                             <div className="w-11 h-11 rounded-2xl bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700 overflow-hidden relative">
                               {session.user?.photoURL ? (
                                 <img src={session.user.photoURL} alt={session.user.fullname} className="w-full h-full object-cover" />
@@ -564,16 +618,21 @@ export default function LiveTrackingDashboard() {
                               <p className="font-bold text-white text-sm truncate group-hover:text-cyan-300 transition-colors">
                                 {session.user?.fullname || 'Cadet'}
                               </p>
-                              <p className="text-[11px] text-slate-400 font-mono">
-                                Lv. {session.user?.level || 1}
-                              </p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold border ${cMeta.badgeClass}`}>
+                                  ปี {sYear}
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-mono">
+                                  Lv. {session.user?.level || 1}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
                           {/* Quick Inspect Button */}
                           <button 
                             onClick={(e) => { e.stopPropagation(); setInspectSession(session); }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -641,7 +700,6 @@ export default function LiveTrackingDashboard() {
               const code = room.roomCode || room.id;
               const isWaiting = room.status === 'waiting';
               const isPlaying = room.status === 'playing';
-              const isFinished = room.status === 'finished';
 
               return (
                 <Card key={room.id} className="p-5 glass border-slate-800 bg-slate-900/70 space-y-4">
@@ -735,9 +793,20 @@ export default function LiveTrackingDashboard() {
                     <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-900" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">
-                      {inspectSession.user?.fullname || 'Cadet'}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-white">
+                        {inspectSession.user?.fullname || 'Cadet'}
+                      </h3>
+                      {(() => {
+                        const yr = resolveSessionYear(inspectSession);
+                        const cm = CONTINENTS[yearToContinent(yr)];
+                        return (
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold border ${cm.badgeClass}`}>
+                            {cm.emoji} ปี {yr} • {cm.code}
+                          </span>
+                        );
+                      })()}
+                    </div>
                     <p className="text-xs text-slate-400 font-mono">
                       {inspectSession.user?.email || '-'} • Level {inspectSession.user?.level || 1}
                     </p>

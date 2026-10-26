@@ -21,7 +21,7 @@ import {
   limit,
   deleteDoc
 } from 'firebase/firestore';
-import { EmpireTile, Guild, User } from '@/types';
+import { ContinentId, EmpireTile, Guild, HomeContinentId, User } from '@/types';
 import { 
   Loader2, 
   ArrowLeft, 
@@ -34,6 +34,8 @@ import {
   Radio, 
   Building2, 
   Compass, 
+  Globe2,
+  Lock,
   X, 
   BarChart3, 
   Eye, 
@@ -65,7 +67,12 @@ import {
 } from '@/lib/dailyExpCap';
 import { ALL_15_CHAPTER_QUESTIONS } from '@/data/veterinaryVirologyContent';
 import { 
+  ALL_CONTINENT_ORDER,
+  CONTINENTS,
   MAP_SIZE, 
+  getMapSizeForContinent,
+  getPangaeaTerrain,
+  isPangaeaOceanTile,
   isSanctuaryZone, 
   isCentralVaultZone, 
   isShieldedTile,
@@ -76,8 +83,20 @@ import {
   DefenseStructureConfig,
   SCOUT_FALLBACK_QUIZ,
   getPlayerUniqueColor,
-  PLAYER_PALETTE
+  PLAYER_PALETTE,
+  resolveGuildContinent,
+  resolveUserContinent,
+  resolveUserYear,
+  stripTileDocPrefix,
+  toTileDocId,
+  translateHomeCoordToPangaea,
 } from '@/lib/empireConstants';
+import {
+  buildContinentTilesQuery,
+  executePangaeaTectonicMerge,
+  revertPangaeaTectonicMerge,
+  seedContinentVaultAndOutposts,
+} from '@/lib/empireWorldEngine';
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 
 export * from '@/lib/empireConstants';
@@ -104,8 +123,34 @@ export default function StudentEmpirePage() {
   // Live Firestore State
   const [tiles, setTiles] = useState<Record<string, EmpireTile>>({});
   const tilesRef = useRef<Record<string, EmpireTile>>({});
-  const [guilds, setGuilds] = useState<Record<string, Guild>>({});
+  const [allGuildsMap, setAllGuildsMap] = useState<Record<string, Guild>>({});
   const [loading, setLoading] = useState(true);
+
+  // Multi-Cohort Continent & Pangaea World State
+  const [activeContinent, setActiveContinent] = useState<ContinentId>('capsidia');
+  const [hasInitContinent, setHasInitContinent] = useState(false);
+  const [pangaeaUnlocked, setPangaeaUnlocked] = useState(false);
+  const [isMergingPangaea, setIsMergingPangaea] = useState(false);
+  const [isSeedingContinent, setIsSeedingContinent] = useState(false);
+  const spectatorCacheRef = useRef<Record<string, { ts: number; tiles: Record<string, EmpireTile> }>>({});
+  const autoSeededRef = useRef<Record<string, boolean>>({});
+
+  const myHomeContinent = useMemo<HomeContinentId>(() => resolveUserContinent(appUser), [appUser]);
+  const myCohortYear = useMemo(() => resolveUserYear(appUser), [appUser]);
+  const activeMapSize = useMemo(() => getMapSizeForContinent(activeContinent), [activeContinent]);
+  const activeContinentMeta = CONTINENTS[activeContinent] || CONTINENTS.capsidia;
+
+  // Guilds filtered by active continent (or all 3 continents' guilds on Pangaea!)
+  const guilds = useMemo<Record<string, Guild>>(() => {
+    if (activeContinent === 'pangaea') return allGuildsMap;
+    const filtered: Record<string, Guild> = {};
+    Object.entries(allGuildsMap).forEach(([gid, g]) => {
+      if (resolveGuildContinent(g) === activeContinent) {
+        filtered[gid] = g;
+      }
+    });
+    return filtered;
+  }, [allGuildsMap, activeContinent]);
 
   // Tactical Controls & Selection
   const [selectedCoord, setSelectedCoord] = useState<string | null>(null);
@@ -166,7 +211,14 @@ export default function StudentEmpirePage() {
   // GM View Mode: 'all' = sees all tiles, 'fog' = simulate player fog view
   const [gmViewMode, setGmViewMode] = useState<'all' | 'fog'>('all');
 
-  // ── 1. Fetch User Data & Profile ──────────────────────────────────
+  // Determine whether the user is spectating another cohort's continent (Read-Only Reconnaissance)
+  const isSpectatorMode = useMemo(() => {
+    if (isGmUser) return false;
+    if (activeContinent === 'pangaea') return !pangaeaUnlocked;
+    return activeContinent !== myHomeContinent;
+  }, [isGmUser, activeContinent, pangaeaUnlocked, myHomeContinent]);
+
+  // ── 1. Fetch User Data & World Config ─────────────────────────────
   useEffect(() => {
     if (!user) return;
     const unsub = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
@@ -177,14 +229,112 @@ export default function StudentEmpirePage() {
     return () => unsub();
   }, [user]);
 
-  // ── 2. Real-time Subscription to Empire Tiles & Guilds (Delta-Optimized) ─────────────
+  // Subscribe to Pangaea World Merge status (`game_content/empire_world_config` = 1 lightweight doc)
   useEffect(() => {
-    const unsubTiles = onSnapshot(collection(db, 'empire_tiles'), (snapshot) => {
-      // Initial Load: Build full map
+    const unsubWorld = onSnapshot(
+      doc(db, 'game_content', 'empire_world_config'),
+      (snap) => {
+        if (snap.exists()) {
+          setPangaeaUnlocked(Boolean(snap.data()?.pangaeaUnlocked));
+        }
+      },
+      () => {}
+    );
+    return () => unsubWorld();
+  }, []);
+
+  // Initialize activeContinent from URL ?continent=... or default to student's home continent
+  useEffect(() => {
+    if (!appUser || hasInitContinent) return;
+    let initial: ContinentId = resolveUserContinent(appUser);
+    if (typeof window !== 'undefined') {
+      const qParam = new URLSearchParams(window.location.search).get('continent') as ContinentId | null;
+      if (qParam && ALL_CONTINENT_ORDER.includes(qParam)) {
+        initial = qParam;
+      }
+    }
+    setActiveContinent(initial);
+    const sz = getMapSizeForContinent(initial);
+    setTargetFocus({ x: Math.floor(sz / 2), y: Math.floor(sz / 2) });
+    setHasInitContinent(true);
+  }, [appUser, hasInitContinent]);
+
+  // Subscribe to Guilds once (small collection ~5-18 docs total across all 3 cohorts)
+  useEffect(() => {
+    const unsubGuilds = onSnapshot(collection(db, 'guilds'), (snapshot) => {
+      const gMap: Record<string, Guild> = {};
+      snapshot.forEach((docSnap) => {
+        gMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() } as Guild;
+      });
+      setAllGuildsMap(gMap);
+    });
+    return () => unsubGuilds();
+  }, []);
+
+  // ── 2. Continent-Scoped Subscription / Spectator Cache for Empire Tiles ─────────────
+  useEffect(() => {
+    if (!hasInitContinent && !isGmUser && !appUser) return;
+
+    tilesRef.current = {};
+    setSelectedCoord(null);
+
+    // 2A. Spectator Mode (visiting another cohort's continent or locked Pangaea):
+    // Use 1-shot getDocs + 3-minute in-memory cache to eliminate cross-continent live listener reads!
+    if (isSpectatorMode) {
+      const cached = spectatorCacheRef.current[activeContinent];
+      if (cached && Date.now() - cached.ts < 3 * 60 * 1000) {
+        tilesRef.current = cached.tiles;
+        setTiles(cached.tiles);
+        setLoading(false);
+        return;
+      }
+
+      let cancelled = false;
+      setLoading(true);
+      getDocs(buildContinentTilesQuery(activeContinent))
+        .then((snap) => {
+          if (cancelled) return;
+          const tileMap: Record<string, EmpireTile> = {};
+          snap.forEach((docSnap) => {
+            const raw = docSnap.data() as EmpireTile;
+            const cleanId = stripTileDocPrefix(raw.id || docSnap.id);
+            tileMap[cleanId] = { ...raw, id: cleanId };
+          });
+          spectatorCacheRef.current[activeContinent] = { ts: Date.now(), tiles: tileMap };
+          tilesRef.current = tileMap;
+          setTiles(tileMap);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error('Spectator continent fetch error:', err);
+          if (!cancelled) setLoading(false);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // 2B. Active Playable Continent (Home Continent, Unlocked Pangaea, or GM):
+    // Scoped real-time Delta Sync ONLY for activeContinent!
+    const qTiles = buildContinentTilesQuery(activeContinent);
+    const unsubTiles = onSnapshot(qTiles, (snapshot) => {
+      // Auto-seed Vault Guardians & 4 Bio-Farm Outposts once if Year 4 (hemoria) or Year 5 (synapsia) is brand new
+      if (
+        snapshot.empty &&
+        (activeContinent === 'hemoria' || activeContinent === 'synapsia') &&
+        !autoSeededRef.current[activeContinent]
+      ) {
+        autoSeededRef.current[activeContinent] = true;
+        seedContinentVaultAndOutposts(activeContinent, true).catch(console.error);
+      }
+
       if (Object.keys(tilesRef.current).length === 0) {
         const tileMap: Record<string, EmpireTile> = {};
         snapshot.forEach((docSnap) => {
-          tileMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() } as EmpireTile;
+          const raw = docSnap.data() as EmpireTile;
+          const cleanId = stripTileDocPrefix(raw.id || docSnap.id);
+          tileMap[cleanId] = { ...raw, id: cleanId };
         });
         tilesRef.current = tileMap;
         setTiles(tileMap);
@@ -192,18 +342,18 @@ export default function StudentEmpirePage() {
         return;
       }
 
-      // Delta Sync: Check doc changes to avoid redundant full-map re-renders & quota waste
       let hasRelevantChange = false;
       const updatedMap = { ...tilesRef.current };
 
       snapshot.docChanges().forEach((change) => {
-        const docId = change.doc.id;
+        const raw = change.doc.data() as EmpireTile;
+        const cleanId = stripTileDocPrefix(raw?.id || change.doc.id);
         if (change.type === 'removed') {
-          delete updatedMap[docId];
+          delete updatedMap[cleanId];
           hasRelevantChange = true;
         } else {
-          const newData = { id: docId, ...change.doc.data() } as EmpireTile;
-          const prevData = updatedMap[docId];
+          const newData = { ...raw, id: cleanId } as EmpireTile;
+          const prevData = updatedMap[cleanId];
 
           if (
             !prevData ||
@@ -219,7 +369,7 @@ export default function StudentEmpirePage() {
             prevData.isCitadel !== newData.isCitadel ||
             prevData.bossHp !== newData.bossHp
           ) {
-            updatedMap[docId] = newData;
+            updatedMap[cleanId] = newData;
             hasRelevantChange = true;
           }
         }
@@ -229,41 +379,66 @@ export default function StudentEmpirePage() {
         tilesRef.current = updatedMap;
         setTiles(updatedMap);
       }
-    });
-
-    const unsubGuilds = onSnapshot(collection(db, 'guilds'), (snapshot) => {
-      const gMap: Record<string, Guild> = {};
-      snapshot.forEach((docSnap) => {
-        gMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() } as Guild;
-      });
-      setGuilds(gMap);
+      setLoading(false);
     });
 
     return () => {
       unsubTiles();
-      unsubGuilds();
     };
-  }, []);
+  }, [activeContinent, isSpectatorMode, hasInitContinent, isGmUser, appUser?.uid]);
 
 
   // ── 2.2 Calculate Explored Fog of War ─────────────────────────────
   const exploredTiles = useMemo(() => {
     const set = new Set<string>();
 
-    // Rim of 4 tiles around map is always visible (Sanctuary)
-    for (let x = 0; x < MAP_SIZE; x++) {
-      for (let y = 0; y < MAP_SIZE; y++) {
-        if (isSanctuaryZone(x, y)) {
+    // In Spectator Mode, reveal occupied cities, bosses, and outposts (+1 radius) so students can admire rival cohorts!
+    if (isSpectatorMode) {
+      for (let x = 0; x < activeMapSize; x++) {
+        for (let y = 0; y < activeMapSize; y++) {
+          if (isSanctuaryZone(x, y, activeContinent) || isCentralVaultZone(x, y, activeContinent)) {
+            set.add(`${x},${y}`);
+          }
+        }
+      }
+      Object.values(tiles).forEach((t) => {
+        if (t.type !== 'empty') {
+          for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+              const nx = t.x + dx;
+              const ny = t.y + dy;
+              if (nx >= 0 && nx < activeMapSize && ny >= 0 && ny < activeMapSize) {
+                set.add(`${nx},${ny}`);
+              }
+            }
+          }
+        }
+      });
+      return set;
+    }
+
+    // Rim of 4 tiles around continent (and Land Bridges + Core Rim on Pangaea) is always visible
+    for (let x = 0; x < activeMapSize; x++) {
+      for (let y = 0; y < activeMapSize; y++) {
+        if (isSanctuaryZone(x, y, activeContinent)) {
           set.add(`${x},${y}`);
+        } else if (activeContinent === 'pangaea') {
+          const pInfo = getPangaeaTerrain(x, y);
+          if (pInfo.terrain === 'bridge' || pInfo.terrain === 'core') {
+            set.add(`${x},${y}`);
+          }
         }
       }
     }
 
     if (!appUser) return set;
 
-    // Add user's scouted tiles from profile
-    if (Array.isArray(appUser.exploredTiles)) {
-      appUser.exploredTiles.forEach((coord) => set.add(coord));
+    // Add user's scouted tiles from profile (home vs pangaea)
+    const savedExplored = activeContinent === 'pangaea'
+      ? appUser.pangaeaExploredTiles
+      : appUser.exploredTiles;
+    if (Array.isArray(savedExplored)) {
+      savedExplored.forEach((coord) => set.add(coord));
     }
 
     // Add tiles around user's owned tiles (+1 radius)
@@ -276,7 +451,7 @@ export default function StudentEmpirePage() {
           for (let dy = -1; dy <= 1; dy++) {
             const nx = t.x + dx;
             const ny = t.y + dy;
-            if (nx >= 0 && nx < MAP_SIZE && ny >= 0 && ny < MAP_SIZE) {
+            if (nx >= 0 && nx < activeMapSize && ny >= 0 && ny < activeMapSize) {
               set.add(`${nx},${ny}`);
             }
           }
@@ -285,7 +460,7 @@ export default function StudentEmpirePage() {
     });
 
     return set;
-  }, [appUser, tiles]);
+  }, [appUser, tiles, activeContinent, activeMapSize, isSpectatorMode]);
 
   // ── 2.3 Bio-Radar Minimap 2D Pixel Canvas State & Effect ─────────
   const radarCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -299,18 +474,28 @@ export default function StudentEmpirePage() {
 
     // Dark tactical background
     ctx.fillStyle = '#030712';
-    ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+    ctx.fillRect(0, 0, activeMapSize, activeMapSize);
 
     // Draw explored tiles & landmarks
-    for (let x = 0; x < MAP_SIZE; x++) {
-      for (let y = 0; y < MAP_SIZE; y++) {
+    for (let x = 0; x < activeMapSize; x++) {
+      for (let y = 0; y < activeMapSize; y++) {
+        if (activeContinent === 'pangaea') {
+          const pInfo = getPangaeaTerrain(x, y);
+          if (pInfo.terrain === 'ocean') {
+            ctx.fillStyle = '#041226';
+            ctx.fillRect(x, y, 1, 1);
+            continue;
+          }
+          if (pInfo.terrain === 'bridge') {
+            ctx.fillStyle = '#d97706';
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
         const coord = `${x},${y}`;
         const isExplored = Boolean(isGmUser || exploredTiles.has(coord));
         const tile = tiles[coord];
 
         if (isExplored) {
-          const tileGuild = tile?.guildId ? guilds[tile.guildId] : undefined;
-
           if (tile?.type === 'boss') {
             ctx.fillStyle = '#ef4444'; // Red for boss
             ctx.fillRect(x, y, 1, 1);
@@ -326,7 +511,7 @@ export default function StudentEmpirePage() {
           } else if (tile?.isOutpost || tile?.type === 'outpost') {
             ctx.fillStyle = '#10b981'; // Green for outpost
             ctx.fillRect(x, y, 1, 1);
-          } else if (isSanctuaryZone(x, y)) {
+          } else if (isSanctuaryZone(x, y, activeContinent)) {
             ctx.fillStyle = '#075985'; // Sanctuary rim
             ctx.fillRect(x, y, 1, 1);
           } else {
@@ -334,7 +519,7 @@ export default function StudentEmpirePage() {
             ctx.fillRect(x, y, 1, 1);
           }
         } else {
-          if (isSanctuaryZone(x, y)) {
+          if (isSanctuaryZone(x, y, activeContinent)) {
             ctx.fillStyle = '#0c4a6e';
             ctx.fillRect(x, y, 1, 1);
           }
@@ -355,7 +540,7 @@ export default function StudentEmpirePage() {
       ctx.fillStyle = '#22d3ee';
       ctx.fillRect(sx, sy, 1, 1);
     }
-  }, [tiles, guilds, exploredTiles, appUser, targetFocus, selectedCoord, isGmUser]);
+  }, [tiles, guilds, exploredTiles, appUser, targetFocus, selectedCoord, isGmUser, activeMapSize, activeContinent]);
 
   // ── 4. Stats Summary & Rankings ───────────────────────────────────
   const stats = useMemo(() => {
@@ -373,7 +558,7 @@ export default function StudentEmpirePage() {
 
     const exploredPercent = Math.min(
       100,
-      Math.round((exploredTiles.size / (MAP_SIZE * MAP_SIZE)) * 100)
+      Math.round((exploredTiles.size / (activeMapSize * activeMapSize)) * 100)
     );
 
     // Top guilds sorted by conquered territories
@@ -387,7 +572,7 @@ export default function StudentEmpirePage() {
       .slice(0, 5);
 
     return { myCount, guildCount, exploredPercent, topGuilds };
-  }, [tiles, appUser, exploredTiles, guilds]);
+  }, [tiles, appUser, exploredTiles, guilds, activeMapSize]);
 
   // Total sectors owned per student across the realm
   const playerTerritories = useMemo(() => {
@@ -414,52 +599,65 @@ export default function StudentEmpirePage() {
 
   const currentTileGuild = useMemo(() => {
     if (!currentTile?.guildId) return null;
-    return guilds[currentTile.guildId] || null;
-  }, [currentTile, guilds]);
+    return allGuildsMap[currentTile.guildId] || guilds[currentTile.guildId] || null;
+  }, [currentTile, allGuildsMap, guilds]);
 
   const isCurrentTileDecayed = useMemo(() => {
-    return isDecayedTile(
-      currentTile, 
-      currentTileGuild?.citadelCoord, 
-      currentTileGuild?.citadelCoords
-    );
-  }, [currentTile, currentTileGuild]);
+    const cCoord = activeContinent === 'pangaea' ? currentTileGuild?.pangaeaCitadelCoord : currentTileGuild?.citadelCoord;
+    const cCoords = activeContinent === 'pangaea' ? currentTileGuild?.pangaeaCitadelCoords : currentTileGuild?.citadelCoords;
+    return isDecayedTile(currentTile, cCoord, cCoords);
+  }, [currentTile, currentTileGuild, activeContinent]);
 
   const isCurrentTileShielded = useMemo(() => {
     return isShieldedTile(currentTile);
   }, [currentTile]);
 
-  // Helper to validate coordinate on 50x50 map
+  // Helper to validate coordinate on active map (50x50 or 120x120)
   const isValidCoord = useCallback((coord: string | null | undefined): boolean => {
     if (!coord || typeof coord !== 'string') return false;
     const parts = coord.split(',');
     if (parts.length !== 2) return false;
     const x = Number(parts[0]);
     const y = Number(parts[1]);
-    return !isNaN(x) && !isNaN(y) && x >= 0 && x < MAP_SIZE && y >= 0 && y < MAP_SIZE;
-  }, []);
+    return !isNaN(x) && !isNaN(y) && x >= 0 && x < activeMapSize && y >= 0 && y < activeMapSize;
+  }, [activeMapSize]);
 
-  // ── 7. Handlers: Camera Navigation ────────────────────────────────
+  // ── 7. Handlers: Camera & Continent Navigation ─────────────────────
+  const hasInitiallyFocused = useRef(false);
+
+  const handleSwitchContinent = useCallback((target: ContinentId) => {
+    sfx.click();
+    if (target === 'pangaea' && !pangaeaUnlocked && !isGmUser) {
+      alert('🔒 มหาทวีป PANGAEA (120×120) จะเปิดให้ส่งทัพรบข้ามรุ่นในช่วงศึกชิงจ้าวปลายภาคเรียน!\n\nอาจารย์ผู้สอนสามารถกดปุ่มรวมแผ่นดิน (Tectonic World Merge) เมื่อถึงเวลาเปิดศึกใหญ่');
+      return;
+    }
+    setActiveContinent(target);
+    setSelectedCoord(null);
+    const sz = getMapSizeForContinent(target);
+    setTargetFocus({ x: Math.floor(sz / 2), y: Math.floor(sz / 2) });
+    hasInitiallyFocused.current = false;
+  }, [pangaeaUnlocked, isGmUser]);
+
   const handleSelectCoord = useCallback((coord: string) => {
     sfx.click();
     setSelectedCoord(coord);
-    // Prefetch battle page bundle in background immediately when sector is tapped
-    if (coord) {
-      router.prefetch(`/student/empire/battle?tile=${coord}`);
+    if (coord && !isSpectatorMode) {
+      router.prefetch(`/student/empire/battle?tile=${coord}&continent=${activeContinent}`);
     }
-  }, [router]);
+  }, [router, activeContinent, isSpectatorMode]);
 
   const handleJumpToCenter = () => {
     sfx.click();
-    const cx = Math.floor(MAP_SIZE / 2);
-    const cy = Math.floor(MAP_SIZE / 2);
+    const cx = Math.floor(activeMapSize / 2);
+    const cy = Math.floor(activeMapSize / 2);
     setTargetFocus({ x: cx, y: cy });
     setSelectedCoord(`${cx},${cy}`);
   };
 
   const handleJumpToMyBase = () => {
     sfx.click();
-    const myTile = Object.values(tiles).find((t) => t.ownerUid === appUser?.uid);
+    const myCapital = Object.values(tiles).find((t) => t.ownerUid === appUser?.uid && t.isCapital);
+    const myTile = myCapital || Object.values(tiles).find((t) => t.ownerUid === appUser?.uid);
     if (myTile) {
       setTargetFocus({ x: myTile.x, y: myTile.y });
       setSelectedCoord(`${myTile.x},${myTile.y}`);
@@ -471,17 +669,18 @@ export default function StudentEmpirePage() {
   const handleJumpToCitadel = () => {
     sfx.click();
     if (!appUser?.guildId) return;
-    const g = guilds[appUser.guildId] as any;
-    if (g?.citadelCoord) {
-      const [cx, cy] = g.citadelCoord.split(',').map(Number);
+    const g = allGuildsMap[appUser.guildId];
+    const cCoord = activeContinent === 'pangaea' ? g?.pangaeaCitadelCoord : g?.citadelCoord;
+    if (cCoord) {
+      const [cx, cy] = cCoord.split(',').map(Number);
       setTargetFocus({ x: cx, y: cy });
-      setSelectedCoord(g.citadelCoord);
+      setSelectedCoord(cCoord);
     } else {
-      const isLeader = guilds[appUser.guildId]?.leaderUid === appUser.uid || isGmUser;
+      const isLeader = g?.leaderUid === appUser.uid || isGmUser;
       if (isLeader) {
-        alert('กิลด์ของคุณยังไม่มีนครหลวง!\n\n👑 ในฐานะหัวหน้ากิลด์ คุณสามารถคลิกเลือกเซกเตอร์ของกิลด์ แล้วกดปุ่ม "🏛️ สถาปนานครหลวงกิลด์" ในเมนูด้านล่างเพื่อสร้างได้ทันที');
+        alert('กิลด์ของคุณยังไม่มีนครหลวงในทวีปนี้!\n\n👑 ในฐานะหัวหน้ากิลด์ คุณสามารถคลิกเลือกเซกเตอร์ของกิลด์ แล้วกดปุ่ม "🏛️ สถาปนานครหลวงกิลด์" ในเมนูด้านล่างเพื่อสร้างได้ทันที');
       } else {
-        alert('กิลด์ของคุณยังไม่ได้สถาปนานครหลวง กรุณาแจ้งหัวหน้ากิลด์ให้สถาปนานครหลวงกิลด์');
+        alert('กิลด์ของคุณยังไม่ได้สถาปนานครหลวงในทวีปนี้ กรุณาแจ้งหัวหน้ากิลด์ให้สถาปนานครหลวงกิลด์');
       }
     }
   };
@@ -491,25 +690,51 @@ export default function StudentEmpirePage() {
   const [isMarching, setIsMarching] = useState(false);
 
   const heroPetCoord = useMemo(() => {
-    // 1. Check pet.currentTileCoord from Firestore
-    if (isValidCoord(appUser?.pet?.currentTileCoord)) {
-      return appUser!.pet!.currentTileCoord!;
-    }
-    // 2. Synchronous fallback to localStorage (solves instant page refresh before Firestore snapshot)
-    if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('virusgo_hero_coord');
-      if (isValidCoord(cached)) {
-        return cached!;
+    if (isSpectatorMode) return null;
+
+    if (activeContinent === 'pangaea') {
+      if (isValidCoord(appUser?.pet?.pangaeaTileCoord)) {
+        return appUser!.pet!.pangaeaTileCoord!;
+      }
+      if (typeof window !== 'undefined') {
+        const cachedP = localStorage.getItem('virusgo_hero_coord_pangaea');
+        if (isValidCoord(cachedP)) return cachedP!;
+      }
+      if (appUser?.pet?.currentTileCoord) {
+        const [hx, hy] = appUser.pet.currentTileCoord.split(',').map(Number);
+        if (!isNaN(hx) && !isNaN(hy)) {
+          return translateHomeCoordToPangaea(myHomeContinent, appUser.pet.currentTileCoord);
+        }
+      }
+    } else {
+      if (isValidCoord(appUser?.pet?.currentTileCoord)) {
+        return appUser!.pet!.currentTileCoord!;
+      }
+      if (typeof window !== 'undefined') {
+        const cached =
+          localStorage.getItem(`virusgo_hero_coord_${activeContinent}`) ||
+          (activeContinent === 'capsidia' ? localStorage.getItem('virusgo_hero_coord') : null);
+        if (isValidCoord(cached)) {
+          return cached!;
+        }
       }
     }
-    // 3. Fallback to player's capital base
+
     const capital = Object.values(tiles).find(t => t.ownerUid === appUser?.uid && t.isCapital);
     if (capital) return `${capital.x},${capital.y}`;
-    // 4. Fallback to any owned tile
     const anyTile = Object.values(tiles).find(t => t.ownerUid === appUser?.uid);
     if (anyTile) return `${anyTile.x},${anyTile.y}`;
     return null;
-  }, [appUser?.pet?.currentTileCoord, appUser?.uid, tiles, isValidCoord]);
+  }, [
+    isSpectatorMode,
+    activeContinent,
+    appUser?.pet?.pangaeaTileCoord,
+    appUser?.pet?.currentTileCoord,
+    appUser?.uid,
+    myHomeContinent,
+    tiles,
+    isValidCoord,
+  ]);
 
   // Map of rival ownerUid -> single latest coord where their hero is stationed (Strict 1 Hero per player)
   const rivalStationedHeroCoords = useMemo(() => {
@@ -527,17 +752,22 @@ export default function StudentEmpirePage() {
     return set;
   }, [tiles, appUser?.uid]);
 
-  // Sync localStorage whenever appUser.pet.currentTileCoord updates
+  // Sync localStorage whenever hero coord updates on home continent or Pangaea
   useEffect(() => {
-    if (typeof window !== 'undefined' && isValidCoord(appUser?.pet?.currentTileCoord)) {
-      localStorage.setItem('virusgo_hero_coord', appUser!.pet!.currentTileCoord!);
+    if (typeof window === 'undefined') return;
+    if (activeContinent === 'pangaea' && isValidCoord(appUser?.pet?.pangaeaTileCoord)) {
+      localStorage.setItem('virusgo_hero_coord_pangaea', appUser!.pet!.pangaeaTileCoord!);
+    } else if (activeContinent !== 'pangaea' && !isSpectatorMode && isValidCoord(appUser?.pet?.currentTileCoord)) {
+      localStorage.setItem(`virusgo_hero_coord_${activeContinent}`, appUser!.pet!.currentTileCoord!);
+      if (activeContinent === 'capsidia') {
+        localStorage.setItem('virusgo_hero_coord', appUser!.pet!.currentTileCoord!);
+      }
     }
-  }, [appUser?.pet?.currentTileCoord, isValidCoord]);
+  }, [activeContinent, isSpectatorMode, appUser?.pet?.currentTileCoord, appUser?.pet?.pangaeaTileCoord, isValidCoord]);
 
-  // Auto-focus camera on hero's location upon initial loading
-  const hasInitiallyFocused = useRef(false);
+  // Auto-focus camera on hero's location upon initial loading on own/Pangaea map
   useEffect(() => {
-    if (hasInitiallyFocused.current) return;
+    if (hasInitiallyFocused.current || isSpectatorMode) return;
     if (heroPetCoord) {
       const [hx, hy] = heroPetCoord.split(',').map(Number);
       if (!isNaN(hx) && !isNaN(hy)) {
@@ -546,11 +776,22 @@ export default function StudentEmpirePage() {
         hasInitiallyFocused.current = true;
       }
     }
-  }, [heroPetCoord]);
+  }, [heroPetCoord, isSpectatorMode]);
 
   const handleStartAttack = () => {
     if (!selectedCoord) return;
     sfx.click();
+
+    if (isSpectatorMode) {
+      alert('🔭 คุณกำลังอยู่ในโหมดส่องทวีปต่างรุ่น (Read-Only Reconnaissance)\nกรุณาสลับกลับทวีปประจำชั้นปีของคุณเพื่อส่งทัพบุกโจมตี');
+      return;
+    }
+
+    const [tx, ty] = selectedCoord.split(',').map(Number);
+    if (activeContinent === 'pangaea' && isPangaeaOceanTile(tx, ty)) {
+      alert('🌊 ไม่สามารถส่งกองทัพเดินลงมหาสมุทรชีวภาพได้!\nกรุณาส่งทัพผ่านสะพานบกยุทธศาสตร์ (Bio-Isthmus Land Bridge) เพื่อข้ามไปยังแผ่นดินอื่นหรือเกาะกลางโลก');
+      return;
+    }
 
     // Check Daily Attack Limit (exempt GM)
     if (!isGmUser && !dailyAttackInfo.canAttack) {
@@ -570,16 +811,23 @@ export default function StudentEmpirePage() {
 
     // Immediately cache target in localStorage and Firestore for persistence
     if (typeof window !== 'undefined') {
-      localStorage.setItem('virusgo_hero_coord', target);
+      if (activeContinent === 'pangaea') {
+        localStorage.setItem('virusgo_hero_coord_pangaea', target);
+      } else {
+        localStorage.setItem(`virusgo_hero_coord_${activeContinent}`, target);
+        if (activeContinent === 'capsidia') {
+          localStorage.setItem('virusgo_hero_coord', target);
+        }
+      }
     }
     if (appUser?.uid) {
+      const coordField = activeContinent === 'pangaea' ? 'pet.pangaeaTileCoord' : 'pet.currentTileCoord';
       updateDoc(doc(db, 'users', appUser.uid), {
-        'pet.currentTileCoord': target,
+        [coordField]: target,
       }).catch(console.error);
     }
 
-    // Direct, instantaneous route into battle (คลิกเข้าได้เลย 0ms delay!)
-    router.push(`/student/empire/battle?tile=${target}`);
+    router.push(`/student/empire/battle?tile=${target}&continent=${activeContinent}`);
   };
 
   // ── 8.1 Handler: Bio-Radar Minimap Interaction (Tap or Drag) ──────
@@ -587,8 +835,8 @@ export default function StudentEmpirePage() {
     const rect = e.currentTarget.getBoundingClientRect();
     const px = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const py = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-    const tx = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(px * MAP_SIZE)));
-    const ty = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(py * MAP_SIZE)));
+    const tx = Math.min(activeMapSize - 1, Math.max(0, Math.floor(px * activeMapSize)));
+    const ty = Math.min(activeMapSize - 1, Math.max(0, Math.floor(py * activeMapSize)));
     sfx.click();
     setTargetFocus({ x: tx, y: ty });
     setSelectedCoord(`${tx},${ty}`);
@@ -597,6 +845,10 @@ export default function StudentEmpirePage() {
   // ── 9. Handler: Scout Drone Calibration & Quiz (Bio-Radar) ────────
   const handleStartScout = (customCoord?: string) => {
     if (!appUser) return;
+    if (isSpectatorMode) {
+      alert('🔭 โหมดส่องทวีปรุ่นพี่/รุ่นน้องเปิดแผนที่ให้ดูครบแล้ว ไม่จำเป็นต้องใช้โดรนสอดแนม');
+      return;
+    }
 
     if (!isGmUser && !dailyScoutInfo.canScout) {
       alert(`⛔ แบตเตอรี่โดรนสอดแนมหมด! คุณใช้โควตาสอดแนมครบ ${DAILY_SCOUT_DRONE_LIMIT} ครั้งสำหรับวันนี้แล้ว (รีเซ็ตทุกเที่ยงคืน)`);
@@ -604,18 +856,20 @@ export default function StudentEmpirePage() {
     }
 
     let target = customCoord || selectedCoord;
+    const centerFallback = Math.floor(activeMapSize / 2);
     // If no target or target is already explored, find the nearest unexplored fog tile
     if (!target || exploredTiles.has(target)) {
-      const fx = targetFocus?.x ?? 25;
-      const fy = targetFocus?.y ?? 25;
+      const fx = targetFocus?.x ?? centerFallback;
+      const fy = targetFocus?.y ?? centerFallback;
       let found: string | null = null;
-      for (let r = 1; r < MAP_SIZE; r++) {
+      for (let r = 1; r < activeMapSize; r++) {
         for (let dx = -r; dx <= r; dx++) {
           for (let dy = -r; dy <= r; dy++) {
             if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
             const nx = fx + dx;
             const ny = fy + dy;
-            if (nx >= 0 && nx < MAP_SIZE && ny >= 0 && ny < MAP_SIZE) {
+            if (nx >= 0 && nx < activeMapSize && ny >= 0 && ny < activeMapSize) {
+              if (activeContinent === 'pangaea' && isPangaeaOceanTile(nx, ny)) continue;
               const c = `${nx},${ny}`;
               if (!exploredTiles.has(c)) {
                 found = c;
@@ -694,7 +948,7 @@ export default function StudentEmpirePage() {
           for (let dy = -2; dy <= 2; dy++) {
             const nx = cx + dx;
             const ny = cy + dy;
-            if (nx >= 0 && nx < MAP_SIZE && ny >= 0 && ny < MAP_SIZE) {
+            if (nx >= 0 && nx < activeMapSize && ny >= 0 && ny < activeMapSize) {
               revealedCoords.push(`${nx},${ny}`);
             }
           }
@@ -703,25 +957,29 @@ export default function StudentEmpirePage() {
         const today = getTodayDateString();
         const currentScouts = (appUser.dailyScoutDrones?.date === today ? (Number(appUser.dailyScoutDrones?.count) || 0) : 0) + 1;
 
-        // Check badge milestones
-        const prevExplored = Array.isArray(appUser.exploredTiles) ? appUser.exploredTiles : [];
+        const isPangaeaScout = activeContinent === 'pangaea';
+        const prevExplored = isPangaeaScout
+          ? (Array.isArray(appUser.pangaeaExploredTiles) ? appUser.pangaeaExploredTiles : [])
+          : (Array.isArray(appUser.exploredTiles) ? appUser.exploredTiles : []);
         const combinedExplored = new Set([...prevExplored, ...revealedCoords]);
         const currentBadges = Array.isArray(appUser.badges) ? [...appUser.badges] : [];
         const newBadges: string[] = [];
 
-        if (combinedExplored.size >= MAP_SIZE * MAP_SIZE * 0.25 && !currentBadges.includes('Junior Explorer')) {
-          newBadges.push('Junior Explorer');
-        }
-        if (combinedExplored.size >= MAP_SIZE * MAP_SIZE * 0.5 && !currentBadges.includes('Master Cartographer')) {
-          newBadges.push('Master Cartographer');
-        }
-        if (combinedExplored.size >= MAP_SIZE * MAP_SIZE && !currentBadges.includes('Grand Conqueror')) {
-          newBadges.push('Grand Conqueror');
+        if (!isPangaeaScout) {
+          if (combinedExplored.size >= MAP_SIZE * MAP_SIZE * 0.25 && !currentBadges.includes('Junior Explorer')) {
+            newBadges.push('Junior Explorer');
+          }
+          if (combinedExplored.size >= MAP_SIZE * MAP_SIZE * 0.5 && !currentBadges.includes('Master Cartographer')) {
+            newBadges.push('Master Cartographer');
+          }
+          if (combinedExplored.size >= MAP_SIZE * MAP_SIZE && !currentBadges.includes('Grand Conqueror')) {
+            newBadges.push('Grand Conqueror');
+          }
         }
 
         const userRef = doc(db, 'users', appUser.uid);
-        const updatePayload: any = {
-          exploredTiles: arrayUnion(...revealedCoords),
+        const updatePayload: Record<string, unknown> = {
+          [isPangaeaScout ? 'pangaeaExploredTiles' : 'exploredTiles']: arrayUnion(...revealedCoords),
           dailyScoutDrones: {
             date: today,
             count: currentScouts
@@ -758,7 +1016,7 @@ export default function StudentEmpirePage() {
 
   // ── 10. Handler: Build Defense Structure ──────────────────────────
   const handleBuildStructure = async (structId: string) => {
-    if (!selectedCoord || !appUser || buildingInProgress) return;
+    if (!selectedCoord || !appUser || buildingInProgress || isSpectatorMode) return;
     const struct = DEFENSE_STRUCTURES[structId];
     if (!struct) return;
 
@@ -770,7 +1028,7 @@ export default function StudentEmpirePage() {
 
     setBuildingInProgress(true);
     try {
-      const tileRef = doc(db, 'empire_tiles', selectedCoord);
+      const tileRef = doc(db, 'empire_tiles', toTileDocId(activeContinent, selectedCoord));
       const userRef = doc(db, 'users', appUser.uid);
 
       // Deduct EXP
@@ -803,7 +1061,7 @@ export default function StudentEmpirePage() {
 
   // ── 11. Handler: Repair Defense Structure ─────────────────────────
   const handleRepairStructure = async () => {
-    if (!selectedCoord || !appUser || !currentTile || repairingInProgress) return;
+    if (!selectedCoord || !appUser || !currentTile || repairingInProgress || isSpectatorMode) return;
     if (!currentTile.buildingType) return;
     const struct = DEFENSE_STRUCTURES[currentTile.buildingType];
     if (!struct) return;
@@ -823,7 +1081,7 @@ export default function StudentEmpirePage() {
 
     setRepairingInProgress(true);
     try {
-      const tileRef = doc(db, 'empire_tiles', selectedCoord);
+      const tileRef = doc(db, 'empire_tiles', toTileDocId(activeContinent, selectedCoord));
       const userRef = doc(db, 'users', appUser.uid);
 
       await updateDoc(userRef, {
@@ -848,7 +1106,7 @@ export default function StudentEmpirePage() {
 
   // ── 12. Handler: Daily Outpost Harvest ────────────────────────────
   const handleClaimDailyExp = async () => {
-    if (!selectedCoord || !appUser || claimingOutpost || !currentTile) return;
+    if (!selectedCoord || !appUser || claimingOutpost || !currentTile || isSpectatorMode) return;
     const today = getTodayDateString();
 
     if (currentTile.lastClaimedDate === today) {
@@ -856,14 +1114,15 @@ export default function StudentEmpirePage() {
       return;
     }
 
+    const rewardExp = Number(currentTile.dailyExp || 100);
     setClaimingOutpost(true);
     try {
-      const tileRef = doc(db, 'empire_tiles', selectedCoord);
+      const tileRef = doc(db, 'empire_tiles', toTileDocId(activeContinent, selectedCoord));
       const userRef = doc(db, 'users', appUser.uid);
 
       await updateDoc(userRef, {
-        exp: increment(100),
-        score: increment(100)
+        exp: increment(rewardExp),
+        score: increment(rewardExp)
       });
 
       await updateDoc(tileRef, {
@@ -871,7 +1130,7 @@ export default function StudentEmpirePage() {
       });
 
       sfx.levelUp();
-      setActionSuccessMsg(`🎉 เก็บเกี่ยวผลผลิตสำเร็จ! ได้รับ +100 EXP ประจำวันจากป้อมวิจัย`);
+      setActionSuccessMsg(`🎉 เก็บเกี่ยวผลผลิตสำเร็จ! ได้รับ +${rewardExp} EXP ประจำวันจากป้อมวิจัย`);
       setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err) {
       console.error("Claim daily exp error:", err);
@@ -884,10 +1143,10 @@ export default function StudentEmpirePage() {
   const [restoringUpkeep, setRestoringUpkeep] = useState(false);
 
   const handleRestoreUpkeep = async () => {
-    if (!selectedCoord || !appUser || !currentTile || restoringUpkeep) return;
+    if (!selectedCoord || !appUser || !currentTile || restoringUpkeep || isSpectatorMode) return;
     setRestoringUpkeep(true);
     try {
-      const tileRef = doc(db, 'empire_tiles', selectedCoord);
+      const tileRef = doc(db, 'empire_tiles', toTileDocId(activeContinent, selectedCoord));
       const fullHp = currentTile.maxDefenderHp || 1000;
       await updateDoc(tileRef, {
         lastActive: new Date().toISOString(),
@@ -909,8 +1168,8 @@ export default function StudentEmpirePage() {
   const [establishingCitadel, setEstablishingCitadel] = useState(false);
 
   const handleEstablishCitadel = async (tileId: string) => {
-    if (!appUser?.guildId) return;
-    const currentG = guilds[appUser.guildId];
+    if (!appUser?.guildId || isSpectatorMode) return;
+    const currentG = allGuildsMap[appUser.guildId] || guilds[appUser.guildId];
     const isLeader = currentG?.leaderUid === appUser.uid || isGmUser;
     if (!currentG || !isLeader) {
       alert('เฉพาะหัวหน้ากิลด์ (👑) เท่านั้นที่สามารถสถาปนานครหลวงกิลด์ได้');
@@ -918,12 +1177,11 @@ export default function StudentEmpirePage() {
     }
 
     const [tx, ty] = tileId.split(',').map(Number);
-    // 1. Try finding a 2x2 square containing (tx, ty) where all 4 tiles belong to the guild
     const candidateOffsets = [
-      [0, 0],   // (tx, ty) as top-left
-      [-1, 0],  // (tx, ty) as top-right
-      [0, -1],  // (tx, ty) as bottom-left
-      [-1, -1], // (tx, ty) as bottom-right
+      [0, 0],
+      [-1, 0],
+      [0, -1],
+      [-1, -1],
     ];
 
     let validCoords: string[] | null = null;
@@ -932,12 +1190,13 @@ export default function StudentEmpirePage() {
     for (const [ox, oy] of candidateOffsets) {
       const ax = tx + ox;
       const ay = ty + oy;
-      if (ax < 0 || ax + 1 >= MAP_SIZE || ay < 0 || ay + 1 >= MAP_SIZE) continue;
+      if (ax < 0 || ax + 1 >= activeMapSize || ay < 0 || ay + 1 >= activeMapSize) continue;
 
       const cluster = getCitadel2x2Coords(ax, ay);
       const allGuildOwnedAndValid = cluster.every((cid) => {
         const [cx, cy] = cid.split(',').map(Number);
-        if (isCentralVaultZone(cx, cy)) return false;
+        if (isCentralVaultZone(cx, cy, activeContinent)) return false;
+        if (activeContinent === 'pangaea' && isPangaeaOceanTile(cx, cy)) return false;
         const t = tiles[cid];
         if (!t) return false;
         if (t.isOutpost || t.type === 'outpost') return false;
@@ -957,16 +1216,17 @@ export default function StudentEmpirePage() {
 
     setEstablishingCitadel(true);
     try {
-      // 1. Clear previous citadel flag on old tiles
-      const oldCoords = currentG.citadelCoords || (currentG.citadelCoord ? [currentG.citadelCoord] : []);
+      const isPangaea = activeContinent === 'pangaea';
+      const oldCoords = isPangaea
+        ? (currentG.pangaeaCitadelCoords || (currentG.pangaeaCitadelCoord ? [currentG.pangaeaCitadelCoord] : []))
+        : (currentG.citadelCoords || (currentG.citadelCoord ? [currentG.citadelCoord] : []));
       const clearPromises = oldCoords
         .filter((cid) => tiles[cid]?.isCitadel)
-        .map((cid) => updateDoc(doc(db, 'empire_tiles', cid), { isCitadel: false }));
+        .map((cid) => updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, cid)), { isCitadel: false }));
       await Promise.all(clearPromises);
 
-      // 2. Set new citadel flag on the new tiles
       const setPromises = finalCoords.map((cid) =>
-        updateDoc(doc(db, 'empire_tiles', cid), {
+        updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, cid)), {
           isCitadel: true,
           guildId: appUser.guildId,
           guildName: currentG.name,
@@ -974,16 +1234,21 @@ export default function StudentEmpirePage() {
       );
       await Promise.all(setPromises);
 
-      // 3. Update guild record with coordinates
       const lvl = currentG.citadelLevel || 1;
-      await updateDoc(doc(db, 'guilds', currentG.id), {
-        citadelCoord: anchorCoord,
-        citadelCoords: finalCoords,
+      const guildPayload: Record<string, unknown> = {
         citadelLevel: lvl,
         citadelExp: currentG.citadelExp || 0,
         citadelHp: lvl * 1000 + 2500,
         maxCitadelHp: lvl * 1000 + 2500,
-      });
+      };
+      if (isPangaea) {
+        guildPayload.pangaeaCitadelCoord = anchorCoord;
+        guildPayload.pangaeaCitadelCoords = finalCoords;
+      } else {
+        guildPayload.citadelCoord = anchorCoord;
+        guildPayload.citadelCoords = finalCoords;
+      }
+      await updateDoc(doc(db, 'guilds', currentG.id), guildPayload);
 
       sfx.levelUp();
       setActionSuccessMsg(
@@ -1005,8 +1270,8 @@ export default function StudentEmpirePage() {
 
   const handleDonateCitadelExp = async (amount: number = 25) => {
     if (!appUser?.guildId || donatingCitadelExp) return;
-    const currentG = guilds[appUser.guildId];
-    if (!currentG || (!currentG.citadelCoord && !currentG.citadelCoords)) {
+    const currentG = allGuildsMap[appUser.guildId] || guilds[appUser.guildId];
+    if (!currentG || (!currentG.citadelCoord && !currentG.citadelCoords && !currentG.pangaeaCitadelCoord)) {
       alert('กิลด์ของคุณยังไม่มีนครหลวง กรุณาให้หัวหน้ากิลด์สถาปนานครหลวงก่อน');
       return;
     }
@@ -1018,15 +1283,13 @@ export default function StudentEmpirePage() {
 
     setDonatingCitadelExp(true);
     try {
-      // 1. Deduct user EXP
       await updateDoc(doc(db, 'users', appUser.uid), {
         exp: increment(-amount),
       });
 
-      // 2. Add to guild citadel exp and check for level up
       const currentLevel = currentG.citadelLevel || 1;
       const currentExp = (currentG.citadelExp || 0) + amount;
-      const neededExpForNext = currentLevel * 150; // LV1->2: 150 EXP, LV2->3: 300 EXP
+      const neededExpForNext = currentLevel * 150;
       let newLevel = currentLevel;
       if (currentExp >= neededExpForNext && currentLevel < 5) {
         newLevel = currentLevel + 1;
@@ -1110,10 +1373,16 @@ export default function StudentEmpirePage() {
   // ── 12.5 Guild Lifecycle Handlers (Create, Join, Leave, Color) ────
   const handleCreateGuild = async () => {
     if (!appUser || !newGuildName.trim() || !newGuildTag.trim() || isCreatingGuild) return;
+    if (activeContinent === 'pangaea') {
+      alert(`กรุณาสลับกลับทวีปบ้านเกิดของคุณ (${CONTINENTS[myHomeContinent].code}) ก่อนก่อตั้งกิลด์ เพื่อให้ซิงค์พื้นที่กิลด์ประจำรุ่นอย่างถูกต้อง`);
+      return;
+    }
     setIsCreatingGuild(true);
     try {
       const gId = `guild_${Date.now()}`;
-      const creatorTilesCount = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length;
+      const creatorTilesCount = !isSpectatorMode
+        ? Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length
+        : 0;
       const cleanName = newGuildName.trim();
       const cleanTag = newGuildTag.trim().toUpperCase().slice(0, 5);
 
@@ -1122,6 +1391,7 @@ export default function StudentEmpirePage() {
         name: cleanName,
         tag: cleanTag,
         color: newGuildColor,
+        continentId: myHomeContinent,
         leaderUid: appUser.uid,
         leaderName: appUser.fullname || 'ผู้บัญชาการ',
         membersCount: 1,
@@ -1135,21 +1405,22 @@ export default function StudentEmpirePage() {
         guildName: cleanName,
       });
 
-      // Update current user's tiles to reflect new guild
-      const tileUpdates = Object.values(tiles)
-        .filter((t) => t.ownerUid === appUser.uid)
-        .map((t) =>
-          updateDoc(doc(db, 'empire_tiles', t.id), {
-            guildId: gId,
-            guildName: cleanName,
-          })
-        );
-      await Promise.all(tileUpdates);
+      if (!isSpectatorMode) {
+        const tileUpdates = Object.values(tiles)
+          .filter((t) => t.ownerUid === appUser.uid)
+          .map((t) =>
+            updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, t.id)), {
+              guildId: gId,
+              guildName: cleanName,
+            })
+          );
+        await Promise.all(tileUpdates);
+      }
 
       setNewGuildName('');
       setNewGuildTag('');
       sfx.levelUp();
-      setActionSuccessMsg(`👑 สถาปนาพันธมิตรกิลด์ [${cleanTag}] ${cleanName} สำเร็จ! คุณคือหัวหน้ากิลด์`);
+      setActionSuccessMsg(`👑 สถาปนาพันธมิตรกิลด์ [${cleanTag}] ${cleanName} ประจำทวีป ${CONTINENTS[myHomeContinent].code} สำเร็จ!`);
       setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err) {
       console.error('Error creating guild:', err);
@@ -1161,9 +1432,20 @@ export default function StudentEmpirePage() {
 
   const handleJoinGuild = async (targetGuild: Guild) => {
     if (!appUser || isJoiningGuild) return;
+    if (activeContinent === 'pangaea') {
+      alert(`กรุณาสลับกลับทวีปบ้านเกิดของคุณ (${CONTINENTS[myHomeContinent].code}) ก่อนเข้าร่วมกิลด์ เพื่อให้ซิงค์พื้นที่กิลด์ประจำรุ่นอย่างถูกต้อง`);
+      return;
+    }
+    const gContinent = resolveGuildContinent(targetGuild);
+    if (!isGmUser && gContinent !== myHomeContinent) {
+      alert(`⛔ คุณสามารถเข้าร่วมกิลด์ในทวีปประจำชั้นปีของคุณ (${CONTINENTS[myHomeContinent].code}) เท่านั้น!`);
+      return;
+    }
     setIsJoiningGuild(targetGuild.id);
     try {
-      const joiningUserTilesCount = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length;
+      const joiningUserTilesCount = !isSpectatorMode
+        ? Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length
+        : 0;
 
       await updateDoc(doc(db, 'guilds', targetGuild.id), {
         membersCount: increment(1),
@@ -1174,16 +1456,17 @@ export default function StudentEmpirePage() {
         guildName: targetGuild.name,
       });
 
-      // Update user's tiles to match new guild
-      const tileUpdates = Object.values(tiles)
-        .filter((t) => t.ownerUid === appUser.uid)
-        .map((t) =>
-          updateDoc(doc(db, 'empire_tiles', t.id), {
-            guildId: targetGuild.id,
-            guildName: targetGuild.name,
-          })
-        );
-      await Promise.all(tileUpdates);
+      if (!isSpectatorMode) {
+        const tileUpdates = Object.values(tiles)
+          .filter((t) => t.ownerUid === appUser.uid)
+          .map((t) =>
+            updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, t.id)), {
+              guildId: targetGuild.id,
+              guildName: targetGuild.name,
+            })
+          );
+        await Promise.all(tileUpdates);
+      }
 
       sfx.levelUp();
       setShowGuildModal(false);
@@ -1199,12 +1482,18 @@ export default function StudentEmpirePage() {
 
   const handleLeaveGuild = async () => {
     if (!appUser || !appUser.guildId) return;
-    const currentG = guilds[appUser.guildId];
+    if (activeContinent === 'pangaea') {
+      alert(`กรุณาสลับกลับทวีปบ้านเกิดของคุณ (${CONTINENTS[myHomeContinent].code}) ก่อนออกจากกิลด์ เพื่อให้ซิงค์พื้นที่กิลด์ประจำรุ่นอย่างถูกต้อง`);
+      return;
+    }
+    const currentG = allGuildsMap[appUser.guildId] || guilds[appUser.guildId];
     if (!confirm(`คุณต้องการออกจากพันธมิตรกิลด์ [${currentG?.tag || ''}] ${currentG?.name || ''} ใช่หรือไม่?`)) {
       return;
     }
     try {
-      const leavingUserTilesCount = Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length;
+      const leavingUserTilesCount = !isSpectatorMode
+        ? Object.values(tiles).filter((t) => t.ownerUid === appUser.uid).length
+        : 0;
       if (currentG) {
         await updateDoc(doc(db, 'guilds', currentG.id), {
           membersCount: increment(-1),
@@ -1216,16 +1505,17 @@ export default function StudentEmpirePage() {
         guildName: null,
       });
 
-      // Remove guild tag from tiles
-      const tileUpdates = Object.values(tiles)
-        .filter((t) => t.ownerUid === appUser.uid)
-        .map((t) =>
-          updateDoc(doc(db, 'empire_tiles', t.id), {
-            guildId: null,
-            guildName: null,
-          })
-        );
-      await Promise.all(tileUpdates);
+      if (!isSpectatorMode) {
+        const tileUpdates = Object.values(tiles)
+          .filter((t) => t.ownerUid === appUser.uid)
+          .map((t) =>
+            updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, t.id)), {
+              guildId: null,
+              guildName: null,
+            })
+          );
+        await Promise.all(tileUpdates);
+      }
 
       sfx.click();
       setShowGuildModal(false);
@@ -1239,7 +1529,7 @@ export default function StudentEmpirePage() {
 
   const handleUpdateGuildColor = async (color: string) => {
     if (!appUser?.guildId) return;
-    const currentG = guilds[appUser.guildId];
+    const currentG = allGuildsMap[appUser.guildId] || guilds[appUser.guildId];
     if (!currentG || (currentG.leaderUid !== appUser.uid && !isGmUser)) return;
     try {
       await updateDoc(doc(db, 'guilds', currentG.id), { color });
@@ -1263,7 +1553,7 @@ export default function StudentEmpirePage() {
       if (t.buildingType) {
         updates.buildingHp = t.maxBuildingHp || 1000;
       }
-      await updateDoc(doc(db, 'empire_tiles', tileId), updates);
+      await updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, tileId)), updates);
       sfx.victory();
       setActionSuccessMsg(`💖 [GM] ฟื้นฟู HP 100% ให้เซกเตอร์ [${tileId}] สำเร็จ`);
       setTimeout(() => setActionSuccessMsg(null), 4000);
@@ -1276,7 +1566,7 @@ export default function StudentEmpirePage() {
     if (!isGmUser) return;
     try {
       const shieldUntil = new Date(Date.now() + hours * 3600 * 1000).toISOString();
-      await updateDoc(doc(db, 'empire_tiles', tileId), { shieldUntil });
+      await updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, tileId)), { shieldUntil });
       sfx.victory();
       setActionSuccessMsg(`🛡️ [GM] มอบบาเรีย ${hours} ชม. ให้เซกเตอร์ [${tileId}] สำเร็จ`);
       setTimeout(() => setActionSuccessMsg(null), 4000);
@@ -1288,7 +1578,7 @@ export default function StudentEmpirePage() {
   const handleGmRemoveShield = async (tileId: string) => {
     if (!isGmUser) return;
     try {
-      await updateDoc(doc(db, 'empire_tiles', tileId), { shieldUntil: null });
+      await updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, tileId)), { shieldUntil: null });
       sfx.click();
       setActionSuccessMsg(`🔓 [GM] ปลดบาเรียของเซกเตอร์ [${tileId}] สำเร็จ`);
       setTimeout(() => setActionSuccessMsg(null), 4000);
@@ -1299,18 +1589,21 @@ export default function StudentEmpirePage() {
 
   const handleGmResetTile = async (tileId: string) => {
     if (!isGmUser) return;
-    if (!confirm(`[GM Action] ยืนยันการล้างเซกเตอร์ [${tileId}] ให้กลับเป็นช่องว่างหรือไม่?`)) return;
+    if (!confirm(`[GM Action] ยืนยันการล้างเซกเตอร์ [${tileId}] บนทวีป ${activeContinentMeta.code} ให้กลับเป็นช่องว่างหรือไม่?`)) return;
 
     try {
-      const [tx, ty] = tileId.split(',').map(Number);
-      await setDoc(doc(db, 'empire_tiles', tileId), {
-        id: tileId,
+      const cleanCoord = stripTileDocPrefix(tileId);
+      const [tx, ty] = cleanCoord.split(',').map(Number);
+      const docId = toTileDocId(activeContinent, cleanCoord);
+      await setDoc(doc(db, 'empire_tiles', docId), {
+        id: cleanCoord,
+        continentId: activeContinent,
         x: tx,
         y: ty,
         type: 'empty'
       });
       sfx.click();
-      setActionSuccessMsg(`🧹 [GM] รีเซ็ตเซกเตอร์ [${tileId}] ให้เป็นช่องว่างเรียบร้อยแล้ว`);
+      setActionSuccessMsg(`🧹 [GM] รีเซ็ตเซกเตอร์ [${cleanCoord}] ให้เป็นช่องว่างเรียบร้อยแล้ว`);
       setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err) {
       console.error("GM reset tile error:", err);
@@ -1320,7 +1613,14 @@ export default function StudentEmpirePage() {
   const handleGmInstantClaim = async (tileId: string) => {
     if (!isGmUser || !appUser) return;
     try {
-      await updateDoc(doc(db, 'empire_tiles', tileId), {
+      const cleanCoord = stripTileDocPrefix(tileId);
+      const [tx, ty] = cleanCoord.split(',').map(Number);
+      const docId = toTileDocId(activeContinent, cleanCoord);
+      await setDoc(doc(db, 'empire_tiles', docId), {
+        id: cleanCoord,
+        continentId: activeContinent,
+        x: tx,
+        y: ty,
         type: 'player',
         ownerUid: appUser.uid,
         ownerName: appUser.fullname || 'GM Admin',
@@ -1328,12 +1628,96 @@ export default function StudentEmpirePage() {
         currentDefenderHp: 2000,
         maxDefenderHp: 2000,
         lastAttacked: new Date().toISOString()
-      });
+      }, { merge: true });
       sfx.victory();
-      setActionSuccessMsg(`👑 [GM] ยึดครองเซกเตอร์ [${tileId}] สำเร็จทันที`);
+      setActionSuccessMsg(`👑 [GM] ยึดครองเซกเตอร์ [${cleanCoord}] สำเร็จทันที`);
       setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err) {
       console.error("GM instant claim error:", err);
+    }
+  };
+
+  const handleGmSeedContinent = async () => {
+    if (!isGmUser || isSeedingContinent || activeContinent === 'pangaea') return;
+    if (!confirm(`🌱 [GM] ยืนยันการเสกบอสใจกลาง (Vault) และป้อมฟาร์มวิจัย (Outposts) บนทวีป ${activeContinentMeta.code} หรือไม่?\n(จะสร้างเฉพาะช่องที่ยังว่าง ไม่ทับฐานของผู้เล่นเดิม)`)) return;
+    setIsSeedingContinent(true);
+    try {
+      const res = await seedContinentVaultAndOutposts(activeContinent);
+      sfx.levelUp();
+      setActionSuccessMsg(`🌱 [GM] เสกบอส ${res.seededGuardians} จุด และป้อมฟาร์ม ${res.seededOutposts} จุด บน ${activeContinentMeta.code} สำเร็จ!`);
+      setTimeout(() => setActionSuccessMsg(null), 5000);
+    } catch (err) {
+      console.error('GM seed continent error:', err);
+      alert('เกิดข้อผิดพลาดในการเสกบอสประจำทวีป');
+    } finally {
+      setIsSeedingContinent(false);
+    }
+  };
+
+  const handleGmTriggerPangaeaMerge = async (unlockForStudents: boolean = false) => {
+    if (!isGmUser || isMergingPangaea) return;
+    const modeTitle = unlockForStudents
+      ? '🌍 [GM LIVE MERGE — เปิดศึก PANGAEA 120×120 ให้นิสิตทุกชั้นปี]'
+      : '🧪 [GM SANDBOX TEST — ทดลองสร้างแผนที่ PANGAEA 120×120 โดยยังล็อกนิสิตไว้]';
+    const msg =
+      `${modeTitle}\n\n` +
+      'ระบบจะคัดลอกแผ่นดิน เมืองหลวง ป้อมปราการ และนครหลวงกิลด์ของทั้ง 3 ทวีป:\n' +
+      '• 👑 ปี 5 SYNAPSIA -> แผ่นดินเหนือ\n' +
+      '• 💎 ปี 3 CAPSIDIA -> แผ่นดินตะวันตกเฉียงใต้\n' +
+      '• 🔥 ปี 4 HEMORIA -> แผ่นดินตะวันออกเฉียงใต้\n' +
+      'พร้อมเปิดสะพานบก 3 สายเชื่อมเข้าหาเกาะกลางโลก (Pangaea World Core)\n' +
+      '(ข้อมูลทวีปเดิมของแต่ละชั้นปีปลอดภัย 100% และสามารถกดปุ่ม "⏪ ยกเลิก/ล้าง Pangaea" กลับเป็นปกติได้ตลอดเวลา!)\n\nยืนยันดำเนินการหรือไม่?';
+    if (!confirm(msg)) return;
+
+    setIsMergingPangaea(true);
+    try {
+      const res = await executePangaeaTectonicMerge(unlockForStudents);
+      sfx.victory();
+      setPangaeaUnlocked(unlockForStudents);
+      handleSwitchContinent('pangaea');
+      setActionSuccessMsg(
+        unlockForStudents
+          ? `🌍 เปิดศึก PANGAEA จริงสำเร็จ! คัดลอกเมืองผู้เล่น ${res.copiedPlayerTiles} เซกเตอร์ (รวม ${res.totalOperations} รายการ)!`
+          : `🧪 สร้างแผนที่ทดลอง PANGAEA สำเร็จ! คัดลอกเมืองผู้เล่น ${res.copiedPlayerTiles} เซกเตอร์ (นิสิตทั่วไปยังถูกล็อกไว้)`
+      );
+      setTimeout(() => setActionSuccessMsg(null), 6000);
+    } catch (err) {
+      console.error('Pangaea merge error:', err);
+      alert('เกิดข้อผิดพลาดในการรวมมหาทวีป PANGAEA');
+    } finally {
+      setIsMergingPangaea(false);
+    }
+  };
+
+  const handleGmRevertPangaea = async () => {
+    if (!isGmUser || isMergingPangaea) return;
+    if (
+      !confirm(
+        '⏪ [GM REVERT] ยืนยันการยกเลิกและล้างแผนที่ทดลอง PANGAEA กลับสู่สถานะปกติหรือไม่?\n\n' +
+          '• ลบเฉพาะเซกเตอร์จำลองบน PANGAEA ทั้งหมด และล็อกแผนที่กลับทันที\n' +
+          '• ข้อมูลบ้าน คะแนน และกิลด์บนทวีป CAPSIDIA (ปี 3), HEMORIA (ปี 4), SYNAPSIA (ปี 5) ปลอดภัย 100%!'
+      )
+    ) {
+      return;
+    }
+
+    setIsMergingPangaea(true);
+    try {
+      const res = await revertPangaeaTectonicMerge();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('virusgo_hero_coord_pangaea');
+      }
+      setPangaeaUnlocked(false);
+      handleSwitchContinent(myHomeContinent);
+      setActionSuccessMsg(
+        `⏪ ยกเลิกและรีเซ็ต PANGAEA เรียบร้อย! (ล้างเซกเตอร์จำลอง ${res.deletedTilesCount} ช่อง — ทวีปหลักทั้ง 3 รุ่นปลอดภัย 100%)`
+      );
+      setTimeout(() => setActionSuccessMsg(null), 5000);
+    } catch (err) {
+      console.error('Pangaea revert error:', err);
+      alert('เกิดข้อผิดพลาดในการยกเลิกแผนที่ PANGAEA');
+    } finally {
+      setIsMergingPangaea(false);
     }
   };
 
@@ -1394,16 +1778,16 @@ export default function StudentEmpirePage() {
           <div>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="text-[9px] sm:text-[10px] font-mono px-1.5 sm:px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold uppercase tracking-wider sm:tracking-widest shadow-[0_0_12px_rgba(6,182,212,0.3)]">
-                3D WAR ROOM
+                {activeContinentMeta.emoji} {activeContinentMeta.code}
               </span>
               <span className="text-xs text-slate-400 font-mono hidden lg:inline">
-                แผนที่ยุทธการ 50×50 (2,500 เซกเตอร์)
+                {activeContinentMeta.thaiName} • {activeMapSize}×{activeMapSize} ({(activeMapSize * activeMapSize).toLocaleString()} เซกเตอร์)
               </span>
             </div>
             <h1 className="text-sm sm:text-xl font-black text-white tracking-wide flex items-center gap-1.5 mt-0.5">
               <span>VIRUS EMPIRE</span>
               <span className="text-[9px] sm:text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hidden xs:inline">
-                TACTICAL 3D
+                {activeContinent === 'pangaea' ? 'PANGAEA 120×120' : `ปี ${activeContinentMeta.year}`}
               </span>
             </h1>
           </div>
@@ -1516,14 +1900,14 @@ export default function StudentEmpirePage() {
             }`}
             title={
               appUser?.guildId
-                ? `พันธมิตรกิลด์: [${guilds[appUser.guildId]?.tag || 'กิลด์'}] ${guilds[appUser.guildId]?.name || ''}`
+                ? `พันธมิตรกิลด์: [${allGuildsMap[appUser.guildId]?.tag || 'กิลด์'}] ${allGuildsMap[appUser.guildId]?.name || ''}`
                 : 'ระบบพันธมิตรกิลด์ - ยังไม่มีกิลด์ (คลิกเพื่อเข้าร่วมหรือก่อตั้ง)'
             }
           >
             <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
             <span className="hidden sm:inline">
               {appUser?.guildId
-                ? `[${guilds[appUser.guildId]?.tag || 'กิลด์'}]`
+                ? `[${allGuildsMap[appUser.guildId]?.tag || 'กิลด์'}]`
                 : 'พันธมิตรกิลด์'}
             </span>
             {!appUser?.guildId && (
@@ -1577,6 +1961,126 @@ export default function StudentEmpirePage() {
         </div>
       </header>
 
+      {/* ── CONTINENT SWITCHER & PANGAEA WORLD CONVERGENCE BAR ────────────── */}
+      <div className="z-25 bg-slate-950/95 border-b border-slate-800/80 px-2.5 sm:px-5 py-1.5 backdrop-blur-md flex items-center justify-between gap-2 overflow-x-auto no-scrollbar shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
+          {ALL_CONTINENT_ORDER.map((cid) => {
+            const meta = CONTINENTS[cid];
+            const isSelected = activeContinent === cid;
+            const isMine = cid === myHomeContinent;
+            const isLockedPangaea = cid === 'pangaea' && !pangaeaUnlocked && !isGmUser;
+
+            return (
+              <button
+                key={cid}
+                type="button"
+                onClick={() => handleSwitchContinent(cid)}
+                className={`px-2.5 sm:px-3 py-1 rounded-xl text-[11px] sm:text-xs font-mono font-bold border transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 ${
+                  isSelected
+                    ? cid === 'capsidia'
+                      ? 'bg-cyan-950/90 border-cyan-400 text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.3)]'
+                      : cid === 'hemoria'
+                      ? 'bg-rose-950/90 border-rose-400 text-rose-200 shadow-[0_0_12px_rgba(251,113,133,0.3)]'
+                      : cid === 'synapsia'
+                      ? 'bg-amber-950/90 border-amber-400 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+                      : 'bg-emerald-950/90 border-emerald-400 text-emerald-200 shadow-[0_0_14px_rgba(16,185,129,0.35)]'
+                    : isLockedPangaea
+                    ? 'bg-slate-900/50 border-slate-800 text-slate-500 hover:border-slate-700'
+                    : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'
+                }`}
+                title={meta.subtitle}
+              >
+                <span>{meta.emoji}</span>
+                <span>
+                  {cid === 'pangaea' ? 'PANGAEA (รวม 3 รุ่น)' : `ปี ${meta.year}: ${meta.code}`}
+                </span>
+                {isMine && (
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/15 text-white font-black">
+                    ทวีปเรา
+                  </span>
+                )}
+                {isLockedPangaea && <Lock className="w-3 h-3 text-slate-500" />}
+                {cid === 'pangaea' && pangaeaUnlocked && (
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500 text-slate-950 font-black animate-pulse">
+                    LIVE
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right: Spectator Return OR GM Continent / Pangaea Controls */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isSpectatorMode && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-950/80 border border-indigo-500/50 text-[10px] sm:text-xs font-mono text-indigo-200">
+              <Eye className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <span className="hidden sm:inline">โหมดส่องทวีปต่างรุ่น (ดูได้อย่างเดียว)</span>
+              <span className="sm:hidden">โหมดส่อง</span>
+              <button
+                type="button"
+                onClick={() => handleSwitchContinent(myHomeContinent)}
+                className="ml-1 px-2 py-0.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-[10px] cursor-pointer transition-colors"
+              >
+                กลับทวีปเรา →
+              </button>
+            </div>
+          )}
+
+          {isGmUser && activeContinent !== 'pangaea' && (
+            <button
+              type="button"
+              disabled={isSeedingContinent}
+              onClick={handleGmSeedContinent}
+              className="px-2.5 py-1 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 text-[10px] sm:text-xs font-mono font-bold flex items-center gap-1 cursor-pointer active:scale-95 disabled:opacity-50"
+              title="[GM] เสกบอสใจกลาง (Vault) และป้อมฟาร์มประจำทวีปนี้"
+            >
+              <Sparkles className="w-3 h-3 text-emerald-400" />
+              <span>{isSeedingContinent ? 'กำลังเสก...' : 'เสกบอสทวีปนี้'}</span>
+            </button>
+          )}
+
+          {isGmUser && (
+            <>
+              <button
+                type="button"
+                disabled={isMergingPangaea}
+                onClick={() => handleGmTriggerPangaeaMerge(false)}
+                className="px-2.5 py-1 rounded-xl bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-400/50 text-cyan-200 text-[10px] sm:text-xs font-mono font-bold flex items-center gap-1 shadow-md cursor-pointer active:scale-95 disabled:opacity-50"
+                title="[GM Sandbox] ทดลองสร้างแผนที่ PANGAEA 120×120 โดยยังล็อกนิสิตทั่วไปไว้"
+              >
+                <Globe2 className="w-3.5 h-3.5 text-cyan-400" />
+                <span>{isMergingPangaea ? 'กำลังทำงาน...' : '🧪 ทดลอง PANGAEA (GM)'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isMergingPangaea}
+                onClick={() => handleGmTriggerPangaeaMerge(true)}
+                className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-slate-950 text-[10px] sm:text-xs font-mono font-black flex items-center gap-1 shadow-md cursor-pointer active:scale-95 disabled:opacity-50"
+                title="[GM Live] เปิดศึก PANGAEA 120×120 จริง และปลดล็อกให้นิสิตทุกชั้นปีเข้าเล่น"
+              >
+                <Swords className="w-3.5 h-3.5" />
+                <span>เปิดศึกจริง</span>
+              </button>
+
+              {(activeContinent === 'pangaea' || pangaeaUnlocked) && (
+                <button
+                  type="button"
+                  disabled={isMergingPangaea}
+                  onClick={handleGmRevertPangaea}
+                  className="px-2.5 py-1 rounded-xl bg-rose-950/90 hover:bg-rose-900 border border-rose-500/50 text-rose-200 text-[10px] sm:text-xs font-mono font-bold flex items-center gap-1 shadow-md cursor-pointer active:scale-95 disabled:opacity-50"
+                  title="[GM Revert] ยกเลิกและล้างแผนที่ทดลอง PANGAEA กลับสู่สถานะปกติ (ไม่กระทบข้อมูลทวีปหลัก)"
+                >
+                  <RefreshCw className="w-3 h-3 text-rose-400" />
+                  <span>⏪ ยกเลิก PANGAEA</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
       {/* ── MOBILE TELEMETRY STRIP (Single-line smooth horizontal ticker) ── */}
       <div className="md:hidden z-20 bg-slate-950/90 border-b border-slate-800/80 px-2.5 py-1.5 backdrop-blur-md flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px] font-mono shrink-0">
         <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 shrink-0">
@@ -1615,6 +2119,7 @@ export default function StudentEmpirePage() {
       {/* ── 3D HOLOGRAPHIC TACTICAL WAR TABLE (CANVAS) ────────────────────── */}
       <div className="flex-1 relative w-full h-full overflow-hidden">
         <EmpireCanvas3D
+          continentId={activeContinent}
           tiles={tiles}
           guilds={guilds}
           exploredTiles={exploredTiles}
@@ -1707,7 +2212,7 @@ export default function StudentEmpirePage() {
                   <Radio className="w-3 h-3 text-cyan-400 animate-pulse" /> BIO-RADAR
                 </span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500">50×50</span>
+                  <span className="text-slate-500">{activeMapSize}×{activeMapSize}</span>
                   <button
                     type="button"
                     onClick={() => setShowRadarMobile(false)}
@@ -1719,7 +2224,7 @@ export default function StudentEmpirePage() {
                 </div>
               </div>
 
-              {/* 50x50 Interactive Real-Time Radar Canvas */}
+              {/* Interactive Real-Time Radar Canvas */}
               <div 
                 className="w-24 h-24 sm:w-32 sm:h-32 bg-slate-950 rounded-xl border border-slate-800 relative overflow-hidden cursor-crosshair shadow-inner touch-none select-none"
                 onPointerDown={(e) => {
@@ -1732,11 +2237,11 @@ export default function StudentEmpirePage() {
                   }
                 }}
               >
-                {/* 2D Canvas rendering live 50x50 grid pixels */}
+                {/* 2D Canvas rendering live grid pixels */}
                 <canvas 
                   ref={radarCanvasRef}
-                  width={MAP_SIZE}
-                  height={MAP_SIZE}
+                  width={activeMapSize}
+                  height={activeMapSize}
                   className="w-full h-full [image-rendering:pixelated] block pointer-events-none"
                 />
 
@@ -1749,7 +2254,7 @@ export default function StudentEmpirePage() {
                   return (
                     <div 
                       className="absolute w-2.5 h-2.5 rounded-full bg-cyan-400 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_#22d3ee] animate-ping pointer-events-none"
-                      style={{ left: `${(sx / MAP_SIZE) * 100}%`, top: `${(sy / MAP_SIZE) * 100}%` }}
+                      style={{ left: `${(sx / activeMapSize) * 100}%`, top: `${(sy / activeMapSize) * 100}%` }}
                     />
                   );
                 })()}
@@ -1806,11 +2311,19 @@ export default function StudentEmpirePage() {
                       )}
                     </h3>
                     <p className="text-[10px] text-slate-400 font-mono">
-                      {isSanctuaryZone(Number(selectedCoord.split(',')[0]), Number(selectedCoord.split(',')[1])) 
-                        ? '🛡️ เขตรักษาความปลอดภัย (Sanctuary Rim)'
-                        : isCentralVaultZone(Number(selectedCoord.split(',')[0]), Number(selectedCoord.split(',')[1]))
-                        ? '⚡ ศูนย์กลางชีวะ (Central Core Vault)'
-                        : '⚔️ สมรภูมิยุทธการ (Tactical Frontier)'}
+                      {(() => {
+                        const [sx, sy] = selectedCoord.split(',').map(Number);
+                        if (activeContinent === 'pangaea') {
+                          const pInfo = getPangaeaTerrain(sx, sy);
+                          if (pInfo.terrain === 'ocean') return '🌊 มหาสมุทรชีวภาพกั้นทวีป (Bio-Ocean — ไม่สามารถเดินทัพข้ามได้)';
+                          if (pInfo.terrain === 'bridge') return '🌉 สะพานบกยุทธศาสตร์เชื่อมมหาทวีป (Bio-Isthmus Chokepoint)';
+                          if (pInfo.terrain === 'core') return '🌍 เกาะกลางโลก PANGAEA WORLD CORE (สมรภูมิชิงบัลลังก์ 3 รุ่น)';
+                          if (pInfo.homeland) return `${CONTINENTS[pInfo.homeland].emoji} แผ่นดิน ${CONTINENTS[pInfo.homeland].code} (ปี ${CONTINENTS[pInfo.homeland].year})`;
+                        }
+                        if (isSanctuaryZone(sx, sy, activeContinent)) return '🛡️ เขตรักษาความปลอดภัย (Sanctuary Rim)';
+                        if (isCentralVaultZone(sx, sy, activeContinent)) return '⚡ ศูนย์กลางชีวะ (Central Core Vault)';
+                        return '⚔️ สมรภูมิยุทธการ (Tactical Frontier)';
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -2049,8 +2562,44 @@ export default function StudentEmpirePage() {
 
               {/* Tactical Actions */}
               <div className="pt-1 flex flex-col gap-2">
+                {(() => {
+                  const [sx, sy] = selectedCoord.split(',').map(Number);
+                  const isOcean = activeContinent === 'pangaea' && isPangaeaOceanTile(sx, sy);
+                  if (isOcean) {
+                    return (
+                      <div className="p-3 rounded-2xl bg-sky-950/60 border border-sky-500/40 text-sky-200 text-xs font-mono text-center space-y-1">
+                        <div className="font-bold text-sky-300">🌊 มหาสมุทรชีวภาพลึก (Impassable Bio-Ocean)</div>
+                        <div className="text-[11px] text-slate-400">
+                          กรุณานำทัพเคลื่อนผ่าน <strong className="text-amber-300">สะพานบกสีทอง 3 สาย (Bio-Isthmus Bridge)</strong> เพื่อข้ามไปยังแผ่นดินอื่นหรือเกาะกลางโลก
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (isSpectatorMode) {
+                    return (
+                      <div className="p-3 rounded-2xl bg-indigo-950/70 border border-indigo-500/50 text-indigo-200 text-xs font-mono space-y-2">
+                        <div className="flex items-center gap-1.5 font-bold text-indigo-300">
+                          <Eye className="w-4 h-4 text-indigo-400 shrink-0" />
+                          <span>โหมดส่องทวีปต่างรุ่น (ดูได้อย่างเดียว)</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                          คุณกำลังส่องความเคลื่อนไหวของ {activeContinentMeta.emoji} <strong>{activeContinentMeta.code}</strong> ({activeContinentMeta.thaiName}) สลับกลับทวีปของคุณเพื่อส่งทัพหรือก่อสร้าง
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleSwitchContinent(myHomeContinent)}
+                          className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs cursor-pointer transition-all active:scale-95"
+                        >
+                          กลับสู่ทวีปของเรา ({CONTINENTS[myHomeContinent].emoji} {CONTINENTS[myHomeContinent].code}) →
+                        </button>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {/* 1. If Unexplored Fog of War */}
-                {!isExplored ? (
+                {!isSpectatorMode && !(activeContinent === 'pangaea' && isPangaeaOceanTile(Number(selectedCoord.split(',')[0]), Number(selectedCoord.split(',')[1]))) && (!isExplored ? (
                   <button
                     type="button"
                     onClick={() => handleStartScout()}
@@ -2168,13 +2717,13 @@ export default function StudentEmpirePage() {
 
                     {/* 5.1 Guild Leader: Establish Citadel Button */}
                     {appUser?.guildId &&
-                      (guilds[appUser.guildId]?.leaderUid === appUser.uid || isGmUser) &&
+                      ((allGuildsMap[appUser.guildId] || guilds[appUser.guildId])?.leaderUid === appUser.uid || isGmUser) &&
                       (isMyTile || isGuildTile) &&
                       !currentTile?.isCitadel &&
                       !currentTile?.isOutpost &&
                       selectedCoord && (() => {
                         const [tx, ty] = selectedCoord.split(',').map(Number);
-                        return !isCentralVaultZone(tx, ty);
+                        return !isCentralVaultZone(tx, ty, activeContinent);
                       })() && (
                         <button
                           type="button"
@@ -2267,7 +2816,7 @@ export default function StudentEmpirePage() {
                       </div>
                     )}
                   </>
-                )}
+                ))}
               </div>
             </div>
           </div>
@@ -2421,7 +2970,9 @@ export default function StudentEmpirePage() {
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
                 <div className="text-xs text-slate-400 font-mono">เซกเตอร์ทั้งหมด</div>
-                <div className="text-xl font-black text-white font-mono mt-1">2,500</div>
+                <div className="text-xl font-black text-white font-mono mt-1">
+                  {(activeMapSize * activeMapSize).toLocaleString()}
+                </div>
               </div>
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
                 <div className="text-xs text-slate-400 font-mono">สำรวจแล้ว</div>
@@ -2650,7 +3201,7 @@ export default function StudentEmpirePage() {
             <div className="overflow-y-auto space-y-4 pr-1 custom-scrollbar flex-1">
               {appUser?.guildId ? (
                 (() => {
-                  const currentG = guilds[appUser.guildId];
+                  const currentG = allGuildsMap[appUser.guildId] || guilds[appUser.guildId];
                   const isLeader = currentG?.leaderUid === appUser.uid || isGmUser;
                   const guildTilesCount = Object.values(tiles).filter((t) => t.guildId === appUser.guildId).length;
 

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import React, { useEffect, useState, useMemo } from 'react';
+import { collection, query, where, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { Card } from '@/components/ui/Card';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
@@ -25,12 +25,20 @@ import {
   Globe2,
   Eye,
   ArrowLeft,
+  RefreshCw,
   X
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { SVGVirus, familyToVirusType } from '@/components/ui/SVGVirus';
 import Link from 'next/link';
-import { Guild } from '@/types';
+import { Guild, StudentCohortYear } from '@/types';
+import {
+  CONTINENTS,
+  resolveGuildContinent,
+  resolveUserContinent,
+  resolveUserYear,
+  yearToContinent,
+} from '@/lib/empireConstants';
 import { getEffectivePetStats } from '@/lib/petBalance';
 import { ACHIEVEMENTS } from '@/app/student/profile/page';
 import dynamic from 'next/dynamic';
@@ -47,99 +55,220 @@ const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
 
 export default function Leaderboard() {
   const { appUser } = useAuth();
-  const [leaders, setLeaders] = useState<any[]>([]);
-  const [guilds, setGuilds] = useState<Guild[]>([]);
+  const [allLeaders, setAllLeaders] = useState<any[]>([]);
+  const [allGuilds, setAllGuilds] = useState<Guild[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'global' | 'solo' | 'team' | 'guild'>('global');
+  const [cohortTab, setCohortTab] = useState<StudentCohortYear | 'all'>(3);
+  const [hasInitializedCohort, setHasInitializedCohort] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
   const [profileImgError, setProfileImgError] = useState(false);
 
-  const TEAM_GAMES = ['virus-battle', 'classroom-battle', 'diagnosis-duel', 'farm-defense', 'tournament', 'empire'];
+  const myYear = resolveUserYear(appUser);
+
+  // Default cohort tab to the logged-in student's own year once auth loads
+  useEffect(() => {
+    if (appUser && !hasInitializedCohort) {
+      setCohortTab(resolveUserYear(appUser));
+      setHasInitializedCohort(true);
+    }
+  }, [appUser, hasInitializedCohort]);
+
+  const LB_SESSION_CACHE_KEY = 'virusgo_leaderboard_cache_v2';
+  const LB_SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes session cache
+  const LB_SUMMARY_TTL_MS = 10 * 60 * 1000; // 10 minutes Firestore 1-read summary doc
+
+  const fetchData = async (forceLive: boolean = false) => {
+    if (forceLive) setRefreshing(true);
+    try {
+      // 1. Check browser sessionStorage cache first (0 Firestore Reads!)
+      if (!forceLive && typeof window !== 'undefined') {
+        const cachedRaw = sessionStorage.getItem(LB_SESSION_CACHE_KEY);
+        if (cachedRaw) {
+          try {
+            const parsed = JSON.parse(cachedRaw);
+            if (Date.now() - (parsed.timestamp || 0) < LB_SESSION_TTL_MS && Array.isArray(parsed.leaders)) {
+              setAllLeaders(parsed.leaders);
+              setAllGuilds(parsed.guilds || []);
+              setLoading(false);
+              setRefreshing(false);
+              return;
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 2. Check Firestore 1-Read Summary Document (`leaderboard/summary_v2`)
+      if (!forceLive) {
+        try {
+          const summarySnap = await getDoc(doc(db, 'leaderboard', 'summary_v2'));
+          if (summarySnap.exists()) {
+            const sData = summarySnap.data();
+            if (
+              Date.now() - Number(sData.updatedAtMs || 0) < LB_SUMMARY_TTL_MS &&
+              Array.isArray(sData.leaders) &&
+              sData.leaders.length > 0
+            ) {
+              setAllLeaders(sData.leaders);
+              setAllGuilds(sData.guilds || []);
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem(
+                  LB_SESSION_CACHE_KEY,
+                  JSON.stringify({
+                    timestamp: Date.now(),
+                    leaders: sData.leaders,
+                    guilds: sData.guilds || [],
+                  })
+                );
+              }
+              setLoading(false);
+              setRefreshing(false);
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. Full Refresh: Fetch Students + Guilds and rebuild 1-Read Summary Doc
+      const q = query(collection(db, 'users'), where('role', '==', 'student'));
+      const snapshot = await getDocs(q);
+      const users = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      let gList: Guild[] = [];
+      const guildTilesMap: Record<string, number> = {};
+
+      try {
+        const guildSnap = await getDocs(collection(db, 'guilds'));
+        const guildMembersCount: Record<string, number> = {};
+        users.forEach((u: any) => {
+          const gId = u.guildId;
+          if (gId) {
+            guildMembersCount[gId] = (guildMembersCount[gId] || 0) + 1;
+          }
+        });
+
+        guildSnap.forEach((d) => {
+          const rawGuild = d.data() as Guild;
+          const totalTiles = rawGuild.totalTiles || 0;
+          const membersCount = guildMembersCount[d.id] ?? (rawGuild.membersCount || 1);
+          const continentId = resolveGuildContinent(rawGuild);
+          guildTilesMap[d.id] = totalTiles;
+
+          gList.push({
+            ...rawGuild,
+            id: d.id,
+            continentId,
+            totalTiles,
+            membersCount,
+          });
+        });
+
+        gList.sort((a, b) => (b.totalTiles || 0) - (a.totalTiles || 0) || (b.membersCount || 0) - (a.membersCount || 0));
+      } catch (ge) {
+        console.error('Error fetching guilds:', ge);
+      }
+
+      const enrichedUsers = users.map((u: any) => {
+        const validGlobalExp = Number(u.exp || 0);
+        const savedSolo = typeof u.soloExp === 'number' ? u.soloExp : Math.round(validGlobalExp * 0.7);
+        const savedTeam = typeof u.teamExp === 'number' ? u.teamExp : Math.round(validGlobalExp * 0.3);
+        const cohortYear = resolveUserYear(u);
+        const continentId = resolveUserContinent(u);
+
+        return {
+          id: u.id,
+          uid: u.uid || u.id,
+          fullname: u.fullname || u.displayName || 'Cadet',
+          email: u.email || '',
+          photoURL: u.photoURL || '',
+          year: cohortYear,
+          continentId,
+          level: Number(u.level || 1),
+          exp: validGlobalExp,
+          globalExp: validGlobalExp,
+          soloExp: Math.min(savedSolo, validGlobalExp),
+          teamExp: Math.min(savedTeam, validGlobalExp),
+          guildId: u.guildId || null,
+          guildName: u.guildName || null,
+          conqueredTiles: Number(u.conqueredTiles || 0),
+          guildTiles: u.guildId ? (guildTilesMap[u.guildId] || 0) : 0,
+          badges: Array.isArray(u.badges) ? u.badges : [],
+          exploredCount: Array.isArray(u.exploredTiles) ? u.exploredTiles.length : 0,
+          pet: u.pet
+            ? {
+                nickname: u.pet.nickname || '',
+                virusName: u.pet.virusName || '',
+                family: u.pet.family || 'corona',
+                stage: u.pet.stage || 1,
+                stats: u.pet.stats || null,
+              }
+            : null,
+        };
+      });
+
+      setAllLeaders(enrichedUsers);
+      setAllGuilds(gList);
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(
+          LB_SESSION_CACHE_KEY,
+          JSON.stringify({
+            timestamp: Date.now(),
+            leaders: enrichedUsers,
+            guilds: gList,
+          })
+        );
+      }
+
+      // Persist compact 1-Read summary doc for other students (passes firestore.rules `isOwner(request.resource.data.uid)`)
+      if (appUser?.uid) {
+        setDoc(doc(db, 'leaderboard', 'summary_v2'), {
+          uid: appUser.uid,
+          updatedAtMs: Date.now(),
+          leaders: enrichedUsers,
+          guilds: gList,
+        }).catch(() => {});
+      }
+    } catch (error) {
+      console.error('Error fetching leaderboard data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // 1. Fetch Students
-        const q = query(collection(db, 'users'), where('role', '==', 'student'));
-        const snapshot = await getDocs(q);
-        const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    fetchData(false);
+  }, [appUser?.uid]);
 
-        // 2. Fetch Guilds (Tiles are pre-aggregated on user and guild documents)
-        try {
-          const guildSnap = await getDocs(collection(db, 'guilds'));
+  // Filter leaders & guilds by selected cohort tab
+  const leaders = useMemo(() => {
+    if (cohortTab === 'all') return allLeaders;
+    return allLeaders.filter((u) => resolveUserYear(u) === cohortTab);
+  }, [allLeaders, cohortTab]);
 
-          // Count guild members from loaded users
-          const guildMembersCount: Record<string, number> = {};
-          users.forEach((u: any) => {
-            const gId = u.guildId;
-            if (gId) {
-              guildMembersCount[gId] = (guildMembersCount[gId] || 0) + 1;
-            }
-          });
+  const guilds = useMemo(() => {
+    if (cohortTab === 'all') return allGuilds;
+    const targetContinent = yearToContinent(cohortTab);
+    return allGuilds.filter((g) => resolveGuildContinent(g) === targetContinent);
+  }, [allGuilds, cohortTab]);
 
-          // Build guild totalTiles map
-          const guildTilesMap: Record<string, number> = {};
-          const gList: Guild[] = [];
-          guildSnap.forEach((d) => {
-            const rawGuild = d.data() as Guild;
-            const totalTiles = rawGuild.totalTiles || 0;
-            const membersCount = guildMembersCount[d.id] ?? (rawGuild.membersCount || 1);
-            
-            guildTilesMap[d.id] = totalTiles;
-
-            gList.push({
-              ...rawGuild,
-              id: d.id,
-              totalTiles,
-              membersCount
-            });
-          });
-
-          // Map Students with Solo/Team EXP and accurate conquered sectors count
-          const enrichedUsers = users.map((u: any) => {
-            const validGlobalExp = Number(u.exp || 0);
-            const savedSolo = typeof u.soloExp === 'number' ? u.soloExp : Math.round(validGlobalExp * 0.7);
-            const savedTeam = typeof u.teamExp === 'number' ? u.teamExp : Math.round(validGlobalExp * 0.3);
-
-            return {
-              ...u,
-              globalExp: validGlobalExp,
-              soloExp: Math.min(savedSolo, validGlobalExp),
-              teamExp: Math.min(savedTeam, validGlobalExp),
-              conqueredTiles: Number(u.conqueredTiles || 0),
-              guildTiles: u.guildId ? (guildTilesMap[u.guildId] || 0) : 0
-            };
-          });
-
-          setLeaders(enrichedUsers);
-
-          // Sort guilds by totalTiles descending, then membersCount
-          gList.sort((a, b) => (b.totalTiles || 0) - (a.totalTiles || 0) || (b.membersCount || 0) - (a.membersCount || 0));
-          setGuilds(gList);
-        } catch(ge) {
-          console.error("Error fetching guilds:", ge);
-          const enrichedFallback = users.map((u: any) => {
-            const validGlobalExp = Number(u.exp || 0);
-            return {
-              ...u,
-              globalExp: validGlobalExp,
-              soloExp: Math.round(validGlobalExp * 0.7),
-              teamExp: Math.round(validGlobalExp * 0.3),
-              conqueredTiles: Number(u.conqueredTiles || 0)
-            };
-          });
-          setLeaders(enrichedFallback);
-        }
-
-      } catch (error) {
-        console.error("Error fetching leaderboard data:", error);
-      } finally {
-        setLoading(false);
-      }
+  // Aggregate Continent Stats for the Tri-Continent Overview
+  const continentTotals = useMemo(() => {
+    const summary: Record<3 | 4 | 5, { count: number; totalExp: number; totalTiles: number }> = {
+      3: { count: 0, totalExp: 0, totalTiles: 0 },
+      4: { count: 0, totalExp: 0, totalTiles: 0 },
+      5: { count: 0, totalExp: 0, totalTiles: 0 },
     };
-
-    fetchData();
-  }, []);
+    allLeaders.forEach((u) => {
+      const y = resolveUserYear(u);
+      summary[y].count += 1;
+      summary[y].totalExp += Number(u.globalExp || 0);
+      summary[y].totalTiles += Number(u.conqueredTiles || 0);
+    });
+    return summary;
+  }, [allLeaders]);
 
   const getRankTitle = (exp: number) => {
     if (exp < 600) return { title: 'Rookie', subtitle: 'นิสิตฝึกหัด', color: 'text-slate-400', border: 'border-slate-500/40', bg: 'bg-slate-500/10', icon: '🔰' };
@@ -188,7 +317,9 @@ export default function Leaderboard() {
     const pExp = Number(selectedProfile.globalExp || selectedProfile.exp || 0);
     const rTitle = getRankTitle(pExp);
     const uBadges = Array.isArray(selectedProfile.badges) ? selectedProfile.badges : [];
-    const expCount = Array.isArray(selectedProfile.exploredTiles) ? selectedProfile.exploredTiles.length : 0;
+    const expCount = typeof selectedProfile.exploredCount === 'number'
+      ? selectedProfile.exploredCount
+      : Array.isArray(selectedProfile.exploredTiles) ? selectedProfile.exploredTiles.length : 0;
     const expPct = Math.min(100, Math.round((expCount / 2500) * 100));
 
     return (
@@ -235,6 +366,15 @@ export default function Leaderboard() {
               <h1 className="text-xl sm:text-2xl font-black text-white truncate">
                 {selectedProfile.fullname}
               </h1>
+              {(() => {
+                const pCont = CONTINENTS[resolveUserContinent(selectedProfile)];
+                const pYear = resolveUserYear(selectedProfile);
+                return (
+                  <span className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${pCont.badgeClass}`}>
+                    {pCont.emoji} ปี {pYear} • {pCont.code}
+                  </span>
+                );
+              })()}
               {selectedProfile.guildName && (
                 <span className="text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full">
                   [{selectedProfile.guildName}]
@@ -475,10 +615,10 @@ export default function Leaderboard() {
             <span className="text-emerald-300 font-bold">{guilds.length} พันธมิตร</span>
           </div>
           <Link
-            href="/student/empire"
+            href={cohortTab === 'all' ? '/student/empire' : `/student/empire?continent=${yearToContinent(cohortTab)}`}
             onClick={() => sfx.click()}
             className="px-3.5 py-2 rounded-2xl bg-cyan-950/80 hover:bg-cyan-900/90 border border-cyan-500/40 hover:border-cyan-400 flex items-center gap-2 text-xs font-mono transition-all hover:scale-105 active:scale-95 shadow-md group cursor-pointer"
-            title="คลิกเพื่อเข้าสู่แผนที่ Virus Empire"
+            title="คลิกเพื่อส่องแผนที่ทวีปนี้ใน Virus Empire"
           >
             <MapPin className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
             <span className="text-slate-300">เซกเตอร์ครองรวม:</span>
@@ -487,7 +627,129 @@ export default function Leaderboard() {
             </span>
             <ChevronRight className="w-3.5 h-3.5 text-cyan-400 group-hover:translate-x-0.5 transition-transform" />
           </Link>
+          <button
+            type="button"
+            disabled={refreshing}
+            onClick={() => {
+              sfx.click();
+              fetchData(true);
+            }}
+            className="p-2 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 transition-all cursor-pointer disabled:opacity-50"
+            title="รีเฟรชข้อมูลคะแนนล่าสุด"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-cyan-400' : ''}`} />
+          </button>
         </div>
+      </div>
+
+      {/* ── COHORT / CONTINENT SWITCHER BAR (ส่องรุ่นตัวเอง / รุ่นน้อง / รุ่นพี่ / รวมคณะ) ── */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {([3, 4, 5] as StudentCohortYear[]).map((yr) => {
+            const cMeta = CONTINENTS[yearToContinent(yr)];
+            const isSelected = cohortTab === yr;
+            const isMyCohort = myYear === yr;
+            const cStats = continentTotals[yr];
+
+            return (
+              <button
+                key={yr}
+                type="button"
+                onClick={() => {
+                  sfx.click();
+                  setCohortTab(yr);
+                }}
+                className={`px-3.5 sm:px-4 py-2.5 rounded-2xl border text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  isSelected
+                    ? `${cMeta.badgeClass} ring-2 ring-white/20 scale-[1.02] shadow-lg`
+                    : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                }`}
+              >
+                <span className="text-base">{cMeta.emoji}</span>
+                <span>ชั้นปีที่ {yr}</span>
+                <span className="font-mono text-[10px] opacity-80 hidden sm:inline">({cMeta.code})</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-slate-950/60 text-slate-300">
+                  {cStats.count}
+                </span>
+                {isMyCohort && (
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500 text-slate-950">
+                    รุ่นของเรา
+                  </span>
+                )}
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => {
+              sfx.click();
+              setCohortTab('all');
+            }}
+            className={`px-3.5 sm:px-4 py-2.5 rounded-2xl border text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              cohortTab === 'all'
+                ? 'bg-yellow-500/20 text-yellow-300 border-yellow-400/60 ring-2 ring-yellow-400/30 scale-[1.02] shadow-lg'
+                : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+            }`}
+          >
+            <Globe2 className="w-4 h-4 text-yellow-400" />
+            <span>รวมทั้งคณะ (3 ทวีป)</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-slate-950/60 text-slate-300">
+              {allLeaders.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Continent Banner Info / Quick Reconnaissance Link */}
+        {cohortTab !== 'all' ? (
+          <div className="max-w-3xl mx-auto px-4 py-2.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-base">{CONTINENTS[yearToContinent(cohortTab)].emoji}</span>
+              <span className="font-bold text-white">
+                {CONTINENTS[yearToContinent(cohortTab)].thaiName} ({CONTINENTS[yearToContinent(cohortTab)].code})
+              </span>
+              <span className="text-slate-400 hidden sm:inline">
+                — {cohortTab === myYear ? 'ตารางคะแนนชั้นเรียนของคุณ' : cohortTab < myYear ? 'กำลังส่องอันดับรุ่นน้อง' : 'กำลังส่องอันดับรุ่นพี่'}
+              </span>
+            </div>
+            <Link
+              href={`/student/empire?continent=${yearToContinent(cohortTab)}`}
+              onClick={() => sfx.click()}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 font-bold transition-all"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>{cohortTab === myYear ? 'เข้าสู่ทวีปของเรา' : `ส่องแผนที่ทวีป ${CONTINENTS[yearToContinent(cohortTab)].code}`}</span>
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-4xl mx-auto">
+            {([3, 4, 5] as StudentCohortYear[]).map((yr) => {
+              const cMeta = CONTINENTS[yearToContinent(yr)];
+              const st = continentTotals[yr];
+              return (
+                <div
+                  key={yr}
+                  onClick={() => setCohortTab(yr)}
+                  className="p-3 rounded-2xl bg-slate-900/85 border border-slate-800 hover:border-slate-600 transition-all cursor-pointer flex items-center justify-between"
+                >
+                  <div>
+                    <div className="text-xs font-black text-white flex items-center gap-1.5">
+                      <span>{cMeta.emoji}</span>
+                      <span>ปี {yr} • {cMeta.code}</span>
+                    </div>
+                    <div className="text-[11px] font-mono text-slate-400 mt-0.5">
+                      {st.count} คน • ครอง {st.totalTiles} ช่อง
+                    </div>
+                  </div>
+                  <div className="text-right font-mono">
+                    <div className="text-sm font-black text-amber-300">{st.totalExp.toLocaleString()}</div>
+                    <div className="text-[9px] text-slate-500">EXP รวมทวีป</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── CATEGORY TABS ────────────────────────────────────────────────────── */}
@@ -585,7 +847,7 @@ export default function Leaderboard() {
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-base sm:text-lg font-black text-white tracking-wide">
                           {g.name}
                         </h3>
@@ -595,6 +857,14 @@ export default function Leaderboard() {
                         >
                           [{g.tag}]
                         </span>
+                        {(() => {
+                          const gCont = CONTINENTS[resolveGuildContinent(g)];
+                          return (
+                            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${gCont.badgeClass}`}>
+                              {gCont.emoji} {gCont.code}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 mt-0.5">
                         <span>หัวหน้า: <strong className="text-slate-200">{g.leaderName}</strong></span>
@@ -1007,6 +1277,15 @@ export default function Leaderboard() {
                                 คุณ
                               </span>
                             )}
+                            {cohortTab === 'all' && (() => {
+                              const lCont = CONTINENTS[resolveUserContinent(leader)];
+                              const lYear = resolveUserYear(leader);
+                              return (
+                                <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border ${lCont.badgeClass}`}>
+                                  {lCont.emoji} ปี {lYear}
+                                </span>
+                              );
+                            })()}
                             {leader.guildName && (
                               <span className="text-[10px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.2 rounded-full">
                                 [{leader.guildName}]

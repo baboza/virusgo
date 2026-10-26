@@ -35,6 +35,7 @@ import Link from 'next/link';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import dynamic from 'next/dynamic';
+import { CONTINENTS, resolveUserContinent, resolveUserYear } from '@/lib/empireConstants';
 
 const AmbientBioCanvas3D = dynamic(() => import('@/components/ui/AmbientBioCanvas3D'), {
   ssr: false,
@@ -225,6 +226,20 @@ export default function PlayerHub() {
 
                 {/* Ranks & Guild Tags */}
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                  {(() => {
+                    const cMeta = CONTINENTS[resolveUserContinent(appUser)];
+                    const yNum = resolveUserYear(appUser);
+                    return (
+                      <Link
+                        href="/student/empire"
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wide border transition-transform hover:scale-105 ${cMeta.badgeClass}`}
+                      >
+                        <span>{cMeta.emoji}</span>
+                        <span>ชั้นปีที่ {yNum} • ทวีป {cMeta.code}</span>
+                      </Link>
+                    );
+                  })()}
+
                   <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border ${currentRank.bg} ${currentRank.color} ${currentRank.border}`}>
                     <span>{currentRank.emoji}</span>
                     <span>{currentRank.title}</span>

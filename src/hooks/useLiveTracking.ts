@@ -32,10 +32,11 @@ export function useLiveTracking(gameId: string, progress: string) {
         fullname: appUser.fullname || 'Unknown Student',
         email: appUser.email || '',
         photoURL: appUser.photoURL || '',
-        level: appUser.level || 1
+        level: appUser.level || 1,
+        year: appUser.year === 4 ? 4 : appUser.year === 5 ? 5 : 3,
       }
     }, { merge: true }).catch((error) => {
       console.error("Failed to update live tracking", error);
     });
-  }, [appUser?.uid, appUser?.fullname, appUser?.email, appUser?.photoURL, appUser?.level, gameId, progress]);
+  }, [appUser?.uid, appUser?.fullname, appUser?.email, appUser?.photoURL, appUser?.level, appUser?.year, gameId, progress]);
 }

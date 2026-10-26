@@ -43,4 +43,6 @@ powershell.cmd
 
 # backups
 *.bak
+/backups
+
 

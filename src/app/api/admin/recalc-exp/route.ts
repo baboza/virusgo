@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
+import { resolveUserYear } from '@/lib/empireConstants';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  return handleRecalculation();
+export async function GET(request: Request) {
+  return handleRecalculation(request);
 }
 
-export async function POST() {
-  return handleRecalculation();
+export async function POST(request: Request) {
+  return handleRecalculation(request);
 }
 
 /**
@@ -72,10 +73,19 @@ function normalizeGameExp(gameId: string, rawExp: number): number {
   return Math.max(0, rawExp);
 }
 
-async function handleRecalculation() {
+async function handleRecalculation(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const yearParam = Number(searchParams.get('year') || 0);
+    const targetYear = yearParam === 3 || yearParam === 4 || yearParam === 5 ? yearParam : null;
+
     const usersRef = collection(db, 'users');
-    const usersSnap = await getDocs(usersRef);
+    // Filter by year in Firestore when year=4 or year=5 to avoid scanning other cohorts!
+    const usersQuery =
+      targetYear === 4 || targetYear === 5
+        ? query(usersRef, where('year', '==', targetYear))
+        : usersRef;
+    const usersSnap = await getDocs(usersQuery);
 
     const report: any[] = [];
     let totalUpdated = 0;
@@ -84,6 +94,11 @@ async function handleRecalculation() {
     for (const uDoc of usersSnap.docs) {
       const uData = uDoc.data();
       const uid = uDoc.id;
+
+      // If filtering specifically for Year 3 (includes legacy accounts without `year` field), skip Year 4 & Year 5
+      if (targetYear === 3 && resolveUserYear(uData) !== 3) {
+        continue;
+      }
 
       const oldExp = Number(uData.exp || 0);
       const oldLevel = Number(uData.level || 1);
@@ -94,6 +109,7 @@ async function handleRecalculation() {
 
       const parsedDocs: any[] = [];
       const duplicatesToDelete: string[] = [];
+      let latestPlayedMs = Number(uData.lastPlayedAt) || 0;
 
       if (!histSnap.empty) {
         for (const hDoc of histSnap.docs) {
@@ -116,6 +132,8 @@ async function handleRecalculation() {
               timeMs = new Date(h.createdAt).getTime() || 0;
             }
           }
+
+          if (timeMs > latestPlayedMs) latestPlayedMs = timeMs;
 
           parsedDocs.push({
             id: hDoc.id,
@@ -143,8 +161,6 @@ async function handleRecalculation() {
       for (const [key, items] of Object.entries(gameGroups)) {
         if (key === 'classroom-battle') {
           // Classroom Battle deduplication:
-          // In the live test today, students played at most 1 or 2 matches.
-          // Because of the snapshot loop bug, 20-40 duplicate documents were generated for that single match.
           // Sort items descending by correctedExp and keep at most the top 2 sessions.
           items.sort((a, b) => b.correctedExp - a.correctedExp);
           
@@ -245,12 +261,14 @@ async function handleRecalculation() {
         }
       }
 
-      // 6. Update User Document in Firestore
+      // 6. Update User Document in Firestore (including pre-aggregated sessionsCount & lastPlayedAt!)
       const userDocRef = doc(db, 'users', uid);
       const updatePayload: any = {
         exp: finalExp,
         score: finalExp,
-        level: newLevel
+        level: newLevel,
+        sessionsCount: validSessions.length,
+        ...(latestPlayedMs > 0 ? { lastPlayedAt: latestPlayedMs } : {}),
       };
       if (updatedPet) {
         updatePayload.pet = updatedPet;
@@ -261,6 +279,7 @@ async function handleRecalculation() {
 
       report.push({
         uid,
+        year: resolveUserYear(uData),
         fullname: uData.fullname || uData.displayName || 'Student',
         email: uData.email,
         role: uData.role || 'student',
@@ -274,7 +293,7 @@ async function handleRecalculation() {
       });
     }
 
-    // 7. Sync Guild Total Tiles
+    // 7. Sync Guild Total Tiles (Count Home Continent tiles only so Pangaea copies aren't double-counted)
     let guildsUpdated = 0;
     try {
       const [guildSnap, tilesSnap] = await Promise.all([
@@ -285,7 +304,7 @@ async function handleRecalculation() {
       const guildTilesCount: Record<string, number> = {};
       tilesSnap.forEach(tDoc => {
         const t = tDoc.data();
-        if (t.type === 'player' && t.guildId) {
+        if (t.type === 'player' && t.guildId && t.continentId !== 'pangaea') {
           guildTilesCount[t.guildId] = (guildTilesCount[t.guildId] || 0) + 1;
         }
       });
@@ -303,7 +322,8 @@ async function handleRecalculation() {
 
     return NextResponse.json({
       success: true,
-      message: `ปรับปรุงคะแนนและเลเวลสำเร็จสำหรับ ${totalUpdated} บัญชี (ลบประวัติซ้ำซ้อน ${totalDuplicatesRemoved} รายการ, ซิงค์กิลด์ ${guildsUpdated} กิลด์)`,
+      targetYear: targetYear || 'all',
+      message: `ปรับปรุงคะแนนและเลเวลสำเร็จสำหรับ ${totalUpdated} บัญชี${targetYear ? ` (ชั้นปีที่ ${targetYear})` : ''} (ลบประวัติซ้ำซ้อน ${totalDuplicatesRemoved} รายการ, ซิงค์กิลด์ ${guildsUpdated} กิลด์)`,
       timestamp: new Date().toISOString(),
       totalUsersProcessed: totalUpdated,
       totalDuplicatesRemoved,

@@ -1,14 +1,362 @@
-import { EmpireTile } from '@/types';
+import { ContinentId, EmpireTile, Guild, HomeContinentId, StudentCohortYear, User } from '@/types';
 
-export const MAP_SIZE = 50; // 50x50 = 2,500 sectors
+export const MAP_SIZE = 50; // 50x50 = 2,500 sectors per home continent
+export const PANGAEA_MAP_SIZE = 120; // 120x120 = 14,400 sectors for Civilization Merged World
+
+export interface ContinentMeta {
+  id: ContinentId;
+  year: StudentCohortYear | 0;
+  code: string;
+  thaiName: string;
+  shortLabel: string;
+  subtitle: string;
+  emoji: string;
+  mapSize: number;
+  accentHex: string;
+  badgeClass: string;
+  neutralHex: string;
+  sanctuaryHex: string;
+  vaultHex: string;
+  fogHex: string;
+  skyHex: string;
+}
+
+export const CONTINENTS: Record<ContinentId, ContinentMeta> = {
+  capsidia: {
+    id: 'capsidia',
+    year: 3,
+    code: 'CAPSIDIA',
+    thaiName: 'ทวีปแคปซิเดีย',
+    shortLabel: 'ปี 3 • CAPSIDIA',
+    subtitle: 'ปราการผลึกโปรตีน • นิสิตชั้นปีที่ 3',
+    emoji: '💎',
+    mapSize: MAP_SIZE,
+    accentHex: '#06b6d4',
+    badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+    neutralHex: '#111c30',
+    sanctuaryHex: '#16253b',
+    vaultHex: '#1e293b',
+    fogHex: '#0b1324',
+    skyHex: '#020617',
+  },
+  hemoria: {
+    id: 'hemoria',
+    year: 4,
+    code: 'HEMORIA',
+    thaiName: 'ทวีปเฮโมเรีย',
+    shortLabel: 'ปี 4 • HEMORIA',
+    subtitle: 'สมรภูมิโลหิตคลินิก • นิสิตชั้นปีที่ 4',
+    emoji: '🔥',
+    mapSize: MAP_SIZE,
+    accentHex: '#f59e0b',
+    badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    neutralHex: '#25141c',
+    sanctuaryHex: '#331b26',
+    vaultHex: '#3f1d2b',
+    fogHex: '#12080d',
+    skyHex: '#090306',
+  },
+  synapsia: {
+    id: 'synapsia',
+    year: 5,
+    code: 'SYNAPSIA',
+    thaiName: 'ทวีปไซแนปเซีย',
+    shortLabel: 'ปี 5 • SYNAPSIA',
+    subtitle: 'ยอดปราการประสาท • นิสิตชั้นปีที่ 5',
+    emoji: '👑',
+    mapSize: MAP_SIZE,
+    accentHex: '#a855f7',
+    badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+    neutralHex: '#1c1532',
+    sanctuaryHex: '#261d45',
+    vaultHex: '#312359',
+    fogHex: '#0d0919',
+    skyHex: '#05020c',
+  },
+  pangaea: {
+    id: 'pangaea',
+    year: 0,
+    code: 'PANGAEA',
+    thaiName: 'มหาทวีปแพนเจีย',
+    shortLabel: '🌍 PANGAEA (ศึกไตรภูมิ)',
+    subtitle: 'ศึกมหาทวีปรวมแผ่นดิน • ปี 3 × ปี 4 × ปี 5',
+    emoji: '🌍',
+    mapSize: PANGAEA_MAP_SIZE,
+    accentHex: '#eab308',
+    badgeClass: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50',
+    neutralHex: '#1b2434',
+    sanctuaryHex: '#243146',
+    vaultHex: '#422006',
+    fogHex: '#070e1a',
+    skyHex: '#020813',
+  },
+};
+
+export const HOME_CONTINENT_ORDER: HomeContinentId[] = ['capsidia', 'hemoria', 'synapsia'];
+export const ALL_CONTINENT_ORDER: ContinentId[] = ['capsidia', 'hemoria', 'synapsia', 'pangaea'];
+
+export const yearToContinent = (year?: number | null): HomeContinentId => {
+  if (year === 4) return 'hemoria';
+  if (year === 5) return 'synapsia';
+  return 'capsidia';
+};
+
+export const continentToYear = (continentId: HomeContinentId): StudentCohortYear => {
+  if (continentId === 'hemoria') return 4;
+  if (continentId === 'synapsia') return 5;
+  return 3;
+};
+
+export const resolveUserYear = (user?: Partial<User> | null): StudentCohortYear => {
+  if (user?.year === 4) return 4;
+  if (user?.year === 5) return 5;
+  if (user?.continentId === 'hemoria') return 4;
+  if (user?.continentId === 'synapsia') return 5;
+  return 3; // Default legacy cohort = Year 3 (CAPSIDIA)
+};
+
+export const resolveUserContinent = (user?: Partial<User> | null): HomeContinentId => {
+  if (user?.continentId === 'hemoria' || user?.continentId === 'synapsia' || user?.continentId === 'capsidia') {
+    return user.continentId;
+  }
+  return yearToContinent(user?.year);
+};
+
+export const resolveGuildContinent = (guild?: Partial<Guild> | null): HomeContinentId => {
+  if (guild?.continentId === 'hemoria' || guild?.continentId === 'synapsia' || guild?.continentId === 'capsidia') {
+    return guild.continentId;
+  }
+  return 'capsidia';
+};
+
+export const GM_ALLOWED_GMAIL = 'never.away@gmail.com';
+export const INSTRUCTOR_SUPER_EMAIL = 'jirawat.s@msu.ac.th';
+export const EXEMPT_STUDENT_TESTER_EMAILS = [
+  'never.away@gmail.com',
+  'wilasinee.c@msu.ac.th',
+] as const;
+
+export const isExemptStudentTesterEmail = (email?: string | null): boolean => {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  return (EXEMPT_STUDENT_TESTER_EMAILS as readonly string[]).includes(normalized);
+};
+
+/**
+ * Resolves MSU student cohort year from explicit Student ID prefix:
+ * - 65xxxxxxxxx@msu.ac.th -> Year 5 (SYNAPSIA)
+ * - 66xxxxxxxxx@msu.ac.th -> Year 4 (HEMORIA)
+ * - 67xxxxxxxxx@msu.ac.th -> Year 3 (CAPSIDIA)
+ */
+export const detectSuggestedYearFromEmail = (email?: string | null): StudentCohortYear | null => {
+  if (!email) return null;
+  const normalized = email.trim().toLowerCase();
+  const match = normalized.match(/^(\d{2})\d{5,12}@msu\.ac\.th$/);
+  if (!match) return null;
+  const prefix = match[1];
+  if (prefix === '65') return 5;
+  if (prefix === '66') return 4;
+  if (prefix === '67') return 3;
+  return null;
+};
+
+export type NewRegistrationValidationResult =
+  | {
+      allowed: true;
+      role: 'instructor' | 'student';
+      year: StudentCohortYear;
+      continentId: HomeContinentId;
+      studentID?: string;
+      needsCohortSelection: boolean;
+    }
+  | {
+      allowed: false;
+      errorTitle: string;
+      errorMessage: string;
+    };
+
+/**
+ * Strict registration gate for brand-new sign-ups (!userDoc.exists()):
+ * - Existing Year 3 accounts already stored in Firestore bypass this check completely.
+ * - Allows GM `never.away@gmail.com` and Instructor `jirawat.s@msu.ac.th`.
+ * - Rejects all other `@gmail.com` / external domains.
+ * - Requires `65...@msu.ac.th` (Year 5 -> SYNAPSIA) or `66...@msu.ac.th` (Year 4 -> HEMORIA).
+ */
+export const validateNewUserRegistration = (email?: string | null): NewRegistrationValidationResult => {
+  const normalized = (email || '').trim().toLowerCase();
+
+  if (!normalized) {
+    return {
+      allowed: false,
+      errorTitle: 'ไม่พบข้อมูลอีเมล',
+      errorMessage: 'ไม่สามารถตรวจสอบที่อยู่อีเมลจากบัญชี Google ได้ กรุณาลองใหม่อีกครั้ง',
+    };
+  }
+
+  // 1. Super Instructor
+  if (normalized === INSTRUCTOR_SUPER_EMAIL) {
+    return {
+      allowed: true,
+      role: 'instructor',
+      year: 3,
+      continentId: 'capsidia',
+      needsCohortSelection: false,
+    };
+  }
+
+  // 2. Authorized GM & Instructor Student-Tester Exceptions (`never.away@gmail.com`, `wilasinee.c@msu.ac.th`)
+  if (isExemptStudentTesterEmail(normalized)) {
+    return {
+      allowed: true,
+      role: 'student',
+      year: 4,
+      continentId: 'hemoria',
+      needsCohortSelection: true,
+    };
+  }
+
+  // 3. Reject all @gmail.com and non-@msu.ac.th domains for new registrations
+  if (!normalized.endsWith('@msu.ac.th')) {
+    return {
+      allowed: false,
+      errorTitle: 'ไม่อนุญาตให้ใช้อีเมล @gmail.com หรืออีเมลภายนอก',
+      errorMessage:
+        'การสมัครเข้าใช้งานใหม่อนุญาตเฉพาะอีเมลมหาวิทยาลัย @msu.ac.th เท่านั้น — ชั้นปีที่ 4 ใช้รหัส 66xxxxxxxxx@msu.ac.th และชั้นปีที่ 5 ใช้รหัส 65xxxxxxxxx@msu.ac.th',
+    };
+  }
+
+  // 4. Enforce strict Student ID prefix for Year 4 (66...) and Year 5 (65...)
+  const localPart = normalized.split('@')[0];
+
+  if (/^65\d{5,12}$/.test(localPart)) {
+    return {
+      allowed: true,
+      role: 'student',
+      year: 5,
+      continentId: 'synapsia',
+      studentID: localPart,
+      needsCohortSelection: false,
+    };
+  }
+
+  if (/^66\d{5,12}$/.test(localPart)) {
+    return {
+      allowed: true,
+      role: 'student',
+      year: 4,
+      continentId: 'hemoria',
+      studentID: localPart,
+      needsCohortSelection: false,
+    };
+  }
+
+  return {
+    allowed: false,
+    errorTitle: 'รหัสนิสิตไม่ตรงตามเงื่อนไขชั้นปีที่เปิดรับสมัคร',
+    errorMessage:
+      `บัญชี ${normalized} ไม่ได้ขึ้นต้นด้วยรหัส 66 (ชั้นปีที่ 4) หรือ 65 (ชั้นปีที่ 5) — กรุณาใช้อีเมลรหัสนิสิต 66xxxxxxxxx@msu.ac.th หรือ 65xxxxxxxxx@msu.ac.th เท่านั้น`,
+  };
+};
+
+export const getMapSizeForContinent = (continentId: ContinentId = 'capsidia'): number => {
+  return continentId === 'pangaea' ? PANGAEA_MAP_SIZE : MAP_SIZE;
+};
+
+export const stripTileDocPrefix = (docId: string): string => {
+  return docId.replace(/^(capsidia|hemoria|synapsia|pangaea)_/, '');
+};
+
+export const toTileDocId = (continentId: ContinentId, coordOrDocId: string): string => {
+  const cleanCoord = stripTileDocPrefix(coordOrDocId);
+  if (continentId === 'capsidia') return cleanCoord; // Preserve 100% of existing Year 3 tile documents ("x,y")
+  return `${continentId}_${cleanCoord}`;
+};
+
+// ── Tectonic World Merge (PANGAEA 120x120 Tri-Continent Offsets & Terrain) ──
+export const PANGAEA_OFFSETS: Record<HomeContinentId, { offsetX: number; offsetY: number }> = {
+  synapsia: { offsetX: 35, offsetY: 2 },  // North Continent (Year 5): x=35..84, y=2..51
+  capsidia: { offsetX: 2, offsetY: 68 },  // Southwest Continent (Year 3): x=2..51, y=68..117
+  hemoria: { offsetX: 68, offsetY: 68 },  // Southeast Continent (Year 4): x=68..117, y=68..117
+};
+
+export const translateHomeCoordToPangaea = (continentId: HomeContinentId, coord: string): string => {
+  const clean = stripTileDocPrefix(coord);
+  const [x, y] = clean.split(',').map(Number);
+  const off = PANGAEA_OFFSETS[continentId];
+  return `${x + off.offsetX},${y + off.offsetY}`;
+};
+
+export interface PangaeaTerrainInfo {
+  terrain: 'continent' | 'bridge' | 'core' | 'ocean';
+  homeland?: HomeContinentId;
+}
+
+export const getPangaeaTerrain = (x: number, y: number): PangaeaTerrainInfo => {
+  // 1. Central Heartland Island (Pangaea World Core: 14x14 at 53..66, 53..66)
+  if (x >= 53 && x <= 66 && y >= 53 && y <= 66) {
+    return { terrain: 'core' };
+  }
+
+  // 2. Three Merged 50x50 Homeland Continents
+  if (x >= 35 && x <= 84 && y >= 2 && y <= 51) {
+    return { terrain: 'continent', homeland: 'synapsia' };
+  }
+  if (x >= 2 && x <= 51 && y >= 68 && y <= 117) {
+    return { terrain: 'continent', homeland: 'capsidia' };
+  }
+  if (x >= 68 && x <= 117 && y >= 68 && y <= 117) {
+    return { terrain: 'continent', homeland: 'hemoria' };
+  }
+
+  // 3. Three Chokepoint Land Bridges (Bio-Isthmus Causeways connecting all 3 Continents -> World Core)
+  // North Bridge (Synapsia y=51 <-> Core y=53)
+  if (y === 52 && x >= 57 && x <= 62) {
+    return { terrain: 'bridge', homeland: 'synapsia' };
+  }
+  // Southwest Bridge (Capsidia NE corner <-> Core SW corner)
+  if (
+    (y === 67 && x >= 49 && x <= 55) ||
+    (y === 66 && x >= 50 && x <= 52) ||
+    (y === 65 && x >= 51 && x <= 52)
+  ) {
+    return { terrain: 'bridge', homeland: 'capsidia' };
+  }
+  // Southeast Bridge (Hemoria NW corner <-> Core SE corner)
+  if (
+    (y === 67 && x >= 64 && x <= 70) ||
+    (y === 66 && x >= 67 && x <= 69) ||
+    (y === 65 && x >= 67 && x <= 68)
+  ) {
+    return { terrain: 'bridge', homeland: 'hemoria' };
+  }
+
+  // 4. Everything else is Impassable Deep Bio-Ocean
+  return { terrain: 'ocean' };
+};
+
+export const isPangaeaOceanTile = (x: number, y: number): boolean => {
+  return getPangaeaTerrain(x, y).terrain === 'ocean';
+};
 
 // Helper: 4-Rim Sanctuary Zone for New Players
-export const isSanctuaryZone = (x: number, y: number): boolean => {
+export const isSanctuaryZone = (x: number, y: number, continentId: ContinentId = 'capsidia'): boolean => {
+  if (continentId === 'pangaea') {
+    const info = getPangaeaTerrain(x, y);
+    if (info.terrain !== 'continent' || !info.homeland) return false;
+    const off = PANGAEA_OFFSETS[info.homeland];
+    const lx = x - off.offsetX;
+    const ly = y - off.offsetY;
+    return lx < 4 || lx >= MAP_SIZE - 4 || ly < 4 || ly >= MAP_SIZE - 4;
+  }
   return x < 4 || x >= MAP_SIZE - 4 || y < 4 || y >= MAP_SIZE - 4;
 };
 
 // Helper: Central Vault & Guardian Core Zone
-export const isCentralVaultZone = (x: number, y: number): boolean => {
+export const isCentralVaultZone = (x: number, y: number, continentId: ContinentId = 'capsidia'): boolean => {
+  if (continentId === 'pangaea') {
+    // Central World Wonder Core on Pangaea (6x6 heart inside the 14x14 Core Island)
+    return x >= 57 && x <= 62 && y >= 57 && y <= 62;
+  }
   return x >= 22 && x <= 27 && y >= 22 && y <= 27;
 };
 

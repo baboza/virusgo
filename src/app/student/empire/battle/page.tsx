@@ -15,8 +15,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc, setDoc, updateDoc, increment, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/config';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { EmpireTile, User, Guild, HeroUnitStack, HeroEquipment, HeroArmyData } from '@/types';
-import { familyToColor, isDecayedTile, isShieldedTile, isCentralVaultZone } from '@/app/student/empire/page';
+import { ContinentId, EmpireTile, User, Guild, HeroUnitStack, HeroEquipment, HeroArmyData } from '@/types';
+import {
+  ALL_CONTINENT_ORDER,
+  CONTINENTS,
+  familyToColor,
+  isDecayedTile,
+  isShieldedTile,
+  isCentralVaultZone,
+  isPangaeaOceanTile,
+  resolveUserContinent,
+  stripTileDocPrefix,
+  toTileDocId,
+} from '@/lib/empireConstants';
 import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString } from '@/lib/dailyExpCap';
 import { getEffectivePetStats } from '@/lib/petBalance';
 import { 
@@ -62,7 +73,28 @@ function BattleContent() {
   const { appUser } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const tileId = searchParams.get('tile');
+  const rawTileParam = searchParams.get('tile');
+  const tileId = rawTileParam ? stripTileDocPrefix(rawTileParam) : null;
+  const rawContinent = searchParams.get('continent') as ContinentId | null;
+
+  const activeContinent: ContinentId = useMemo(() => {
+    if (rawContinent && ALL_CONTINENT_ORDER.includes(rawContinent)) return rawContinent;
+    return resolveUserContinent(appUser);
+  }, [rawContinent, appUser]);
+
+  const activeContinentMeta = CONTINENTS[activeContinent] || CONTINENTS.capsidia;
+  const returnMapHref = `/student/empire?continent=${activeContinent}`;
+
+  const isGmUser = useMemo(() => {
+    return Boolean(
+      appUser?.email === 'never.away@gmail.com' ||
+      appUser?.email === 'admin@virusgo.com' ||
+      appUser?.role === 'instructor' ||
+      appUser?.role === 'admin' ||
+      appUser?.email?.includes('instructor') ||
+      appUser?.email?.includes('admin')
+    );
+  }, [appUser]);
 
   const [loading, setLoading] = useState(false);
   const [tile, setTile] = useState<EmpireTile | null>(null);
@@ -128,23 +160,51 @@ function BattleContent() {
 
   // Initialize Battle Background Data
   useEffect(() => {
-    if (!tileId) return;
+    if (!tileId || !appUser) return;
     if (hasInitializedRef.current) return;
     hasInitializedRef.current = true;
 
+    const [ox, oy] = tileId.split(',').map(Number);
+    if (activeContinent === 'pangaea' && isPangaeaOceanTile(ox, oy)) {
+      alert('🌊 ไม่สามารถเดินทัพลงสู่มหาสมุทรชีวภาพได้! กรุณาใช้สะพานบกยุทธศาสตร์');
+      router.push(returnMapHref);
+      return;
+    }
+
+    if (!isGmUser && activeContinent !== 'pangaea' && activeContinent !== resolveUserContinent(appUser)) {
+      alert('🔭 คุณไม่สามารถส่งทัพโจมตีข้ามทวีปของชั้นปีอื่นได้ในช่วงเวลาปกติ (จะเปิดรบข้ามรุ่นบนมหาทวีป PANGAEA ปลายเทอม!)');
+      router.push(returnMapHref);
+      return;
+    }
+
     // Synchronously cache current sector in localStorage for instant hero persistence
     if (typeof window !== 'undefined' && tileId) {
-      localStorage.setItem('virusgo_hero_coord', tileId);
+      if (activeContinent === 'pangaea') {
+        localStorage.setItem('virusgo_hero_coord_pangaea', tileId);
+      } else {
+        localStorage.setItem(`virusgo_hero_coord_${activeContinent}`, tileId);
+        if (activeContinent === 'capsidia') {
+          localStorage.setItem('virusgo_hero_coord', tileId);
+        }
+      }
     }
 
     const initBattle = async () => {
       try {
+        if (!isGmUser && activeContinent === 'pangaea') {
+          const wSnap = await getDoc(doc(db, 'game_content', 'empire_world_config'));
+          if (!wSnap.exists() || !wSnap.data()?.pangaeaUnlocked) {
+            alert('🔒 มหาทวีป PANGAEA ยังไม่เปิดศึกชิงจ้าวปลายภาคเรียน');
+            router.push('/student/empire');
+            return;
+          }
+        }
+
         const currentUid = appUser?.uid || auth.currentUser?.uid;
         const petFamily = appUser?.pet?.family || 'parvo';
         const userArmy = appUser?.pet?.hero || getDefaultHeroArmy(petFamily);
         const validAttackerStacks = (userArmy.stacks || []).map(s => ({ ...s }));
         
-        // Ensure at least 1 stack exists
         if (validAttackerStacks.length === 0) {
           const starter = getDefaultHeroArmy(petFamily);
           validAttackerStacks.push(...(starter.stacks || []));
@@ -154,24 +214,23 @@ function BattleContent() {
         setAttackerStacks(validAttackerStacks);
         setSelectedAttackerId(validAttackerStacks[0]?.id || 'stack_1');
 
-        // Check if user currently has any bases (exempt first base Drop Pod placement from daily limit)
         const hasExistingBase = Boolean((appUser?.conqueredTiles && appUser.conqueredTiles > 0) || appUser?.pet?.currentTileCoord);
 
-        // Daily Attack Limit Check using real-time auth user state (0 extra network latency!)
         if (appUser) {
           const empireDaily = getDailyEmpireInfo(appUser);
-          if (hasExistingBase && !empireDaily.canAttack) {
+          if (!isGmUser && hasExistingBase && !empireDaily.canAttack) {
             alert(`⛔ คุณใช้โควตาการบุกรุกครบ ${DAILY_EMPIRE_ATTACK_LIMIT} ครั้งสำหรับวันนี้แล้ว! (รีเซ็ตทุกเที่ยงคืน)`);
-            router.push('/student/empire');
+            router.push(returnMapHref);
             return;
           }
 
           if (currentUid) {
             const userRef = doc(db, 'users', currentUid);
-            const userUpdates: Record<string, any> = {
-              'pet.currentTileCoord': tileId,
+            const coordField = activeContinent === 'pangaea' ? 'pet.pangaeaTileCoord' : 'pet.currentTileCoord';
+            const userUpdates: Record<string, unknown> = {
+              [coordField]: tileId,
             };
-            if (hasExistingBase) {
+            if (hasExistingBase && !isGmUser) {
               const todayDate = getTodayDateString();
               const isTodayRecord = appUser?.dailyEmpireBattles?.date === todayDate;
               const currentCount = isTodayRecord ? (Number(appUser?.dailyEmpireBattles?.count) || 0) : 0;
@@ -184,34 +243,36 @@ function BattleContent() {
           }
         }
 
-        // 2. Fetch Tile & Setup Defender Army (HoMM 3-Stack) - Single Doc Direct Lookup
-        const tileRef = doc(db, 'empire_tiles', tileId);
+        // 2. Fetch Tile & Setup Defender Army (HoMM 3-Stack) - Single Continent-Scoped Doc Lookup
+        const tileDocId = toTileDocId(activeContinent, tileId);
+        const tileRef = doc(db, 'empire_tiles', tileDocId);
         const tileSnap = await getDoc(tileRef);
 
         let currentTile: EmpireTile;
         if (tileSnap.exists()) {
-          currentTile = tileSnap.data() as EmpireTile;
+          const rawData = tileSnap.data() as EmpireTile;
+          currentTile = { ...rawData, id: tileId, continentId: activeContinent };
         } else {
           const [x, y] = tileId.split(',').map(Number);
-          currentTile = { id: tileId, x, y, type: 'empty' };
+          currentTile = { id: tileId, continentId: activeContinent, x, y, type: 'empty' };
         }
         setTile(currentTile);
 
         // Security check: Drop Pod (first base) restrictions
-        if (!hasExistingBase) {
+        if (!hasExistingBase && activeContinent !== 'pangaea') {
           const [tx, ty] = (currentTile.id || tileId).split(',').map(Number);
-          const isVault = isCentralVaultZone(tx, ty) || currentTile.ownerName?.includes('ผู้พิทักษ์');
+          const isVault = isCentralVaultZone(tx, ty, activeContinent) || currentTile.ownerName?.includes('ผู้พิทักษ์');
           if (currentTile.isOutpost || currentTile.type === 'outpost' || isVault) {
             alert('⛔ ไม่สามารถใช้สิทธิ Drop Pod สถาปนาฐานแรกในจุดฟาร์มวิจัย (Outpost) หรือเขตห้องนิรภัยใจกลางเมือง (Vault) ได้!');
-            router.push('/student/empire');
+            router.push(returnMapHref);
             return;
           }
         }
 
         // Security check: Shielded tile
-        if (isShieldedTile(currentTile)) {
+        if (!isGmUser && isShieldedTile(currentTile)) {
           alert('🛡️ เซกเตอร์นี้ได้รับการคุ้มครองด้วยบาเรียมือใหม่ ไม่สามารถโจมตีได้');
-          router.push('/student/empire');
+          router.push(returnMapHref);
           return;
         }
 
@@ -221,8 +282,7 @@ function BattleContent() {
         let defName = 'เซลล์สิ่งแวดล้อม';
         let defFamily = 'corona';
 
-        if (currentTile.defenderStacks && currentTile.defenderStacks.length > 0) {
-          // Use persisted defender stacks if available
+        if (currentTile.defenderStacks && currentTile.defenderStacks.length > 0 && currentTile.type !== 'player') {
           defStacks = currentTile.defenderStacks.map(s => ({ ...s }));
           defName = currentTile.ownerName || 'กองทัพพิทักษ์ดินแดน';
           defFamily = currentTile.ownerFamily || 'parvo';
@@ -236,7 +296,7 @@ function BattleContent() {
           defFamily = 'corona';
         } else if (currentTile.type === 'boss') {
           const [tx, ty] = (currentTile.id || tileId).split(',').map(Number);
-          const isVault = isCentralVaultZone(tx, ty);
+          const isVault = isCentralVaultZone(tx, ty, activeContinent);
           defStacks = generateWildDefenderArmy('boss', isVault);
           defName = currentTile.ownerName || 'บอสผู้พิทักษ์สมบัติ';
           defFamily = currentTile.ownerFamily || 'rabies';
@@ -246,18 +306,16 @@ function BattleContent() {
             const defData = defDoc.data() as User;
             defFamily = defData.pet?.family || currentTile.ownerFamily || 'parvo';
 
-            // Check if Defender's Hero is stationed on this specific tile
+            const defHeroCoord = activeContinent === 'pangaea' ? defData.pet?.pangaeaTileCoord : defData.pet?.currentTileCoord;
             const isHeroStationedHere = Boolean(
-              defData.pet?.currentTileCoord === tileId || 
-              (currentTile.heroStationedUid === currentTile.ownerUid && (!defData.pet?.currentTileCoord || defData.pet.currentTileCoord === tileId))
+              defHeroCoord === tileId ||
+              (currentTile.heroStationedUid === currentTile.ownerUid && (!defHeroCoord || defHeroCoord === tileId))
             );
 
             setIsHeroDuel(isHeroStationedHere);
 
             if (isHeroStationedHere) {
-              // ── 1. HERO DUEL: Direct Clash with Enemy Virus Pet Hero! ──
               defName = `👑 จอมทัพ ${defData.fullname || 'Defender'} (${defData.pet?.nickname || defData.pet?.virusName || 'Hero'})`;
-              
               if (defData.pet?.hero?.stacks && defData.pet.hero.stacks.length > 0) {
                 defStacks = defData.pet.hero.stacks.map(s => ({ ...s }));
                 defEquip = defData.pet.hero.equipment;
@@ -265,14 +323,12 @@ function BattleContent() {
                 defStacks = getDefaultHeroArmy(defFamily).stacks || [];
               }
             } else {
-              // ── 2. GARRISON SIEGE: Garrison Troops on a normal sector ──
               defName = `🛡️ กองรักษาการ [${currentTile.ownerName || defData.fullname || 'Defender'}]`;
-              defEquip = undefined; // No Hero artifacts on unmanned territory!
+              defEquip = undefined;
 
               if (currentTile.defenderStacks && currentTile.defenderStacks.length > 0) {
                 defStacks = currentTile.defenderStacks.map(s => ({ ...s }));
               } else {
-                // Default garrison virions
                 defStacks = [
                   {
                     id: 'garrison_1',
@@ -287,7 +343,6 @@ function BattleContent() {
                 ];
               }
 
-              // Apply fortification bonuses from defense structures if present
               if (currentTile.buildingType === 'bio_wall') {
                 defStacks = defStacks.map(s => ({ ...s, baseHp: Math.round(s.baseHp * 1.5) }));
                 defName += ' 🧱 (กำแพงชีวภาพ +50% HP)';
@@ -297,7 +352,6 @@ function BattleContent() {
               }
             }
 
-            // Inactive base decay (-50% virion counts if inactive >72h)
             if (isDecayedTile(currentTile)) {
               defStacks = defStacks.map(s => ({
                 ...s,
@@ -321,7 +375,6 @@ function BattleContent() {
           isPlayer: currentTile.type === 'player',
         });
 
-        // Initialize question timer with Polymerase scroll equipment bonus
         const timerBonus = attackerHero.equipment?.scroll === 'polymerase_scroll' 
           ? (BIO_ARTIFACTS.polymerase_scroll.timerBonusSec || 4) 
           : 0;
@@ -337,7 +390,7 @@ function BattleContent() {
 
     initBattle();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appUser?.uid, tileId]);
+  }, [appUser?.uid, tileId, activeContinent]);
 
   // Timer loop
   useEffect(() => {
@@ -511,12 +564,14 @@ function BattleContent() {
         'pet.isInjured': true,
         'pet.currentHp': 0,
         'pet.hero.stacks': remainingAttackerStacks,
+        sessionsCount: increment(1),
+        lastPlayedAt: Date.now(),
       }).catch(console.error);
     }
 
     // Persist remaining defender stacks on tile for persistent siege damage
     if (tile?.id) {
-      updateDoc(doc(db, 'empire_tiles', tile.id), {
+      updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, tile.id)), {
         defenderStacks: defenderStacks,
         lastAttacked: new Date().toISOString(),
         lastAttackedBy: appUser?.uid,
@@ -550,13 +605,14 @@ function BattleContent() {
 
   const claimTile = async (survivingTroops: HeroUnitStack[]) => {
     if (!tile || !appUser) return;
-    const tileRef = doc(db, 'empire_tiles', tile.id);
+    const tileDocId = toTileDocId(activeContinent, tile.id);
+    const tileRef = doc(db, 'empire_tiles', tileDocId);
 
     const isOutpostTile = tile.type === 'outpost' || tile.isOutpost;
     const todayDate = new Date().toISOString().split('T')[0];
     const nowIso = new Date().toISOString();
 
-    const isFirstBase = !appUser.conqueredTiles || appUser.conqueredTiles <= 0;
+    const isFirstBase = activeContinent !== 'pangaea' && (!appUser.conqueredTiles || appUser.conqueredTiles <= 0);
     if (isFirstBase) {
       setIsFirstBaseClaimed(true);
     }
@@ -565,11 +621,14 @@ function BattleContent() {
     const garrisonArmy: HeroUnitStack[] = survivingTroops.map((s, idx) => ({
       ...s,
       id: `garrison_${idx + 1}`,
-      count: Math.max(1, Math.floor(s.count * 0.3)), // Station 30% of surviving units as defensive guard
+      count: Math.max(1, Math.floor(s.count * 0.3)),
     }));
 
+    const cleanCoordId = stripTileDocPrefix(tile.id);
     const updatedTile: Record<string, any> = {
       ...tile,
+      id: cleanCoordId,
+      continentId: activeContinent,
       type: 'player',
       ownerUid: appUser.uid,
       ownerName: appUser.fullname,
@@ -577,17 +636,17 @@ function BattleContent() {
       color: familyToColor(appUser.pet?.family || 'default'),
       defenderStacks: garrisonArmy,
       defenderEquipment: attackerHero.equipment,
-      heroStationedUid: appUser.uid, // Attacker's Hero is now stationed here!
+      heroStationedUid: appUser.uid,
       lastAttacked: nowIso,
       lastActive: nowIso,
     };
 
     // Clear heroStationedUid from previous sector in Firestore so heroes never duplicate on the map
-    const prevHeroCoord = appUser.pet?.currentTileCoord;
+    const prevHeroCoord = activeContinent === 'pangaea' ? appUser.pet?.pangaeaTileCoord : appUser.pet?.currentTileCoord;
     if (prevHeroCoord && prevHeroCoord !== tile.id) {
-      updateDoc(doc(db, 'empire_tiles', prevHeroCoord), {
+      updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, prevHeroCoord)), {
         heroStationedUid: null,
-      }).catch(console.error);
+      }).catch(() => {});
     }
 
     if (isFirstBase) {
@@ -597,7 +656,7 @@ function BattleContent() {
 
     if (isOutpostTile) {
       updatedTile.isOutpost = true;
-      updatedTile.dailyExp = 100;
+      updatedTile.dailyExp = tile.dailyExp || (activeContinent === 'pangaea' ? 250 : 100);
       updatedTile.lastClaimedDate = todayDate;
     }
     if (appUser.guildId) {
@@ -623,9 +682,7 @@ function BattleContent() {
       }
     });
 
-    await setDoc(tileRef, updatedTile);
-
-    // Calculate EXP rewards
+    // Calculate EXP rewards & clear Citadel if needed
     let expReward = 15;
     if (tile.isCitadel) {
       expReward = 120;
@@ -634,60 +691,81 @@ function BattleContent() {
           const gDoc = await getDoc(doc(db, 'guilds', tile.guildId));
           if (gDoc.exists()) {
             const gData = gDoc.data() as Guild;
-            const cList = gData.citadelCoords || (gData.citadelCoord ? [gData.citadelCoord] : []);
+            const cList = activeContinent === 'pangaea'
+              ? (gData.pangaeaCitadelCoords || (gData.pangaeaCitadelCoord ? [gData.pangaeaCitadelCoord] : []))
+              : (gData.citadelCoords || (gData.citadelCoord ? [gData.citadelCoord] : []));
             const clearPromises = cList.map((cid: string) =>
-              updateDoc(doc(db, 'empire_tiles', cid), { isCitadel: false }).catch(() => {})
+              updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, cid)), { isCitadel: false }).catch(() => {})
             );
             await Promise.all(clearPromises);
           }
-          await updateDoc(doc(db, 'guilds', tile.guildId), {
-            citadelCoord: null,
-            citadelCoords: null,
-          });
+          await updateDoc(
+            doc(db, 'guilds', tile.guildId),
+            activeContinent === 'pangaea'
+              ? { pangaeaCitadelCoord: null, pangaeaCitadelCoords: null }
+              : { citadelCoord: null, citadelCoords: null }
+          );
         } catch (e) {
           console.error('Error clearing defeated guild citadel:', e);
         }
       }
       updatedTile.isCitadel = false;
     } else if (isOutpostTile) {
-      expReward = 100;
+      expReward = activeContinent === 'pangaea' ? 150 : 100;
     } else if (tile.type === 'boss') {
-      expReward = 35;
+      expReward = activeContinent === 'pangaea' ? 60 : 35;
     } else if (tile.type === 'player') {
-      // 65 EXP for defeating a Hero Commander in a duel, 25 EXP for Garrison siege!
       expReward = isHeroDuel ? 65 : 25;
     }
 
+    await setDoc(tileRef, updatedTile);
     setAwardedExp(expReward);
 
     // Persist user army survival, hero new location & EXP reward in 1 atomic write
+    const isPangaeaWar = activeContinent === 'pangaea';
+    const coordField = isPangaeaWar ? 'pet.pangaeaTileCoord' : 'pet.currentTileCoord';
+    const conqueredField = isPangaeaWar ? 'pangaeaConqueredTiles' : 'conqueredTiles';
     const userRef = doc(db, 'users', appUser.uid);
     await updateDoc(userRef, {
       exp: increment(expReward),
-      conqueredTiles: increment(1),
+      score: increment(expReward),
+      [conqueredField]: increment(1),
+      sessionsCount: increment(1),
+      lastPlayedAt: Date.now(),
       'pet.hero.stacks': survivingTroops,
-      'pet.currentTileCoord': tile.id,
+      [coordField]: cleanCoordId,
     });
 
-    if (typeof window !== 'undefined' && tile.id) {
-      localStorage.setItem('virusgo_hero_coord', tile.id);
+    if (typeof window !== 'undefined' && cleanCoordId) {
+      if (isPangaeaWar) {
+        localStorage.setItem('virusgo_hero_coord_pangaea', cleanCoordId);
+      } else {
+        localStorage.setItem(`virusgo_hero_coord_${activeContinent}`, cleanCoordId);
+        if (activeContinent === 'capsidia') {
+          localStorage.setItem('virusgo_hero_coord', cleanCoordId);
+        }
+      }
     }
 
     // If tile was previously owned by another student
     if (tile.type === 'player' && tile.ownerUid && tile.ownerUid !== appUser.uid) {
       const defUid = tile.ownerUid;
       if (isHeroDuel) {
-        // Hero Duel Victory: Enemy Hero is severely wounded and retreats to Capital HQ!
         updateDoc(doc(db, 'users', defUid), {
-          conqueredTiles: increment(-1),
+          [conqueredField]: increment(-1),
           'pet.isInjured': true,
           'pet.currentHp': 0,
-          'pet.currentTileCoord': '25,25',
+          [coordField]: isPangaeaWar ? '60,60' : '25,25',
         }).catch(console.error);
       } else {
-        // Regular Garrison Siege: Defender only loses this tile, their hero is safe elsewhere!
         updateDoc(doc(db, 'users', defUid), {
-          conqueredTiles: increment(-1),
+          [conqueredField]: increment(-1),
+        }).catch(console.error);
+      }
+
+      if (!isPangaeaWar && tile.guildId && tile.guildId !== appUser.guildId) {
+        updateDoc(doc(db, 'guilds', tile.guildId), {
+          totalTiles: increment(-1),
         }).catch(console.error);
       }
     }
@@ -698,8 +776,8 @@ function BattleContent() {
       await addDoc(col(db, 'users', appUser.uid, 'history'), {
         gameId: 'empire-battle',
         gameName: isHeroDuel 
-          ? `⚔️ HoMM Hero Duel: พิชิตจอมทัพ ${defenderInfo.name} (${tile.id})`
-          : `🏰 HoMM Siege: ยึดครองเซกเตอร์ (${tile.id})`,
+          ? `⚔️ [${activeContinentMeta.code}] Hero Duel: พิชิต ${defenderInfo.name} (${cleanCoordId})`
+          : `🏰 [${activeContinentMeta.code}] Siege: ยึดครองเซกเตอร์ (${cleanCoordId})`,
         score: expReward,
         expEarned: expReward,
         playedAt: new Date().toISOString()
@@ -708,7 +786,7 @@ function BattleContent() {
       console.error('Failed to log empire battle history:', e);
     }
 
-    if (appUser.guildId) {
+    if (!isPangaeaWar && appUser.guildId && tile.guildId !== appUser.guildId) {
       updateDoc(doc(db, 'guilds', appUser.guildId), {
         totalTiles: increment(1)
       }).catch(console.error);
@@ -727,12 +805,17 @@ function BattleContent() {
 
       {/* Header Bar */}
       <div className="absolute top-0 inset-x-0 h-20 bg-gradient-to-b from-slate-900 to-transparent z-10 flex justify-between items-center px-4 sm:px-8 border-b border-slate-800/40">
-        <Link href="/student/empire">
+        <Link href={returnMapHref}>
           <Button variant="secondary" className="font-bold text-xs sm:text-sm">
             <ArrowLeft className="w-4 h-4 mr-1.5" /> ถอยทัพ (Retreat)
           </Button>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-900/90 border border-slate-700 text-[11px] font-mono font-bold text-cyan-300">
+            <span>{activeContinentMeta.emoji}</span>
+            <span>{activeContinentMeta.code}</span>
+            <span className="text-slate-500">[{tileId}]</span>
+          </span>
           <button
             type="button"
             onClick={() => setIs3DMode(!is3DMode)}
@@ -1051,9 +1134,9 @@ function BattleContent() {
                 )}
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md">
-                  <Link href="/student/empire" className="w-full">
+                  <Link href={returnMapHref} className="w-full">
                     <Button className="w-full py-5 text-base font-black bg-cyan-600 hover:bg-cyan-500 text-white uppercase tracking-widest shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-                      🗺️ กลับสู่แผนที่ (Empire Map)
+                      🗺️ กลับสู่แผนที่ ({activeContinentMeta.code})
                     </Button>
                   </Link>
                   <Link href="/student/virus-pet" className="w-full">
@@ -1077,9 +1160,9 @@ function BattleContent() {
                       💉 ไปห้องพยาบาลเพาะเลี้ยง
                     </Button>
                   </Link>
-                  <Link href="/student/empire" className="w-full">
+                  <Link href={returnMapHref} className="w-full">
                     <Button variant="secondary" className="w-full py-5 text-base font-bold text-slate-300 uppercase tracking-wider">
-                      กลับแผนที่
+                      กลับแผนที่ ({activeContinentMeta.code})
                     </Button>
                   </Link>
                 </div>

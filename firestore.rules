@@ -23,11 +23,29 @@ service cloud.firestore {
     // Users Collection
     match /users/{userId} {
       // Anyone logged in can read public user data (e.g. for leaderboard), 
-      // but users can update their own data, and instructors/admins can manage users.
+      // existing Year 3 users keep full update access, and new user creation is strictly restricted
+      // to MSU Year 4 (66...) & Year 5 (65...) @msu.ac.th emails, Instructor jirawat.s@msu.ac.th, and GM never.away@gmail.com.
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated()
+        && request.auth.uid == userId
+        && (
+          request.auth.token.email == 'never.away@gmail.com'
+          || request.auth.token.email == 'wilasinee.c@msu.ac.th'
+          || request.auth.token.email == 'jirawat.s@msu.ac.th'
+          || request.auth.token.email.matches('^6[56][0-9]{5,12}@msu\\.ac\\.th$')
+        );
       allow update: if isOwner(userId) || isInstructor() || isAdmin();
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || isInstructor();
+
+      match /history/{historyId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId) || isInstructor() || isAdmin();
+      }
+    }
+
+    // Live Classroom Radar Telemetry
+    match /live_sessions/{sessionId} {
+      allow read, write: if isAuthenticated();
     }
 
     // Viruses Collection
@@ -75,10 +93,10 @@ service cloud.firestore {
       allow write: if isOwner(request.resource.data.uid) || isAdmin();
     }
 
-    // Game Content (quiz pools, etc.) - read only for students
+    // Game Content (quiz pools, world merge config, etc.) - read only for students
     match /game_content/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isInstructor() || isAdmin();
+      allow write: if isInstructor() || isAdmin() || (docId == 'empire_world_config' && request.auth.token.email == 'never.away@gmail.com');
     }
 
     // Empire Map Tiles

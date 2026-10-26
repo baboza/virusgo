@@ -6,7 +6,8 @@ import { motion, HTMLMotionProps } from 'framer-motion';
 type ButtonVariant = 'primary' | 'secondary' | 'accent' | 'danger' | 'ghost' | 'outline';
 type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 
-interface ButtonProps extends Omit<HTMLMotionProps<"button">, "size"> {
+interface ButtonProps extends Omit<HTMLMotionProps<"button">, "size" | "children"> {
+  children?: React.ReactNode;
   variant?: ButtonVariant;
   size?: ButtonSize;
   isLoading?: boolean;

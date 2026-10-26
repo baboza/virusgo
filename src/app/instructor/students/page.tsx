@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import { User as AppUser } from '@/types';
+import { StudentCohortYear, User as AppUser } from '@/types';
+import { CONTINENTS, resolveUserContinent, resolveUserYear, yearToContinent } from '@/lib/empireConstants';
 import { getDailyEmpireInfo, DAILY_EMPIRE_ATTACK_LIMIT, getTodayDateString, getDailyScoutDroneInfo, DAILY_SCOUT_DRONE_LIMIT } from '@/lib/dailyExpCap';
 import Link from 'next/link';
 
@@ -27,6 +28,7 @@ function StudentProgressContent() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [students, setStudents] = useState<AppUser[]>([]);
+  const [cohortFilter, setCohortFilter] = useState<'all' | StudentCohortYear>('all');
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [levelFilter, setLevelFilter] = useState<'all' | 'novice' | 'advanced' | 'master'>('all');
   const [sortBy, setSortBy] = useState<'exp_desc' | 'exp_asc' | 'quota_asc' | 'quota_desc' | 'name' | 'recent'>('exp_desc');
@@ -38,7 +40,8 @@ function StudentProgressContent() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [modalTab, setModalTab] = useState<'profile' | 'pet' | 'manage'>('profile');
 
-  // Edit Score/Level state
+  // Edit Cohort / Score / Level state
+  const [editYear, setEditYear] = useState<StudentCohortYear>(3);
   const [editLevel, setEditLevel] = useState<number>(1);
   const [editExp, setEditExp] = useState<number>(0);
   const [editSuccessMsg, setEditSuccessMsg] = useState('');
@@ -51,6 +54,7 @@ function StudentProgressContent() {
       return;
     }
 
+    setEditYear(resolveUserYear(selectedStudent));
     setEditLevel(selectedStudent.level || 1);
     setEditExp(selectedStudent.exp || 0);
 
@@ -106,24 +110,44 @@ function StudentProgressContent() {
     fetchStudents();
   }, [appUser, authLoading]);
 
-  // Handle Level & EXP update
+  // Handle Cohort Year, Level & EXP update
   const handleUpdateStudentStats = async () => {
     if (!selectedStudent) return;
     setIsProcessing(true);
     setEditSuccessMsg('');
     try {
+      const nextContinent = yearToContinent(editYear);
       const userRef = doc(db, 'users', selectedStudent.uid);
       await updateDoc(userRef, {
+        year: editYear,
+        continentId: nextContinent,
+        needsCohortSelection: false,
         level: Number(editLevel),
         exp: Number(editExp),
         score: Number(editExp),
       });
 
-      setEditSuccessMsg('บันทึกการปรับคะแนนและเลเวลสำเร็จ!');
+      setEditSuccessMsg('บันทึกชั้นปี/ทวีป การปรับคะแนนและเลเวลสำเร็จ!');
       
       // Update local state
-      setSelectedStudent(prev => prev ? { ...prev, level: Number(editLevel), exp: Number(editExp), score: Number(editExp) } : null);
-      setStudents(prev => prev.map(s => s.uid === selectedStudent.uid ? { ...s, level: Number(editLevel), exp: Number(editExp), score: Number(editExp) } : s));
+      setSelectedStudent(prev => prev ? {
+        ...prev,
+        year: editYear,
+        continentId: nextContinent,
+        needsCohortSelection: false,
+        level: Number(editLevel),
+        exp: Number(editExp),
+        score: Number(editExp),
+      } : null);
+      setStudents(prev => prev.map(s => s.uid === selectedStudent.uid ? {
+        ...s,
+        year: editYear,
+        continentId: nextContinent,
+        needsCohortSelection: false,
+        level: Number(editLevel),
+        exp: Number(editExp),
+        score: Number(editExp),
+      } : s));
     } catch (err: any) {
       alert("Error: " + err.message);
     } finally {
@@ -241,42 +265,22 @@ function StudentProgressContent() {
     }
   };
 
-  // Export to CSV
-  const handleExportCSV = () => {
-    if (students.length === 0) {
-      alert("ไม่มีข้อมูลนิสิตให้ส่งออก");
-      return;
-    }
+  // Cohort counts & subset
+  const cohortCounts = useMemo(() => ({
+    all: students.length,
+    3: students.filter((s) => resolveUserYear(s) === 3).length,
+    4: students.filter((s) => resolveUserYear(s) === 4).length,
+    5: students.filter((s) => resolveUserYear(s) === 5).length,
+  }), [students]);
 
-    const headers = ["ลำดับ", "ชื่อ-นามสกุล", "อีเมล", "เลเวล", "EXP สะสม", "คะแนนรวม", "โควตาบุก Empire คงเหลือวันนี้", "วันที่เข้าร่วม"];
-    const rows = filteredAndSortedStudents.map((s, idx) => {
-      const emp = getDailyEmpireInfo(s);
-      return [
-        idx + 1,
-        `"${s.fullname.replace(/"/g, '""')}"`,
-        `"${s.email}"`,
-        s.level || 1,
-        s.exp || 0,
-        s.score || 0,
-        `"${emp.remainingAttacks}/${emp.limit} (บุกไป ${emp.attacksToday} ครั้ง)"`,
-        s.createdAt ? `"${new Date(s.createdAt).toLocaleDateString('th-TH')}"` : '"N/A"'
-      ];
-    });
-
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `students_progress_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const cohortScopedStudents = useMemo(() => {
+    if (cohortFilter === 'all') return students;
+    return students.filter((s) => resolveUserYear(s) === cohortFilter);
+  }, [students, cohortFilter]);
 
   // Filter and Sort Students
   const filteredAndSortedStudents = useMemo(() => {
-    let result = [...students];
+    let result = [...cohortScopedStudents];
 
     // Search filter
     if (searchQuery.trim()) {
@@ -325,12 +329,50 @@ function StudentProgressContent() {
     }
 
     return result;
-  }, [students, searchQuery, levelFilter, sortBy]);
+  }, [cohortScopedStudents, searchQuery, levelFilter, sortBy]);
 
-  // Compute stats
-  const totalExp = useMemo(() => students.reduce((sum, s) => sum + (s.exp || 0), 0), [students]);
-  const avgLevel = useMemo(() => students.length > 0 ? (students.reduce((sum, s) => sum + (s.level || 1), 0) / students.length).toFixed(1) : '1.0', [students]);
-  const highLevelCount = useMemo(() => students.filter(s => (s.level || 1) >= 5).length, [students]);
+  // Export to CSV
+  const handleExportCSV = () => {
+    if (filteredAndSortedStudents.length === 0) {
+      alert("ไม่มีข้อมูลนิสิตให้ส่งออก");
+      return;
+    }
+
+    const headers = ["ลำดับ", "ชั้นปี", "ทวีป", "ชื่อ-นามสกุล", "อีเมล", "เลเวล", "EXP สะสม", "คะแนนรวม", "โควตาบุก Empire คงเหลือวันนี้", "วันที่เข้าร่วม"];
+    const rows = filteredAndSortedStudents.map((s, idx) => {
+      const emp = getDailyEmpireInfo(s);
+      const yr = resolveUserYear(s);
+      const cont = CONTINENTS[resolveUserContinent(s)].code;
+      return [
+        idx + 1,
+        `ปี ${yr}`,
+        cont,
+        `"${s.fullname.replace(/"/g, '""')}"`,
+        `"${s.email}"`,
+        s.level || 1,
+        s.exp || 0,
+        s.score || 0,
+        `"${emp.remainingAttacks}/${emp.limit} (บุกไป ${emp.attacksToday} ครั้ง)"`,
+        s.createdAt ? `"${new Date(s.createdAt).toLocaleDateString('th-TH')}"` : '"N/A"'
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const suffix = cohortFilter === 'all' ? 'all_cohorts' : `year_${cohortFilter}`;
+    link.setAttribute("href", url);
+    link.setAttribute("download", `students_progress_${suffix}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Compute stats (Scoped to selected cohort)
+  const totalExp = useMemo(() => cohortScopedStudents.reduce((sum, s) => sum + (s.exp || 0), 0), [cohortScopedStudents]);
+  const avgLevel = useMemo(() => cohortScopedStudents.length > 0 ? (cohortScopedStudents.reduce((sum, s) => sum + (s.level || 1), 0) / cohortScopedStudents.length).toFixed(1) : '1.0', [cohortScopedStudents]);
+  const highLevelCount = useMemo(() => cohortScopedStudents.filter(s => (s.level || 1) >= 5).length, [cohortScopedStudents]);
 
   if (authLoading || loading) {
     return (
@@ -360,11 +402,11 @@ function StudentProgressContent() {
               </span>
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-primary/10 text-primary border border-primary/30">
-              {students.length} นิสิต
+              {students.length} นิสิตรวม
             </span>
           </div>
           <p className="text-slate-400 mt-1 text-sm">
-            ติดตามพัฒนาการ ตรวจสอบประวัติการเข้าเล่นรายบุคคล และจัดการเลเวล/EXP ของนิสิต
+            ติดตามพัฒนาการ แยกกลุ่มนิสิตชั้นปีที่ 3 (CAPSIDIA) • ปี 4 (HEMORIA) • ปี 5 (SYNAPSIA) และจัดการเลเวล/EXP/ทวีปสังกัด
           </p>
         </div>
 
@@ -400,6 +442,40 @@ function StudentProgressContent() {
         </div>
       </div>
 
+      {/* Cohort Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-2 bg-slate-900/70 p-2.5 rounded-2xl border border-slate-800">
+        <button
+          onClick={() => setCohortFilter('all')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            cohortFilter === 'all'
+              ? 'bg-primary text-white shadow-lg shadow-primary/25'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/70'
+          }`}
+        >
+          <span>🌐 ทุกชั้นปี</span>
+          <span className="px-1.5 py-0.5 rounded-md bg-black/30 font-mono text-[10px]">{cohortCounts.all}</span>
+        </button>
+
+        {([3, 4, 5] as StudentCohortYear[]).map((yr) => {
+          const cont = yr === 3 ? CONTINENTS.capsidia : yr === 4 ? CONTINENTS.hemoria : CONTINENTS.synapsia;
+          const active = cohortFilter === yr;
+          return (
+            <button
+              key={yr}
+              onClick={() => setCohortFilter(yr)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+                active
+                  ? `${cont.badgeClass} shadow-md`
+                  : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-800/70'
+              }`}
+            >
+              <span>{cont.emoji} ชั้นปีที่ {yr} • {cont.code}</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-black/30 font-mono text-[10px]">{cohortCounts[yr]}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* KPI Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4 bg-slate-900/60 border-slate-800 flex items-center gap-3.5">
@@ -407,8 +483,10 @@ function StudentProgressContent() {
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[11px] font-mono uppercase text-slate-400">นิสิตในระบบ</p>
-            <p className="text-2xl font-black text-white">{students.length} <span className="text-xs font-normal text-slate-500">คน</span></p>
+            <p className="text-[11px] font-mono uppercase text-slate-400">
+              {cohortFilter === 'all' ? 'นิสิตในระบบ' : `นิสิตชั้นปีที่ ${cohortFilter}`}
+            </p>
+            <p className="text-2xl font-black text-white">{cohortScopedStudents.length} <span className="text-xs font-normal text-slate-500">คน</span></p>
           </div>
         </Card>
 
@@ -515,6 +593,7 @@ function StudentProgressContent() {
             <thead>
               <tr className="bg-slate-950/60 border-b border-slate-800 text-slate-400 font-mono uppercase text-[11px]">
                 <th className="px-5 py-3.5">นิสิต (Profile)</th>
+                <th className="px-5 py-3.5 text-center">ชั้นปี / ทวีป</th>
                 <th className="px-5 py-3.5 text-center">ระดับ (Level)</th>
                 <th className="px-5 py-3.5">ความคืบหน้า EXP</th>
                 <th className="px-5 py-3.5">สัตว์เลี้ยงคู่หู (Pet)</th>
@@ -530,6 +609,8 @@ function StudentProgressContent() {
                   const exp = student.exp || 0;
                   const nextLevelExp = level * 100;
                   const progressPercentage = Math.min(100, Math.max(0, (exp / nextLevelExp) * 100));
+                  const sYear = resolveUserYear(student);
+                  const cMeta = CONTINENTS[resolveUserContinent(student)];
                   
                   const empireInfo = getDailyEmpireInfo(student);
                   const scoutInfo = getDailyScoutDroneInfo(student);
@@ -565,6 +646,13 @@ function StudentProgressContent() {
                             <div className="text-[11px] text-slate-400 font-mono">{student.email}</div>
                           </div>
                         </div>
+                      </td>
+
+                      {/* Cohort / Continent Badge */}
+                      <td className="px-5 py-4 text-center">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border ${cMeta.badgeClass}`}>
+                          {cMeta.emoji} ปี {sYear} • {cMeta.code}
+                        </span>
                       </td>
 
                       {/* Level Badge */}
@@ -666,10 +754,10 @@ function StudentProgressContent() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500 font-mono">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500 font-mono">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertCircle className="w-7 h-7 text-slate-600" />
-                      <span>{searchQuery ? "ไม่พบรายชื่อนิสิตที่ตรงกับเงื่อนไข" : "ยังไม่มีนิสิตในระบบ"}</span>
+                      <span>{searchQuery ? "ไม่พบรายชื่อนิสิตที่ตรงกับเงื่อนไข" : "ยังไม่มีนิสิตในกลุ่มชั้นเรียนนี้"}</span>
                     </div>
                   </td>
                 </tr>
@@ -710,6 +798,15 @@ function StudentProgressContent() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-xl font-bold text-white">{selectedStudent.fullname}</h3>
+                    {(() => {
+                      const yr = resolveUserYear(selectedStudent);
+                      const cm = CONTINENTS[resolveUserContinent(selectedStudent)];
+                      return (
+                        <span className={`px-2.5 py-0.5 rounded-lg font-mono text-xs font-bold border ${cm.badgeClass}`}>
+                          {cm.emoji} ปี {yr} • {cm.code}
+                        </span>
+                      );
+                    })()}
                     {selectedStudent.studentID && (
                       <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-xs">
                         ID: {selectedStudent.studentID}
@@ -885,12 +982,27 @@ function StudentProgressContent() {
               {/* Tab 3: Management */}
               {modalTab === 'manage' && (
                 <div className="space-y-6">
-                  {/* Edit Level & EXP */}
+                  {/* Edit Cohort Year, Level & EXP */}
                   <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
                     <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-2">
                       <Edit3 className="w-4 h-4 text-primary" />
-                      ปรับแก้เลเวลและคะแนนสะสม (Level & EXP Override)
+                      ปรับแก้ชั้นปี/ทวีปสังกัด เลเวล และคะแนนสะสม (Cohort, Level & EXP Override)
                     </h4>
+
+                    <div>
+                      <label className="text-[11px] text-slate-400 font-mono block mb-1.5">
+                        กลุ่มชั้นเรียน / ทวีปบ้านเกิด (Cohort & Home Continent)
+                      </label>
+                      <select
+                        value={editYear}
+                        onChange={(e) => setEditYear(Number(e.target.value) as StudentCohortYear)}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-primary"
+                      >
+                        <option value={3}>💎 นิสิตชั้นปีที่ 3 — ทวีป CAPSIDIA (แคปซิเดีย)</option>
+                        <option value={4}>🔥 นิสิตชั้นปีที่ 4 — ทวีป HEMORIA (เฮโมเรีย)</option>
+                        <option value={5}>👑 นิสิตชั้นปีที่ 5 — ทวีป SYNAPSIA (ไซแนปเซีย)</option>
+                      </select>
+                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>

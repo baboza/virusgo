@@ -1,4 +1,7 @@
 export type UserRole = 'student' | 'instructor' | 'admin';
+export type HomeContinentId = 'capsidia' | 'hemoria' | 'synapsia';
+export type ContinentId = HomeContinentId | 'pangaea';
+export type StudentCohortYear = 3 | 4 | 5;
 
 export interface HeroEquipment {
   head?: string;    // e.g. 'capsomer_crown' (+HP)
@@ -46,7 +49,8 @@ export interface VirusPetData {
     spentPoints: number;
   };
   hero?: HeroArmyData;
-  currentTileCoord?: string; // Current hex coordinates (e.g. "25,25") where Hero is stationed on Empire Map
+  currentTileCoord?: string; // Current hex coordinates (e.g. "25,25") where Hero is stationed on Home Continent
+  pangaeaTileCoord?: string; // Current hex coordinates on Pangaea Merged World Map
 }
 
 export interface User {
@@ -58,6 +62,8 @@ export interface User {
   role: UserRole;
   faculty?: string;
   year?: number;
+  continentId?: HomeContinentId;
+  needsCohortSelection?: boolean;
   score: number;
   exp: number;
   level: number;
@@ -78,7 +84,11 @@ export interface User {
     count: number;
   };
   exploredTiles?: string[];
+  pangaeaExploredTiles?: string[];
   conqueredTiles?: number;
+  pangaeaConqueredTiles?: number;
+  sessionsCount?: number;
+  lastPlayedAt?: number;
 }
 
 export interface Guild {
@@ -91,8 +101,11 @@ export interface Guild {
   membersCount: number;
   totalTiles: number;
   createdAt: string;
+  continentId?: HomeContinentId;
   citadelCoord?: string; // Legacy single coord e.g. "20,15"
   citadelCoords?: string[]; // 4-tile block e.g. ["20,15", "21,15", "20,16", "21,16"]
+  pangaeaCitadelCoord?: string;
+  pangaeaCitadelCoords?: string[];
   citadelLevel?: number; // 1, 2, 3...
   citadelExp?: number;   // accumulated donated EXP for research upgrades
   citadelHp?: number;
@@ -139,6 +152,9 @@ export interface EmpireTile {
   x: number;
   y: number;
   type: TileType;
+  continentId?: ContinentId;
+  originContinent?: HomeContinentId;
+  terrain?: 'continent' | 'bridge' | 'core' | 'ocean';
   ownerUid?: string;
   ownerName?: string;
   ownerFamily?: string; // To show pet icon

@@ -7,6 +7,8 @@ import { motion } from 'framer-motion';
 import { ShieldAlert, Award, Medal, Zap, Star, Target, Crown, Compass, MapPin, Globe2 } from 'lucide-react';
 import { db } from '@/lib/firebase/config';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { CONTINENTS, isExemptStudentTesterEmail, resolveUserContinent, resolveUserYear, yearToContinent } from '@/lib/empireConstants';
+import { StudentCohortYear } from '@/types';
 
 export const ACHIEVEMENTS = [
   {
@@ -192,7 +194,19 @@ export default function ProfilePage() {
             <div className="flex-1 text-center md:text-left w-full">
               <div className="text-primary font-mono text-xs tracking-widest uppercase mb-1">ID: {appUser.uid.substring(0, 8)}</div>
               <h2 className="text-3xl font-black text-white tracking-wide uppercase mb-2 text-glow">{appUser.fullname}</h2>
-              <div className="text-slate-400 font-mono text-sm mb-6">{appUser.email}</div>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-4">
+                <span className="text-slate-400 font-mono text-sm">{appUser.email}</span>
+                {(() => {
+                  const cMeta = CONTINENTS[resolveUserContinent(appUser)];
+                  const yNum = resolveUserYear(appUser);
+                  return (
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${cMeta.badgeClass}`}>
+                      <span>{cMeta.emoji}</span>
+                      <span>ชั้นปีที่ {yNum} • ทวีป {cMeta.code}</span>
+                    </span>
+                  );
+                })()}
+              </div>
               
               <div className="flex items-center gap-4 mb-2">
                 <div className="bg-accent text-slate-900 font-black px-4 py-1 rounded-full text-sm">
@@ -213,6 +227,45 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+
+          {isExemptStudentTesterEmail(appUser.email) && (
+            <div className="relative z-10 mt-6 pt-5 border-t border-cyan-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-cyan-300">
+                  🧪 โหมดบัญชีอาจารย์/GM ทดลองใช้งานในมุมมองนิสิต
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  สามารถสลับชั้นปีและทวีปสังกัดเพื่อทดสอบหน้าจอของนิสิตปี 3 • ปี 4 • ปี 5 ได้ทันที
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {([3, 4, 5] as StudentCohortYear[]).map((yr) => {
+                  const cm = CONTINENTS[yearToContinent(yr)];
+                  const isActive = resolveUserYear(appUser) === yr;
+                  return (
+                    <button
+                      key={yr}
+                      type="button"
+                      onClick={() => {
+                        updateDoc(doc(db, 'users', appUser.uid), {
+                          year: yr,
+                          continentId: yearToContinent(yr),
+                          needsCohortSelection: false,
+                        }).catch(console.error);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer ${
+                        isActive
+                          ? `${cm.badgeClass} ring-2 ring-cyan-400/30`
+                          : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {cm.emoji} ปี {yr} ({cm.code})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </Card>
       </motion.div>
 

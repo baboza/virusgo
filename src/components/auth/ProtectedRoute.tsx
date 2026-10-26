@@ -19,10 +19,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   useEffect(() => {
     if (!loading) {
-      if (!user) {
-        // Not logged in, redirect to login
+      if (!user || !appUser) {
+        // Not logged in or unregistered/blocked account without Firestore profile -> redirect to login
         router.push('/login');
-      } else if (appUser && allowedRoles && !allowedRoles.includes(appUser.role)) {
+      } else if (allowedRoles && !allowedRoles.includes(appUser.role)) {
         // Logged in but doesn't have the right role
         // Redirect to their respective dashboard
         if (appUser.role === 'student') {
@@ -34,8 +34,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }, [user, appUser, loading, allowedRoles, router]);
 
-  // Show loading spinner while checking auth
-  if (loading || !user || (appUser && allowedRoles && !allowedRoles.includes(appUser.role))) {
+  // Show loading spinner while checking auth or redirecting unauthorized accounts
+  if (loading || !user || !appUser || (allowedRoles && !allowedRoles.includes(appUser.role))) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -43,6 +43,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // If we reach here, they are authorized
+  // If we reach here, they are authorized and have a valid Firestore profile
   return <>{children}</>;
 };
