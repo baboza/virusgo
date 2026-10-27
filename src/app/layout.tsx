@@ -6,7 +6,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "VetVirus Quest | Game-Based Learning",
+  title: "VetVirus GO | Game-Based Learning",
   description: "A Game-Based Learning platform for Veterinary Medicine students studying Veterinary Virology.",
   manifest: "/manifest.json",
 };

@@ -1,6 +1,6 @@
 {
-  "name": "VetVirus Quest",
-  "short_name": "VetVirus",
+  "name": "VetVirus GO",
+  "short_name": "VirusGO",
   "description": "Veterinary Virology Gamified Learning Platform",
   "start_url": "/",
   "display": "standalone",

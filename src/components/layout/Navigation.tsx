@@ -117,7 +117,7 @@ export function Navigation() {
       <div className="hidden md:flex flex-col w-64 h-screen fixed top-0 left-0 glass border-r border-slate-200 dark:border-slate-800 z-40">
         <div className="p-6">
           <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
-            VetVirus Quest
+            VetVirus GO
           </h1>
           <p className="text-xs text-slate-500 mt-1 uppercase font-semibold">Instructor Panel</p>
         </div>
