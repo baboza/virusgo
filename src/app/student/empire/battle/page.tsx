@@ -33,6 +33,7 @@ import { getEffectivePetStats } from '@/lib/petBalance';
 import { 
   BIO_ARTIFACTS, 
   getDefaultHeroArmy, 
+  ensureViableArmy,
   generateWildDefenderArmy, 
   calculateAttackDamage, 
   calculateRetaliationDamage, 
@@ -67,6 +68,13 @@ function getInitialBattleQuestions(): QuizItem[] {
     { q: "ไวรัสชนิดใดที่มีรูปร่างคล้ายกระสุนปืน (Bullet-shaped)?", choices: shuffle(["Rabies Virus", "Influenza Virus", "Parvovirus", "Rotavirus"]), answer: "Rabies Virus" },
     { q: "Negri bodies เป็นลักษณะเฉพาะของโรคใด?", choices: shuffle(["Rabies", "Canine Distemper", "Feline Panleukopenia", "FIV"]), answer: "Rabies" }
   ];
+}
+
+// Capped Turn Timer formula: 15s to 20s max (prevents tedious 45-55s slogs on high AGI)
+function calcTurnTime(agi = 1, hasScroll = false): number {
+  const agiBonus = Math.min(3, Math.floor(agi / 3));
+  const scrollBonus = hasScroll ? 2 : 0;
+  return Math.min(20, 15 + agiBonus + scrollBonus);
 }
 
 function BattleContent() {
@@ -143,19 +151,12 @@ function BattleContent() {
 
   const hasInitializedRef = useRef(false);
 
-  // ── Quiz System: 150 Balanced Questions Synchronously Pre-populated (0ms delay, 0 Firestore reads) ──
+  // ── Quiz System: Purge obsolete session cache & enforce 150 Fresh Balanced Questions ──
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const cached = sessionStorage.getItem('virusgo_empire_quiz');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setQuestionsBank(shuffle(parsed));
-          }
-        } catch (_) {}
-      }
+      sessionStorage.removeItem('virusgo_empire_quiz');
     }
+    setQuestionsBank(getInitialBattleQuestions());
   }, []);
 
   // Initialize Battle Background Data
@@ -202,12 +203,14 @@ function BattleContent() {
 
         const currentUid = appUser?.uid || auth.currentUser?.uid;
         const petFamily = appUser?.pet?.family || 'parvo';
-        const userArmy = appUser?.pet?.hero || getDefaultHeroArmy(petFamily);
+        const viableRes = ensureViableArmy(appUser?.pet?.hero, petFamily);
+        const userArmy = viableRes.army;
         const validAttackerStacks = (userArmy.stacks || []).map(s => ({ ...s }));
-        
-        if (validAttackerStacks.length === 0) {
-          const starter = getDefaultHeroArmy(petFamily);
-          validAttackerStacks.push(...(starter.stacks || []));
+
+        if (viableRes.wasModified && currentUid) {
+          updateDoc(doc(db, 'users', currentUid), {
+            'pet.hero': userArmy,
+          }).catch(console.error);
         }
 
         setAttackerHero(userArmy);
@@ -375,11 +378,9 @@ function BattleContent() {
           isPlayer: currentTile.type === 'player',
         });
 
-        const timerBonus = attackerHero.equipment?.scroll === 'polymerase_scroll' 
-          ? (BIO_ARTIFACTS.polymerase_scroll.timerBonusSec || 4) 
-          : 0;
+        const hasScroll = attackerHero.equipment?.scroll === 'polymerase_scroll';
         const aCombat = getEffectivePetStats(appUser?.pet?.stats, appUser?.exp || 0);
-        setTimeLeft(15 + (aCombat.agi * 2) + timerBonus);
+        setTimeLeft(calcTurnTime(aCombat.agi, hasScroll));
 
       } catch (e) {
         console.error('initBattle error:', e);
@@ -401,8 +402,8 @@ function BattleContent() {
         if (prev <= 1) {
           handleWrongAnswer('หมดเวลา!');
           const aCombat = getEffectivePetStats(appUser?.pet?.stats, appUser?.exp || 0);
-          const scrollBonus = attackerHero.equipment?.scroll === 'polymerase_scroll' ? 4 : 0;
-          return 15 + (aCombat.agi * 2) + scrollBonus;
+          const hasScroll = attackerHero.equipment?.scroll === 'polymerase_scroll';
+          return calcTurnTime(aCombat.agi, hasScroll);
         }
         return prev - 1;
       });
@@ -412,7 +413,7 @@ function BattleContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQIndex, gameState, loading, attackerHero.equipment]);
 
-  // Turn Resolution: Handle Wrong Answer / Timeout
+  // Turn Resolution: Handle Wrong Answer / Timeout (Enemy counter-attacks!)
   const handleWrongAnswer = (reason = 'ตอบผิด!') => {
     sfx.wrong();
 
@@ -422,8 +423,11 @@ function BattleContent() {
 
     if (!activeAttacker || !activeDefender) return;
 
-    // Enemy free attack: Deals regular damage to active attacker stack
-    const enemyDmg = calculateAttackDamage(activeDefender, 1, false, defenderEquipment);
+    // Enemy free counter-attack: Deals regular damage to active attacker stack
+    let enemyDmg = calculateAttackDamage(activeDefender, 1, false, defenderEquipment);
+    if (attackerHero.equipment?.armor && BIO_ARTIFACTS[attackerHero.equipment.armor]?.retaliationReduction) {
+      enemyDmg = Math.max(1, Math.round(enemyDmg * (1 - BIO_ARTIFACTS[attackerHero.equipment.armor].retaliationReduction!)));
+    }
     const atkResult = applyDamageToStack(activeAttacker, enemyDmg, attackerHero.equipment);
 
     // Visual feedback
@@ -437,7 +441,7 @@ function BattleContent() {
       isRetaliation: true,
     });
 
-    const newLog = `❌ ${reason} ${activeDefender.virusName} โจมตีกองทัพของคุณฟรี สร้างความเสียหาย ${enemyDmg} (-${atkResult.casualties} อนุภาค)!`;
+    const newLog = `❌ ${reason} ${activeDefender.virusName} ฉวยโอกาสสวนกลับ โจมตีกองทัพของคุณ ${enemyDmg} DMG (-${atkResult.casualties} อนุภาค)!`;
     setCombatLog(prev => [newLog, ...prev.slice(0, 2)]);
 
     // Update attacker stacks
@@ -463,7 +467,7 @@ function BattleContent() {
     }
   };
 
-  // Turn Resolution: Handle Correct Answer (Attack + HoMM Retaliation)
+  // Turn Resolution: Handle Correct Answer (Flawless Bio-Strike with Counter-Immunity)
   const handleCorrectAnswer = () => {
     sfx.correct();
 
@@ -472,34 +476,16 @@ function BattleContent() {
 
     if (!activeAttacker || !activeDefender) return;
 
-    // 1. Calculate Forward Damage (Knowledge-boosted attack)
+    // 1. Calculate Forward Damage (Knowledge-boosted attack with capped Crit Rate <= 40%)
     const aCombat = getEffectivePetStats(appUser?.pet?.stats, appUser?.exp || 0);
-    const isCrit = Math.random() < (aCombat.dex * 0.05);
+    const critChance = Math.min(0.40, aCombat.dex * 0.04);
+    const isCrit = Math.random() < critChance;
     const forwardDmg = calculateAttackDamage(activeAttacker, aCombat.str, isCrit, attackerHero.equipment);
     
     // Apply damage to defender stack
     const defResult = applyDamageToStack(activeDefender, forwardDmg, defenderEquipment);
 
-    // 2. HoMM Auto-Retaliation (If defender survivors remain)
-    let retaliationDmg = 0;
-    let atkCasualties = 0;
-    let nextAttackerCount = activeAttacker.count;
-
-    if (defResult.remainingCount > 0) {
-      // Surviving virions retaliate immediately!
-      const survivingDefender = { ...activeDefender, count: defResult.remainingCount };
-      retaliationDmg = calculateRetaliationDamage(survivingDefender, attackerHero.equipment);
-      const atkResult = applyDamageToStack(activeAttacker, retaliationDmg, attackerHero.equipment);
-      atkCasualties = atkResult.casualties;
-      nextAttackerCount = atkResult.remainingCount;
-      
-      if (atkCasualties > 0) {
-        setIsHit(true);
-        setTimeout(() => setIsHit(false), 300);
-      }
-    }
-
-    // Display damage animations
+    // Flawless Strike: Player answered correctly! Defender is stunned and CANNOT retaliate.
     setShowDamageAnim({
       targetStackId: activeDefender.id,
       amount: forwardDmg,
@@ -508,9 +494,9 @@ function BattleContent() {
     });
 
     // Update Logs
-    let logMsg = `⚔️ ${activeAttacker.virusName} โจมตี ${activeDefender.virusName} ${forwardDmg} DMG (-${defResult.casualties} อนุภาค)${isCrit ? ' [CRIT!]' : ''}`;
-    if (retaliationDmg > 0) {
-      logMsg += ` | ศัตรูสวนกลับ (-${atkCasualties} อนุภาค)!`;
+    let logMsg = `⚔️ โจมตีแม่นยำ! ${activeAttacker.virusName} โจมตี ${activeDefender.virusName} ${forwardDmg} DMG (-${defResult.casualties} อนุภาค)${isCrit ? ' [CRITICAL!]' : ''}`;
+    if (defResult.remainingCount > 0) {
+      logMsg += ` | ศัตรูติดสถานะมึนงง ไม่สามารถสวนกลับได้!`;
     } else {
       logMsg += ` | ศัตรูถูกทำลายสิ้นซาก!`;
     }
@@ -525,33 +511,17 @@ function BattleContent() {
     });
     setDefenderStacks(nextDefenderStacks);
 
-    // Update Attacker stacks
-    const nextAttackerStacks = attackerStacks.map(s => {
-      if (s.id === activeAttacker.id) {
-        return { ...s, count: nextAttackerCount };
-      }
-      return s;
-    });
-    setAttackerStacks(nextAttackerStacks);
-
-    // 3. Check Victory / Defeat Conditions
+    // 2. Check Victory Conditions
     const allDefendersDead = nextDefenderStacks.every(s => s.count <= 0);
-    const allAttackersDead = nextAttackerStacks.every(s => s.count <= 0);
 
     if (allDefendersDead) {
       setGameState('won');
-      claimTile(nextAttackerStacks);
-    } else if (allAttackersDead) {
-      handleDefeat(nextAttackerStacks);
+      claimTile(attackerStacks);
     } else {
       // Re-target if current target was destroyed
       if (defResult.remainingCount <= 0) {
         const nextLivingDef = nextDefenderStacks.find(s => s.count > 0);
         if (nextLivingDef) setSelectedDefenderId(nextLivingDef.id);
-      }
-      if (nextAttackerCount <= 0) {
-        const nextLivingAtk = nextAttackerStacks.find(s => s.count > 0);
-        if (nextLivingAtk) setSelectedAttackerId(nextLivingAtk.id);
       }
       nextQuestion();
     }
@@ -586,8 +556,8 @@ function BattleContent() {
       setShowDamageAnim(null);
       setCurrentQIndex(Math.floor(Math.random() * pool.length));
       const aCombat = getEffectivePetStats(appUser?.pet?.stats, appUser?.exp || 0);
-      const scrollBonus = attackerHero.equipment?.scroll === 'polymerase_scroll' ? 4 : 0;
-      setTimeLeft(15 + (aCombat.agi * 2) + scrollBonus);
+      const hasScroll = attackerHero.equipment?.scroll === 'polymerase_scroll';
+      setTimeLeft(calcTurnTime(aCombat.agi, hasScroll));
     }, 1200);
   };
 

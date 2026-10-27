@@ -9,8 +9,9 @@ export interface EquipmentItem {
   hpPercent?: number;
   atkPercent?: number;
   retaliationReduction?: number; // e.g. 0.25 (takes 25% less damage when enemy retaliates)
-  timerBonusSec?: number; // e.g. +3s for question answering
+  timerBonusSec?: number; // e.g. +2s for question answering
   costExp: number;
+  requiredExp?: number; // EXP Milestone to unlock in HoMM Blacksmith / Vault
 }
 
 export const BIO_ARTIFACTS: Record<string, EquipmentItem> = {
@@ -22,6 +23,7 @@ export const BIO_ARTIFACTS: Record<string, EquipmentItem> = {
     bonusText: '+20% HP ให้กองทัพทั้งหมด',
     hpPercent: 0.20,
     costExp: 200,
+    requiredExp: 1000,
   },
   glycoprotein_spike: {
     id: 'glycoprotein_spike',
@@ -31,6 +33,7 @@ export const BIO_ARTIFACTS: Record<string, EquipmentItem> = {
     bonusText: '+20% ATK ดาเมจโจมตีให้กองทัพ',
     atkPercent: 0.20,
     costExp: 200,
+    requiredExp: 1500,
   },
   lipid_envelope: {
     id: 'lipid_envelope',
@@ -40,15 +43,17 @@ export const BIO_ARTIFACTS: Record<string, EquipmentItem> = {
     bonusText: 'ลดความเสียหายจากการถูกสวนกลับ (Retaliation) ลง 30%',
     retaliationReduction: 0.30,
     costExp: 250,
+    requiredExp: 2000,
   },
   polymerase_scroll: {
     id: 'polymerase_scroll',
     name: 'Polymerase Scroll',
     slot: 'scroll',
     icon: '📜',
-    bonusText: '+4 วินาที สำหรับเวลาตอบคำถามทุกข้อ',
-    timerBonusSec: 4,
+    bonusText: '+2 วินาที สำหรับเวลาตอบคำถามทุกข้อ (ขยายเพดานสู่ 20s)',
+    timerBonusSec: 2,
     costExp: 150,
+    requiredExp: 2500,
   },
 };
 
@@ -142,6 +147,150 @@ export function getDefaultHeroArmy(preferredFamily?: string): HeroArmyData {
       },
     ],
     lastReplicated: new Date().toISOString(),
+    lastPassiveRegen: new Date().toISOString(),
+  };
+}
+
+/**
+ * Ensures user army is always viable for combat (anti-softlock).
+ * 1. If troops are completely wiped out, awards an Emergency Bio-Rescue Platoon (30 Parvo, 10 Corona, 2 Rabies).
+ * 2. If time elapsed >= 30 minutes, passively regenerates virions up to starter caps (Parvo: 60, Corona: 20, Rabies: 4).
+ */
+export function ensureViableArmy(
+  userArmy?: HeroArmyData | null,
+  preferredFamily?: string
+): { army: HeroArmyData; wasModified: boolean; rescueGranted: boolean; regenCount: number } {
+  let wasModified = false;
+  let rescueGranted = false;
+  let totalRegened = 0;
+
+  if (!userArmy || !userArmy.stacks || userArmy.stacks.length === 0) {
+    return {
+      army: getDefaultHeroArmy(preferredFamily),
+      wasModified: true,
+      rescueGranted: false,
+      regenCount: 0,
+    };
+  }
+
+  // Clone stacks to avoid mutating in place
+  const updatedStacks: HeroUnitStack[] = userArmy.stacks.map(s => ({ ...s }));
+
+  // Ensure 3 standard stacks exist
+  const hasParvo = updatedStacks.some(s => s.virusId === 'cpv' || s.family === 'parvo');
+  const hasCorona = updatedStacks.some(s => s.virusId === 'fip' || s.family === 'corona');
+  const hasRabies = updatedStacks.some(s => s.virusId === 'rabies' || s.family === 'rabies');
+
+  if (!hasParvo) {
+    updatedStacks.push({
+      id: `stack_${updatedStacks.length + 1}`,
+      virusId: VIRUS_UNIT_TEMPLATES.parvo.virusId,
+      virusName: VIRUS_UNIT_TEMPLATES.parvo.virusName,
+      family: VIRUS_UNIT_TEMPLATES.parvo.family,
+      tier: 1,
+      count: 0,
+      baseHp: VIRUS_UNIT_TEMPLATES.parvo.baseHp,
+      baseAtk: VIRUS_UNIT_TEMPLATES.parvo.baseAtk,
+    });
+    wasModified = true;
+  }
+  if (!hasCorona) {
+    updatedStacks.push({
+      id: `stack_${updatedStacks.length + 1}`,
+      virusId: VIRUS_UNIT_TEMPLATES.corona.virusId,
+      virusName: VIRUS_UNIT_TEMPLATES.corona.virusName,
+      family: VIRUS_UNIT_TEMPLATES.corona.family,
+      tier: 2,
+      count: 0,
+      baseHp: VIRUS_UNIT_TEMPLATES.corona.baseHp,
+      baseAtk: VIRUS_UNIT_TEMPLATES.corona.baseAtk,
+    });
+    wasModified = true;
+  }
+  if (!hasRabies) {
+    updatedStacks.push({
+      id: `stack_${updatedStacks.length + 1}`,
+      virusId: VIRUS_UNIT_TEMPLATES.rabies.virusId,
+      virusName: VIRUS_UNIT_TEMPLATES.rabies.virusName,
+      family: VIRUS_UNIT_TEMPLATES.rabies.family,
+      tier: 3,
+      count: 0,
+      baseHp: VIRUS_UNIT_TEMPLATES.rabies.baseHp,
+      baseAtk: VIRUS_UNIT_TEMPLATES.rabies.baseAtk,
+    });
+    wasModified = true;
+  }
+
+  const totalLiving = updatedStacks.reduce((sum, s) => sum + (s.count || 0), 0);
+
+  // 1. Anti-Softlock: Emergency Bio-Rescue Platoon if wiped out
+  if (totalLiving <= 0) {
+    updatedStacks.forEach(s => {
+      if (s.family === 'parvo' || s.virusId === 'cpv') {
+        s.count = Math.max(s.count, 30); // 30 Parvo virions
+      } else if (s.family === 'corona' || s.virusId === 'fip') {
+        s.count = Math.max(s.count, 10); // 10 Corona virions
+      } else if (s.family === 'rabies' || s.virusId === 'rabies') {
+        s.count = Math.max(s.count, 2);  // 2 Rabies virions
+      }
+    });
+    wasModified = true;
+    rescueGranted = true;
+  } else {
+    // 2. Passive Regeneration (every 30 mins, up to starter caps: Parvo=60, Corona=20, Rabies=4)
+    const now = Date.now();
+    const lastTimeStr = userArmy.lastPassiveRegen || userArmy.lastReplicated;
+    const lastTime = lastTimeStr ? new Date(lastTimeStr).getTime() : now;
+    const diffMinutes = Math.floor((now - lastTime) / (60 * 1000));
+
+    if (diffMinutes >= 30) {
+      const cycles = Math.min(6, Math.floor(diffMinutes / 30)); // Max 6 cycles (3 hours)
+      if (cycles > 0) {
+        updatedStacks.forEach(s => {
+          if (s.family === 'parvo' || s.virusId === 'cpv') {
+            if (s.count < 60) {
+              const added = Math.min(60 - s.count, cycles * 10);
+              if (added > 0) {
+                s.count += added;
+                totalRegened += added;
+                wasModified = true;
+              }
+            }
+          } else if (s.family === 'corona' || s.virusId === 'fip') {
+            if (s.count < 20) {
+              const added = Math.min(20 - s.count, cycles * 3);
+              if (added > 0) {
+                s.count += added;
+                totalRegened += added;
+                wasModified = true;
+              }
+            }
+          } else if (s.family === 'rabies' || s.virusId === 'rabies') {
+            if (s.count < 4) {
+              const added = Math.min(4 - s.count, cycles * 1);
+              if (added > 0) {
+                s.count += added;
+                totalRegened += added;
+                wasModified = true;
+              }
+            }
+          }
+        });
+      }
+    }
+  }
+
+  const resultArmy: HeroArmyData = {
+    ...userArmy,
+    stacks: updatedStacks,
+    lastPassiveRegen: wasModified ? new Date().toISOString() : userArmy.lastPassiveRegen,
+  };
+
+  return {
+    army: resultArmy,
+    wasModified,
+    rescueGranted,
+    regenCount: totalRegened,
   };
 }
 

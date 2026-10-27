@@ -3505,3 +3505,710 @@ export const MASTER_FARM_DEFENSE_EVENTS = [
   { month: 6, title: "Biosecurity Inspection", text: "เจ้าหน้าที่ปศุสัตว์เข้าตรวจสอบมาตรฐาน GAP และระบบป้องกันทางชีวภาพของฟาร์ม", risk: 25 }
 ];
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. MASTER 15 CURRICULUM CHAPTERS METADATA (Complete Faculty Lecture Syllabus)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ChapterVirusReference {
+  name: string;
+  nameEn: string;
+  family: string;
+  host: string;
+  keyPathology: string;
+  virusId?: string;
+}
+
+export interface CurriculumChapter {
+  id: number;
+  chapterNumber: string;
+  title: string;
+  titleEn: string;
+  facultyReference: string;
+  description: string;
+  keyTakeaways: string[];
+  targetFamilies: string[];
+  featuredViruses: ChapterVirusReference[];
+  slideOutline: string[];
+  themeColor: string;
+  rewardExp: number;
+}
+
+export const VET_VIROLOGY_15_CHAPTERS: CurriculumChapter[] = [
+  {
+    "id": 1,
+    "chapterNumber": "บทที่ 01",
+    "title": "พื้นฐานไวรัสวิทยาสัตวแพทย์ ภาค 1",
+    "titleEn": "Basic Knowledge of Vet Virology (Part 1)",
+    "facultyReference": "Slide 01 & 02: Introduction to Veterinary Virology",
+    "description": "ศึกษาคุณสมบัติพื้นฐาน โครงสร้างสัณฐานวิทยา จีโนม สัดส่วนโปรตีนแคปซิด และความทนทานต่อสิ่งแวดล้อมของอนุภาคไวรัส",
+    "keyTakeaways": [
+      "อนุภาคไวรัส (Virion) มีสารพันธุกรรมเพียง DNA หรือ RNA ชนิดใดชนิดหนึ่งเท่านั้น (ไม่พบทั้งสองชนิดร่วมกัน)",
+      "Capsid คือเปลือกโปรตีนที่ประกอบด้วยหน่วยย่อย Capsomers ทำหน้าที่ปกป้องจีโนม มีสมมาตรแบบ Icosahedral, Helical หรือ Complex",
+      "Envelope เป็นชั้นไขมันที่ไวรัสได้มาจากเยื่อหุ้มเซลล์โฮสต์ พร้อมหนามโปรตีน (Peplomers/Spikes) ช่วยในการเกาะติดตัวรับ",
+      "ไวรัสเปลือย (Naked/Non-enveloped) ทนทานต่อความร้อน กรด ด่าง และสารละลายไขมันได้ดีกว่าไวรัสที่มีเปลือกหุ้ม"
+    ],
+    "targetFamilies": [
+      "General Virology",
+      "Capsid Symmetry",
+      "Viral Genome"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Viral Capsid Structure",
+        "nameEn": "Capsomers & Symmetry",
+        "family": "General",
+        "host": "สัตว์ทุกชนิด",
+        "keyPathology": "Icosahedral vs Helical symmetry",
+        "virusId": "general"
+      },
+      {
+        "name": "Envelope Glycoproteins",
+        "nameEn": "Peplomers (Spikes)",
+        "family": "General",
+        "host": "สัตว์ทุกชนิด",
+        "keyPathology": "Receptor binding and membrane fusion",
+        "virusId": "general"
+      }
+    ],
+    "slideOutline": [
+      "คำจำกัดความและข้อแตกต่างระหว่างไวรัสกับจุลชีพอื่น",
+      "สัณฐานวิทยาและสมมาตรของ Capsid (Icosahedral vs Helical)",
+      "ชนิดของสารพันธุกรรม (dsDNA, ssDNA, dsRNA, (+)ssRNA, (-)ssRNA)",
+      "ความคงทนและการทำลายเชื้อไวรัสด้วยความร้อนและสารเคมี"
+    ],
+    "themeColor": "from-cyan-600 to-blue-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 2,
+    "chapterNumber": "บทที่ 02",
+    "title": "พื้นฐานไวรัสวิทยาสัตวแพทย์ ภาค 2",
+    "titleEn": "Basic Knowledge of Vet Virology (Part 2)",
+    "facultyReference": "Slide 01 & 02: Viral Replication, Pathogenesis & Diagnostics",
+    "description": "ศึกษาขั้นตอนการเพิ่มจำนวนไวรัสในเซลล์ พยาธิกำเนิดของโรค การตอบสนองทางภูมิคุ้มกัน และหลักการวินิจฉัยทางห้องปฏิบัติการ",
+    "keyTakeaways": [
+      "วัฏจักรการเพิ่มจำนวน 6 ขั้นตอน: Attachment -> Penetration -> Uncoating -> Biosynthesis -> Assembly -> Release",
+      "การปล่อยอนุภาค: ไวรัสไม่มีเปลือกหุ้มมักทำให้เซลล์แตกตาย (Lysis) ส่วนไวรัสมีเปลือกหุ้มมักใช้วิธีผุดออกจากเยื่อหุ้ม (Budding)",
+      "การแพร่กระจายในร่างกาย: มีทั้งการติดเชื้อเฉพาะที่ (Localized) และการแพร่กระจายผ่านกระแสเลือด (Viremia/Systemic spread)",
+      "การตรวจทางห้องปฏิบัติการ: Cell culture (ตรวจ CPE), PCR/RT-PCR (ตรวจจีโนม), ELISA (ตรวจ Antigen/Antibody), HA/HI test"
+    ],
+    "targetFamilies": [
+      "Replication Cycle",
+      "Pathogenesis",
+      "Lab Diagnostics"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Cytopathic Effect (CPE)",
+        "nameEn": "Cell Culture Markers",
+        "family": "General",
+        "host": "เซลล์เพาะเลี้ยง",
+        "keyPathology": "Cell rounding, lysis, and syncytia formation",
+        "virusId": "general"
+      },
+      {
+        "name": "Host Immune Response",
+        "nameEn": "Interferons & Neutralizing Abs",
+        "family": "Immunology",
+        "host": "สัตว์เลี้ยงลูกด้วยนม",
+        "keyPathology": "IFN-alpha/beta innate defense",
+        "virusId": "general"
+      }
+    ],
+    "slideOutline": [
+      "กลไกการแทรกซึมและการสังเคราะห์สารพันธุกรรมของไวรัสแต่ละกลุ่มตาม Baltimore classification",
+      "พยาธิกำเนิดและช่องทางการเข้าสู่ร่างกายของไวรัส",
+      "ระบบภูมิคุ้มกันต่อสู้ไวรัส (Interferon, Neutralizing antibodies, CTL)",
+      "หลักการตรวจวินิจฉัยไวรัสวิทยาทางสัตวแพทย์สมัยใหม่"
+    ],
+    "themeColor": "from-blue-600 to-indigo-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 3,
+    "chapterNumber": "บทที่ 03",
+    "title": "Parvoviridae & Adenoviridae",
+    "titleEn": "Parvoviridae & Adenoviridae",
+    "facultyReference": "Slide 03: Small Naked DNA Viruses of Veterinary Importance",
+    "description": "กลุ่มไวรัสดีเอ็นเอเปลือยขนาดเล็กที่มีความทนทานสูงในสิ่งแวดล้อม ก่อโรคลำไส้อักเสบรุนแรงในสัตว์เลี้ยง และโรคตับอักเสบติดต่อในสุนัข",
+    "keyTakeaways": [
+      "Parvoviridae เป็นไวรัสจีโนม ssDNA ไม่มีเปลือกหุ้ม ต้องการเซลล์ที่กำลังแบ่งตัวในระยะ S-phase เพื่อเพิ่มจำนวน",
+      "Canine Parvovirus (CPV-2) ทำลาย crypts ของลำไส้เล็กและไขกระดูก ก่ออุจจาระร่วงเป็นเลือดคาว อาเจียน และเม็ดเลือดขาวต่ำรุนแรง (Panleukopenia)",
+      "Feline Panleukopenia Virus (FPV) ในลูกแมวตั้งท้องสามารถทำให้เกิดภาวะสมองน้อยเจริญผิดปกติ (Cerebellar hypoplasia)",
+      "Canine Adenovirus 1 (CAV-1) ก่อโรคตับอักเสบติดต่อในสุนัข (ICH) และเกิดแอนติเจน-แอนติบอดีคอมเพล็กซ์ทำให้กระจกตาบวมขุ่นเป็นสีฟ้า (Blue eye)",
+      "Canine Adenovirus 2 (CAV-2) ก่อโรคหลอดลมอักเสบติดต่อในสุนัข (Kennel cough complex) และใช้เป็นสายพันธุ์วัคซีนป้องกัน CAV-1 เพื่อลดผลข้างเคียง Blue eye"
+    ],
+    "targetFamilies": [
+      "Parvoviridae",
+      "Adenoviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Canine Parvovirus (CPV-2)",
+        "nameEn": "Canine Parvovirus",
+        "family": "Parvoviridae",
+        "host": "สุนัข",
+        "keyPathology": "Hemorrhagic enteritis, leukopenia, and villous crypt necrosis",
+        "virusId": "cpv"
+      },
+      {
+        "name": "Canine Adenovirus 1 (CAV-1)",
+        "nameEn": "Infectious Canine Hepatitis",
+        "family": "Adenoviridae",
+        "host": "สุนัข, หมาป่า",
+        "keyPathology": "Centrilobular hepatic necrosis and corneal edema (Blue eye)",
+        "virusId": "cav1"
+      }
+    ],
+    "slideOutline": [
+      "คุณสมบัติทางเคมีกายภาพของ Parvoviridae (ssDNA naked icosahedral)",
+      "กลไกพยาธิสภาพของ CPV-2 และ FPV ในระบบทางเดินอาหารและไขกระดูก",
+      "โครงสร้างของ Adenoviridae (dsDNA naked พร้อม fibers ที่มุมแคปซิด)",
+      "การเปรียบเทียบระหว่าง CAV-1 (ICH) และ CAV-2 (Laryngotracheitis) และแนวทางการทำวัคซีน"
+    ],
+    "themeColor": "from-blue-600 to-cyan-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 4,
+    "chapterNumber": "บทที่ 04",
+    "title": "Herpesviridae",
+    "titleEn": "Herpesviridae",
+    "facultyReference": "Slide 04: Latency, Ganglia Tropism and Avian/Swine Herpes",
+    "description": "ไวรัสดีเอ็นเอสายคู่มีเปลือกหุ้มขนาดใหญ่ มีคุณสมบัติสำคัญคือการแฝงตัวตลอดชีวิต (Latency) ในปมประสาทหรือเซลล์เม็ดเลือดขาว",
+    "keyTakeaways": [
+      "โครงสร้าง Herpesvirus ประกอบด้วย dsDNA, icosahedral capsid, ชั้นโปรตีน Tegument และ Lipid envelope",
+      "แบ่งออกเป็น 3 Subfamilies: Alphaherpesvirinae (เติบโตเร็ว แฝงตัวที่ปมประสาท), Betaherpesvirinae (เติบโตรวดเร็ว แฝงตัวที่ต่อมน้ำลาย/ไต), Gammaherpesvirinae (แฝงตัวในเซลล์น้ำเหลือง/Lymphocytes)",
+      "Pseudorabies (Aujeszky's Disease / Suid herpesvirus 1): สุกรเป็นโฮสต์กักโรคตามธรรมชาติ หากแพร่ไปยังโค สุนัข หรือแมว จะเกิดอาการคันคลุ้มคลั่ง (Mad itch) ทางระบบประสาทและตาย 100%",
+      "Feline Herpesvirus 1 (FHV-1): ไวรัสหวัดแมว ทำให้เกิดเยื่อบุตาอักเสบ และมีแผลหลุมรูปกิ่งไม้ที่กระจกตา (Dendritic corneal ulcer)",
+      "Marek's Disease Virus (MDV): Alphaherpesvirus ในสัตว์ปีก ก่อให้เกิด T-cell lymphoma และเส้นประสาท Sciatic บวมโต ขาเป็นอัมพาตข้างหนึ่งยื่นไปข้างหน้าอีกข้างยื่นไปข้างหลัง"
+    ],
+    "targetFamilies": [
+      "Herpesviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Pseudorabies Virus (PRV)",
+        "nameEn": "Aujeszky's Disease",
+        "family": "Herpesviridae",
+        "host": "สุกร (หลัก), โค, สุนัข, แมว",
+        "keyPathology": "Pruritus (Mad itch), nervous signs, and high mortality in non-suids",
+        "virusId": "prv"
+      },
+      {
+        "name": "Marek's Disease Virus (MDV)",
+        "nameEn": "Gallid Alphaherpesvirus 2",
+        "family": "Herpesviridae",
+        "host": "ไก่",
+        "keyPathology": "Sciatic nerve enlargement and T-cell lymphomas in visceral organs",
+        "virusId": "mdv"
+      }
+    ],
+    "slideOutline": [
+      "โครงสร้างของ Herpesviridae และชั้น Tegument",
+      "กลไกการแฝงตัว (Latency) และการกำเริบ (Reactivation) เมื่อเกิดความเครียด",
+      "โรค Aujeszky's Disease (Pseudorabies) ในสุกรและสัตว์ชนิดอื่น",
+      "FHV-1, Bovine Herpesvirus 1 (IBR), Equine Herpesvirus 1 & 4 (EHV), และ Marek's disease"
+    ],
+    "themeColor": "from-rose-600 to-pink-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 5,
+    "chapterNumber": "บทที่ 05",
+    "title": "Poxviridae, Asfarviridae & Papillomaviridae",
+    "titleEn": "Poxviridae, Asfarviridae & Papillomaviridae",
+    "facultyReference": "Slide 05: Large DNA Viruses & Cytoplasmic Replication",
+    "description": "กลุ่มไวรัสดีเอ็นเอขนาดใหญ่ ไวรัสอหิวาต์แอฟริกาสุกร (ASFV) ฝีดาษสัตว์ปีก และไวรัสหูดในสัตว์",
+    "keyTakeaways": [
+      "Poxviridae เป็นไวรัส dsDNA ขนาดใหญ่ที่สุด รูปร่างคล้ายก้อนอิฐ (Brick-shaped) และมีความพิเศษคือเพิ่มจำนวนใน Cytoplasm เท่านั้น",
+      "Fowlpox virus ก่อให้เกิดตุ่มฝีดาษตามผิวหนังที่ไม่มีขน (Dry pox) หรือแผลเนื้อตายคอตีบเทียมในช่องปากและหลอดลม (Wet/Diphtheritic pox) พบ Bollinger bodies ในเซลล์",
+      "African Swine Fever Virus (ASFV - Asfarviridae): ไวรัส dsDNA มีเปลือกหุ้มเพียงชนิดเดียวที่มีแมลงพาหะ (Soft tick - Ornithodoros) ทำให้เกิดไข้เลือดออกรุนแรง ม้ามโตดำคล้ำ ตายเกือบ 100% ในสุกร",
+      "Papillomaviridae: ไวรัส dsDNA วงกลมขนาดเล็ก ไม่มีเปลือกหุ้ม ก่อเนื้องอกชนิดไม่ร้ายแรง (Papilloma/Warts) ตามเยื่อบุและผิวหนัง",
+      "Bovine Papillomavirus Type 4 ร่วมกับการกินเฟิร์นกูด (Bracken fern) ก่อให้เกิดมะเร็งกระเพาะอาหารและกระเพาะปัสสาวะในโค"
+    ],
+    "targetFamilies": [
+      "Poxviridae",
+      "Asfarviridae",
+      "Papillomaviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "African Swine Fever Virus (ASFV)",
+        "nameEn": "African Swine Fever",
+        "family": "Asfarviridae",
+        "host": "สุกร, หมูป่า",
+        "keyPathology": "Cyanosis, massive hemorrhages, splenomegaly, and near 100% mortality",
+        "virusId": "asfv"
+      },
+      {
+        "name": "Fowlpox Virus",
+        "nameEn": "Avipoxvirus",
+        "family": "Poxviridae",
+        "host": "ไก่, ไก่งวง, นก",
+        "keyPathology": "Bollinger inclusion bodies, cutaneous dry pox, and diphtheritic wet pox",
+        "virusId": "fowlpox"
+      }
+    ],
+    "slideOutline": [
+      "ลักษณะสัณฐานวิทยาของ Poxviridae และการเพิ่มจำนวนในไซโทพลาสซึม",
+      "ASFV: ระบาดวิทยา การแพร่เชื้อผ่านเห็บอ่อน (Ornithodoros) อาการ และพยาธิสภาพม้ามบวมโตคล้ำ",
+      "Papillomaviridae: การสร้างหูดในสุนัข โค และม้า",
+      "ความสัมพันธ์ระหว่าง BPV กับการเกิดมะเร็งกระเพาะปัสสาวะ (Enzootic hematuria)"
+    ],
+    "themeColor": "from-amber-600 to-red-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 6,
+    "chapterNumber": "บทที่ 06",
+    "title": "Retroviridae",
+    "titleEn": "Retroviridae",
+    "facultyReference": "Slide 06: Reverse Transcriptase, Lentiviruses & Oncogenesis",
+    "description": "ไวรัสอาร์เอ็นเอสายบวกที่มีเอนไซม์ Reverse Transcriptase สำหรับแปลง RNA เป็น DNA แทรกเข้าจีโนมโฮสต์ตลอดชีวิต ก่อโรคมะเร็งและภูมิคุ้มกันบกพร่อง",
+    "keyTakeaways": [
+      "Retroviridae เป็น enveloped positive-sense ssRNA ไวรัสที่มีเอนไซม์สำคัญ 3 ชนิด: Reverse Transcriptase, Integrase, และ Protease",
+      "Provirus: ดีเอ็นเอที่ถูกถอดรหัสย้อนกลับจะถูกแทรกซึมเข้าสู่โครโมโซมของโฮสต์อย่างถาวร",
+      "Feline Leukemia Virus (FeLV - Gammaretrovirus): ติดต่อผ่านน้ำลาย (Friendly cat disease) ทำให้เกิดภาวะกดไขกระดูก ภูมิคุ้มกันบกพร่อง และมะเร็งต่อมน้ำเหลือง (Lymphoma)",
+      "Feline Immunodeficiency Virus (FIV - Lentivirus): เอดส์แมว ติดต่อผ่านแผลกัดต่อสู้ (Fighting cat disease) โจมตีเซลล์ CD4+ T helper",
+      "Equine Infectious Anemia Virus (EIAV - Lentivirus): โรคโลหิตจางติดต่อในม้า (Swamp fever) แพร่โดยเหลือบม้า (Tabanid flies) วินิจฉัยด้วย Coggins test (AGID)"
+    ],
+    "targetFamilies": [
+      "Retroviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Feline Leukemia Virus (FeLV)",
+        "nameEn": "Feline Leukemia Virus",
+        "family": "Retroviridae",
+        "host": "แมว",
+        "keyPathology": "Thymic and multicentric lymphoma, non-regenerative anemia",
+        "virusId": "felv"
+      },
+      {
+        "name": "Equine Infectious Anemia Virus (EIAV)",
+        "nameEn": "Swamp Fever",
+        "family": "Retroviridae",
+        "host": "ม้า, ลา, ล่อ",
+        "keyPathology": "Cyclic fever, hemolytic anemia, thrombocytopenia (Coggins test)",
+        "virusId": "eiav"
+      }
+    ],
+    "slideOutline": [
+      "โครงสร้างของยีน gag, pol, env และวัฏจักร Reverse Transcription",
+      "Oncogenic Retroviruses (FeLV, BLV, JSRV) และกลไกการก่อเนื้องอก",
+      "Lentiviruses (FIV, EIAV, Maedi-Visna, CAEV) และโรคภูมิคุ้มกันเสื่อมถอย",
+      "การตรวจทางห้องปฏิบัติการ: SNAP test (FeLV Ag vs FIV Ab) และ Coggins test"
+    ],
+    "themeColor": "from-purple-600 to-indigo-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 7,
+    "chapterNumber": "บทที่ 07",
+    "title": "Paramyxoviridae",
+    "titleEn": "Paramyxoviridae",
+    "facultyReference": "Slide 07: Syncytia Formation, Distemper & Newcastle Disease",
+    "description": "ไวรัสอาร์เอ็นเอสายลบมีเปลือกหุ้ม โปรตีน F ก่อการหลอมรวมเซลล์เกิด Syncytia นำไปสู่โรคไข้หัดสุนัขและโรคนิวคาสเซิลในสัตว์ปีก",
+    "keyTakeaways": [
+      "Paramyxoviridae เป็น enveloped negative-sense ssRNA มีโปรตีน F (Fusion) ทำให้เยื่อหุ้มเซลล์ที่ติดเชื้อหลอมรวมกันเกิดเซลล์ยักษ์หลายนิวเคลียส (Syncytia)",
+      "Canine Distemper Virus (CDV): ก่อโรคไข้หัดสุนัข มีไข้สองระยะ (Biphasic fever) น้ำมูกขี้ตาเขียว ปอดอักเสบ ท้องเสีย ฝ่าเท้าและจมูกหนาแข็ง (Hard pad disease) และชักเคี้ยวฟัน (Chewing gum fit)",
+      "CDV ก่อให้เกิด Inclusion bodies ได้ทั้งใน Cytoplasm และใน Nucleus (Intracytoplasmic & Intranuclear inclusion bodies)",
+      "Newcastle Disease Virus (NDV): ไวรัสนิวคาสเซิลในไก่ แบ่งความรุนแรงเป็น Velogenic (รุนแรงมาก อัมพาต คอบิด คล้ายหวัดนก), Mesogenic (ปานกลาง), และ Lentogenic (อ่อน)",
+      "Nipah & Hendra Viruses (Henipavirus): โรคอุบัติใหม่ติดต่อจากค้างคาวแม่ไก่สู่สุกร ม้า และมนุษย์ ก่อสมองอักเสบและปอดอักเสบรุนแรง"
+    ],
+    "targetFamilies": [
+      "Paramyxoviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Canine Distemper Virus (CDV)",
+        "nameEn": "Canine Distemper",
+        "family": "Paramyxoviridae",
+        "host": "สุนัข, สัตว์กินเนื้อป่า",
+        "keyPathology": "Hard pad disease, biphasic fever, chewing gum fits, and syncytia",
+        "virusId": "cdv"
+      },
+      {
+        "name": "Newcastle Disease Virus (NDV)",
+        "nameEn": "Newcastle Disease (Ranikhet)",
+        "family": "Paramyxoviridae",
+        "host": "ไก่, สัตว์ปีก",
+        "keyPathology": "Velogenic viscerotropic/neurotropic, torticollis, petechial hemorrhages",
+        "virusId": "ndv"
+      }
+    ],
+    "slideOutline": [
+      "คุณสมบัติของโปรตีน HN/H/G และ F glycoprotein ใน Paramyxoviridae",
+      "การเกิดพยาธิสภาพของโรคไข้หัดสุนัข (CDV) ในระบบน้ำเหลือง ทางเดินหายใจ และสมอง",
+      "การจัดสายพันธุ์ของ NDV (Doyle, Beach, Beaudette, Hitchner forms)",
+      "Zoonotic Paramyxoviruses: Hendra and Nipah viruses"
+    ],
+    "themeColor": "from-orange-600 to-amber-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 8,
+    "chapterNumber": "บทที่ 08",
+    "title": "Orthomyxoviridae",
+    "titleEn": "Orthomyxoviridae",
+    "facultyReference": "Slide 08: Segmented Genome, Hemagglutinin & Antigenic Shift",
+    "description": "ไวรัสไข้หวัดใหญ่และไข้หวัดนก จีโนมแบ่งเป็น 8 ท่อน นำไปสู่การกลายพันธุ์ข้ามสปีชีส์ผ่านกระบวนการ Antigenic Drift และ Antigenic Shift",
+    "keyTakeaways": [
+      "Orthomyxoviridae เป็น enveloped negative-sense ssRNA ที่มีจีโนมแยกเป็น 6-8 ท่อน (Segmented genome) ทำให้เกิดยีนสลับสาย (Reassortment) ได้ง่าย",
+      "Hemagglutinin (HA / H): โปรตีนหนามทำหน้าที่จับกับ Sialic acid receptor บนผิวเซลล์โฮสต์ เพื่อนำไวรัสเข้าสู่เซลล์",
+      "Neuraminidase (NA / N): เอนไซม์ทำหน้าที่ตัดกรดไซอะลิกเพื่อปลดปล่อยอนุภาคไวรัสใหม่ออกจากเซลล์",
+      "Antigenic Drift: การกลายพันธุ์แบบจุดสะสมทีละน้อยในยีน HA/NA ก่อการระบาดประจำฤดู",
+      "Antigenic Shift: การแลกเปลี่ยนชิ้นส่วนยีนจีโนมทั้งท่อนเมื่อสัตว์ติดเชื้อไวรัส 2 สายพันธุ์พร้อมกัน ก่อให้เกิดไวรัสสายพันธุ์ใหม่ทั้งหมดและเกิดโรคระบาดใหญ่ระดับโลก (Pandemic)",
+      "สุกรเปรียบเสมือน 'Mixing vessel' เนื่องจากมีตัวรับทั้งแบบสัตว์ปีก (alpha-2,3) และแบบมนุษย์ (alpha-2,6)"
+    ],
+    "targetFamilies": [
+      "Orthomyxoviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Avian Influenza Virus (AIV)",
+        "nameEn": "Highly Pathogenic Avian Influenza (HPAI)",
+        "family": "Orthomyxoviridae",
+        "host": "สัตว์ปีก, มนุษย์",
+        "keyPathology": "H5N1, cyanosis of comb and wattles, facial edema, subcutaneous petechiae",
+        "virusId": "ai"
+      },
+      {
+        "name": "Swine Influenza Virus (SIV)",
+        "nameEn": "Swine Flu (H1N1, H3N2)",
+        "family": "Orthomyxoviridae",
+        "host": "สุกร",
+        "keyPathology": "Paroxysmal barking cough, high morbidity, low mortality, mixing vessel role",
+        "virusId": "siv"
+      }
+    ],
+    "slideOutline": [
+      "โครงสร้างของไวรัสไข้หวัดใหญ่ Influenza A และชิ้นส่วนจีโนมทั้ง 8 ท่อน",
+      "กลไกของโปรตีน HA, NA, และ M2 ion channel",
+      "ความแตกต่างระหว่าง Antigenic Drift และ Antigenic Shift",
+      "พยาธิกำเนิดของไข้หวัดนกชนิดรุนแรงสูง (HPAI) และการตัดย่อย cleavage site ของ HA"
+    ],
+    "themeColor": "from-teal-600 to-cyan-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 9,
+    "chapterNumber": "บทที่ 09",
+    "title": "Coronaviridae",
+    "titleEn": "Coronaviridae",
+    "facultyReference": "Slide 09: Spike Glycoprotein, FIP & Swine Enteric Coronaviruses",
+    "description": "ไวรัสอาร์เอ็นเอสายเดี่ยวขนาดใหญ่ที่สุด มีหนาม Spike คล้ายมงกุฎ ก่อโรคเยื่อบุช่องท้องอักเสบติดต่อในแมว (FIP) และโรคท้องเสียรุนแรงในลูกสุกร",
+    "keyTakeaways": [
+      "Coronaviridae เป็น enveloped positive-sense ssRNA ที่มีจีโนมยาวที่สุด (27-32 kb) มีโปรตีน Spike (S) ทำหน้าที่เกาะติดเซลล์โฮสต์",
+      "Feline Coronavirus (FCoV) ชนิดไม่รุนแรงในลำไส้ สามารถกลายพันธุ์ในร่างกายแมวเป็น Feline Infectious Peritonitis Virus (FIPV) ซึ่งติดเชื้อและเพิ่มจำนวนใน Macrophages",
+      "FIP แบบเปียก (Wet/Effusive form): ภูมิคุ้มกันผ่านเซลล์ต่ำ ทำให้เกิดเยื่อบุช่องท้อง/ช่องอกอักเสบและมีน้ำคัดหลั่งข้นสีเหลืองฟางโปรตีนสูง (Straw-colored exudate)",
+      "FIP แบบแห้ง (Dry/Non-effusive form): เกิดก้อน Pyogranuloma ตามอวัยวะภายใน เช่น ม้าม ไต ดวงตา (Uveitis) และระบบประสาท",
+      "Porcine Epidemic Diarrhea Virus (PEDV) & TGEV: ก่อโรคลำไส้อักเสบในสุกร ขนวิลไลในลำไส้เล็กฝ่อลีบ ถ่ายเหลวเป็นน้ำรุนแรง ตายเกือบ 100% ในลูกสุกรอายุน้อยกว่า 1 สัปดาห์"
+    ],
+    "targetFamilies": [
+      "Coronaviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Feline Infectious Peritonitis (FIP)",
+        "nameEn": "Feline Coronavirus (FIPV)",
+        "family": "Coronaviridae",
+        "host": "แมว",
+        "keyPathology": "Macrophage tropism, straw-colored peritoneal effusion, pyogranulomatous vasculitis",
+        "virusId": "fip"
+      },
+      {
+        "name": "Porcine Epidemic Diarrhea (PEDV)",
+        "nameEn": "Porcine Epidemic Diarrhea",
+        "family": "Coronaviridae",
+        "host": "สุกร",
+        "keyPathology": "Severe watery diarrhea, dehydration, near 100% piglet mortality",
+        "virusId": "pedv"
+      }
+    ],
+    "slideOutline": [
+      "โครงสร้างของ Coronaviridae และเอนไซม์ Replicase/Proofreading",
+      "กลไกการกลายพันธุ์จาก FCoV เป็น FIPV (Macrophage internal mutation theory)",
+      "โรคเยื่อบุช่องท้องอักเสบติดต่อในแมว (FIP) อาการ แบบเปียก vs แบบแห้ง และการวินิจฉัยด้วย Rivalta test",
+      "Swine Enteric Coronaviruses: PEDV, TGEV, และ Deltacoronavirus"
+    ],
+    "themeColor": "from-emerald-600 to-teal-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 10,
+    "chapterNumber": "บทที่ 10",
+    "title": "Rhabdoviridae & Birnaviridae",
+    "titleEn": "Rhabdoviridae & Birnaviridae",
+    "facultyReference": "Slide 10: Bullet-Shaped Lyssavirus, Rabies & IBDV",
+    "description": "ไวรัสพิษสุนัขบ้ารูปทรงกระสุนปืนที่มีความรุนแรงถึงแก่ชีวิต 100% และไวรัสเบอร์นาที่ทำลายอวัยวะภูมิคุ้มกันในสัตว์ปีก",
+    "keyTakeaways": [
+      "Rhabdoviridae: ไวรัสรูปทรงกระสุนปืน (Bullet-shaped) มีเปลือกหุ้ม จีโนม (-)ssRNA ในจีนัส Lyssavirus คือ Rabies virus",
+      "Rabies virus ติดต่อทางน้ำลายผ่านบาดแผลกัด เข้าเพิ่มจำนวนในกล้ามเนื้อบริเวณแผล แล้วเดินทางย้อนตามเส้นประสาท (Retrograde axoplasmic transport) เข้าสู่ไขสันหลังและสมอง",
+      "อาการแสดงมี 2 รูปแบบ: แบบดุร้าย (Furious form - ดุร้าย กระวนกระวาย กัดทุกสิ่ง) และแบบเซื่องซึม/อัมพาต (Dumb/Paralytic form - ขากรรไกรตก ลิ้นห้อย กลืนลำบาก น้ำลายไหล)",
+      "พยาธิสภาพลักษณะเฉพาะ (Pathognomonic lesion) ของโรคพิษสุนัขบ้าคือ Negri bodies (intracytoplasmic eosinophilic inclusion bodies) ใน Purkinje cells ของสมองน้อยและเซลล์พีระมิดในฮิปโปแคมปัส",
+      "Birnaviridae: ไวรัส dsRNA แบ่ง 2 ท่อน ไม่มีเปลือกหุ้ม ไวรัสกัมโบโร (IBDV) ทำลาย B-lymphocytes ในถุงเบอร์ซา (Bursa of Fabricius) ของลูกไก่ ก่อภาวะกดภูมิคุ้มกันรุนแรง"
+    ],
+    "targetFamilies": [
+      "Rhabdoviridae",
+      "Birnaviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Rabies Virus",
+        "nameEn": "Rabies Virus (Lyssavirus)",
+        "family": "Rhabdoviridae",
+        "host": "สัตว์เลี้ยงลูกด้วยนมทุกชนิด",
+        "keyPathology": "Bullet-shaped, retrograde axoplasmic flow, Negri bodies, fatal encephalitis",
+        "virusId": "rabies"
+      },
+      {
+        "name": "Infectious Bursal Disease Virus (IBDV)",
+        "nameEn": "Gumboro Disease",
+        "family": "Birnaviridae",
+        "host": "ไก่",
+        "keyPathology": "Bisegmented dsRNA, severe atrophy and edema of Bursa of Fabricius",
+        "virusId": "ibdv"
+      }
+    ],
+    "slideOutline": [
+      "โครงสร้างรูปกระสุนปืนของ Rhabdoviridae และโปรตีน N, P, M, G, L",
+      "การเดินทางของ Rabies virus ตามเส้นประสาทและอาการทางคลินิก (Furious vs Dumb)",
+      "การวินิจฉัยโรคพิษสุนัขบ้าด้วยเทคนิค Fluorescent Antibody Test (FAT) และ Negri bodies",
+      "Infectious Bursal Disease (IBDV): โครงสร้าง ความทนทาน และผลกระทบต่อระบบภูมิคุ้มกันของสัตว์ปีก"
+    ],
+    "themeColor": "from-red-600 to-rose-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 11,
+    "chapterNumber": "บทที่ 11",
+    "title": "Togaviridae & Flaviviridae",
+    "titleEn": "Togaviridae & Flaviviridae",
+    "facultyReference": "Slide 11: Pestiviruses, Mucosal Disease, CSFV & Arboviruses",
+    "description": "กลุ่มไวรัสอาร์เอ็นเอสายบวก มีเปลือกหุ้ม ไวรัสเพสติไวรัสก่อโรคท้องเสียรุนแรงในโค อหิวาต์สุกร และไวรัสกลุ่มที่มีแมลงดูดเลือดเป็นพาหะ",
+    "keyTakeaways": [
+      "Flaviviridae จีนัส Pestivirus ประกอบด้วยไวรัสสำคัญทางการปศุสัตว์ ได้แก่ BVDV (โค) และ CSFV (สุกร)",
+      "Bovine Viral Diarrhea Virus (BVDV): หากแม่โคติดเชื้อช่วงตั้งท้องวันที่ 40-125 ลูกโคจะเกิดภาวะทนทานต่อเชื้อ (Persistent Infection - PI) และตรวจไม่พบภูมิคุ้มกัน เมื่อติดเชื้อซ้ำด้วยสายพันธุ์ cytopathic จะกลายเป็นโรคเยื่อบุเมือกอักเสบ (Mucosal Disease) ที่มีอัตราตายสูงมาก",
+      "Classical Swine Fever Virus (CSFV / Hog Cholera): ทำให้เกิดจุดเลือดออกคล้ายไข่นกไก่วงที่ไต (Turkey egg kidney), แผลหลุมคล้ายกระดุมในลำไส้ใหญ่ (Button ulcers), และขอบม้ามตาย (Splenic infarction)",
+      "Japanese Encephalitis Virus (JEV - Flavivirus): มียุงรำคาญ (Culex) เป็นพาหะ สุกรเป็น Amplifying host (ทำให้แม่สุกรแท้ง ลูกตายแรกคลอด) และทำให้ม้าและมนุษย์เกิดสมองอักเสบ",
+      "Equine Encephalomyelitis (EEE/WEE/VEE - Togaviridae): ไวรัสกลุ่ม Alphavirus ติดต่อโดยยุง ก่อสมองอักเสบเฉียบพลันในม้า"
+    ],
+    "targetFamilies": [
+      "Togaviridae",
+      "Flaviviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Classical Swine Fever Virus (CSFV)",
+        "nameEn": "Hog Cholera",
+        "family": "Flaviviridae",
+        "host": "สุกร",
+        "keyPathology": "Turkey egg kidney, button ulcers, splenic infarcts, high fever and leukopenia",
+        "virusId": "csfv"
+      },
+      {
+        "name": "Bovine Viral Diarrhea Virus (BVDV)",
+        "nameEn": "BVDV / Mucosal Disease",
+        "family": "Flaviviridae",
+        "host": "โค, กระบือ",
+        "keyPathology": "Persistently infected (PI) calves, immune tolerance, mucosal ulcerations",
+        "virusId": "bvdv"
+      }
+    ],
+    "slideOutline": [
+      "ลักษณะของ Flaviviridae และจีนัส Pestivirus",
+      "พยาธิกำเนิดของ BVDV และการเกิดลูกโคติดเชื้อเรื้อรัง (PI status)",
+      "Classical Swine Fever: พยาธิสภาพทางมหกายวิภาค (Turkey egg kidney, Button ulcers)",
+      "Arboviruses: JEV, WNV, และ Equine Encephalomyelitis (EEE/WEE)"
+    ],
+    "themeColor": "from-lime-600 to-emerald-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 12,
+    "chapterNumber": "บทที่ 12",
+    "title": "Reoviridae & Bunyaviridae",
+    "titleEn": "Reoviridae & Bunyaviridae",
+    "facultyReference": "Slide 12: Orbiviruses, Bluetongue, African Horse Sickness & Culicoides",
+    "description": "กลุ่มไวรัสจีโนมแยกเป็นชิ้นส่วน (Segmented dsRNA/ssRNA) ที่มียุงและริ้นน้ำเค็มเป็นพาหะ ก่อโรคบลูทังก์ในแกะและโรคกาฬโรคม้าแอฟริกา",
+    "keyTakeaways": [
+      "Reoviridae (Orbivirus): ไวรัสไม่มีเปลือกหุ้ม มีจีโนมเป็น dsRNA แยกเป็น 10 ท่อน แพร่กระจายโดยแมลงริ้นดูดเลือด (Culicoides spp.)",
+      "Bluetongue Virus (BTV): เกิดโรคบลูทังก์ในแกะและโค ทำให้เยื่อบุช่องปากอักเสบบวมแดง ลิ้นบวมคั่งเลือดขาดออกซิเจนจนมีสีเขียวคล้ำ (Blue tongue), ขอบกีบอักเสบ (Coronitis) เดินกะเผลก",
+      "African Horse Sickness Virus (AHSV): โรคกาฬโรคม้าแอฟริกา แบ่งเป็น 2 รูปแบบเด่น:",
+      "1) Dunkop (Pulmonary form): น้ำท่วมปอดอย่างรุนแรง ฟองอากาศฟูทะลักออกจากรูจมูก หายใจไม่ออก ตายรวดเร็ว",
+      "2) Dikkop (Cardiac form): บวมน้ำที่รอยหวำเหนือเบ้าตา (Supraorbital fossa edema), ตาบวมคั่งเลือด คอและอกบวมน้ำ",
+      "Bunyavirales (Rift Valley Fever): มีจีโนม 3 ท่อน ก่อพายุแท้ง (Abortion storm) ในแกะและโค และเป็นโรคติดต่อสู่คน (Zoonosis)"
+    ],
+    "targetFamilies": [
+      "Reoviridae",
+      "Bunyaviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "African Horse Sickness (AHSV)",
+        "nameEn": "African Horse Sickness",
+        "family": "Reoviridae",
+        "host": "ม้า, ลา, ล่อ",
+        "keyPathology": "Culicoides vector, Dunkop pulmonary froth, Dikkop supraorbital edema",
+        "virusId": "ahsv"
+      },
+      {
+        "name": "Bluetongue Virus (BTV)",
+        "nameEn": "Bluetongue Disease",
+        "family": "Reoviridae",
+        "host": "แกะ, โค, สัตว์เคี้ยวเอื้อง",
+        "keyPathology": "Cyanosis of tongue, coronitis, facial edema, Culicoides transmission",
+        "virusId": "btv"
+      }
+    ],
+    "slideOutline": [
+      "โครงสร้างของ Reoviridae และจีโนม 10-segmented dsRNA",
+      "ชีววิทยาของแมลงพาหะริ้นน้ำเค็ม Culicoides และการกระจายตัวของโรค",
+      "พยาธิวิทยาของ AHSV รูปแบบ Dunkop (ปอด) vs Dikkop (หัวใจ)",
+      "โรคบลูทังก์ในแกะ และ Bunyaviruses (Rift Valley Fever, Schmallenberg virus)"
+    ],
+    "themeColor": "from-violet-600 to-purple-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 13,
+    "chapterNumber": "บทที่ 13",
+    "title": "Picornaviridae & Caliciviridae",
+    "titleEn": "Picornaviridae & Caliciviridae",
+    "facultyReference": "Slide 13: Foot-and-Mouth Disease, Vesicular Lesions & Feline Calici",
+    "description": "กลุ่มไวรัสอาร์เอ็นเอเปลือยขนาดเล็ก ไวรัสปากและเท้าเปื่อยในสัตว์กีบคู่ และไวรัสคาลิซิที่ก่อแผลหลุมในปากแมว",
+    "keyTakeaways": [
+      "Picornaviridae: ไวรัสขนาดเล็กมาก (Pico-RNA) ไม่มีเปลือกหุ้ม จีโนม (+)ssRNA ทนต่อสภาวะแวดล้อมได้ดี",
+      "Foot-and-Mouth Disease Virus (FMDV - Aphthovirus): โรคปากและเท้าเปื่อยในสัตว์กีบคู่ (โค กระบือ สุกร แพะ แกะ) มี 7 Serotypes (O, A, C, SAT 1, SAT 2, SAT 3, Asia 1) ซึ่งไม่มีภูมิคุ้มกันข้ามซีโรไทป์",
+      "FMD ทำให้เกิดตุ่มน้ำใส (Vesicles) ที่ปาก ลิ้น จมูก เต้านม และไรกีบ เมื่อตุ่มแตกจะเป็นแผลหลุมลึก เจ็บปวด น้ำลายไหลยืด เดินกะเผลก",
+      "ในลูกสัตว์อายุน้อย FMDV ทำให้กล้ามเนื้อหัวใจอักเสบตายเป็นรอยด่างขาวดำ เรียกว่า 'Tiger heart' และตายเฉียบพลัน",
+      "Feline Calicivirus (FCV - Caliciviridae): ไวรัสหวัดแมวที่มีรอยบุ๋มคล้ายถ้วย (Calix) ก่อแผลหลุมที่ขอบลิ้นและเพดานปาก (Oral ulceration) น้ำมูกไหล และข้อต่ออักเสบเดินกะเผลกชั่วคราว (Limping kitten syndrome)"
+    ],
+    "targetFamilies": [
+      "Picornaviridae",
+      "Caliciviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Foot-and-Mouth Disease (FMDV)",
+        "nameEn": "Foot-and-Mouth Disease",
+        "family": "Picornaviridae",
+        "host": "สัตว์กีบคู่ (โค, สุกร, แกะ)",
+        "keyPathology": "7 serotypes, vesicles on mouth, feet, and teats, 'Tiger heart' in calves",
+        "virusId": "fmdv"
+      },
+      {
+        "name": "Feline Calicivirus (FCV)",
+        "nameEn": "Feline Calicivirus",
+        "family": "Caliciviridae",
+        "host": "แมว",
+        "keyPathology": "Tongue ulcers, rhinitis, limping kitten syndrome, virulent systemic FCV",
+        "virusId": "fcv"
+      }
+    ],
+    "slideOutline": [
+      "ลักษณะของ Picornaviridae และ 7 Serotypes ของ FMDV",
+      "พยาธิกำเนิดของรอยโรคตุ่มน้ำ (Vesicular lesions) และการแยกโรค FMD กับ Vesicular stomatitis",
+      "สัณฐานวิทยาของ Caliciviridae รูปทรงถ้วย (Calix)",
+      "FCV: แผลหลุมในปากแมว ภาวะข้ออักเสบ และโรคทางระบบรุนแรงเฉียบพลัน (VS-FCV)"
+    ],
+    "themeColor": "from-amber-600 to-yellow-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 14,
+    "chapterNumber": "บทที่ 14",
+    "title": "Arteriviridae & Circoviridae",
+    "titleEn": "Arteriviridae & Circoviridae",
+    "facultyReference": "Slide 14: PRRSV, Equine Arteritis & Smallest DNA Circoviruses",
+    "description": "กลุ่มไวรัสหลอดเลือดแดงอักเสบ ไวรัสพีอาร์อาร์เอสในสุกร และไวรัสเซอร์โคที่มีขนาดจีโนมเล็กที่สุดที่ก่อกลุ่มอาการผอมแคระแกร็นในลูกสุกร",
+    "keyTakeaways": [
+      "Arteriviridae: ไวรัส enveloped (+)ssRNA ที่มีความชอบจำเพาะในการติดเชื้อที่เซลล์ Macrophages โดยเฉพาะ Alveolar macrophages ในปอด",
+      "Porcine Reproductive and Respiratory Syndrome Virus (PRRSV): โรคหูสีน้ำเงินในสุกร ก่อปัญหาแท้งลูกช่วงท้ายของการตั้งท้อง มัมมี่ ลูกตายแรกคลอด และปอดอักเสบแบบคั่น (Interstitial pneumonia) ในลูกสุกร",
+      "Equine Arteritis Virus (EAV): ก่อโรคหลอดเลือดแดงอักเสบในม้า มีไข้ เยื่อบุตาอักเสบ (Pink eye) หนังตาบวมน้ำ ม้าพ่อพันธุ์ที่ติดเชื้อสามารถเป็น 'Stallion carrier' และปล่อยเชื้อในน้ำเชื้อได้ตลอดชีวิต",
+      "Circoviridae: ไวรัสจีโนม ssDNA วงกลมขนาดเล็กที่สุดในบรรดาไวรัสสัตว์ ไม่มีเปลือกหุ้ม ทนทานสูงมาก",
+      "Porcine Circovirus Type 2 (PCV-2): ก่อกลุ่มอาการผอมแคระแกร็นหลังหย่านม (PMWS), ปอดอักเสบ, ต่อมน้ำเหลืองโตทั่วร่างกาย, และโรคผิวหนังและไตอักเสบ (PDNS)"
+    ],
+    "targetFamilies": [
+      "Arteriviridae",
+      "Circoviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "PRRS Virus (PRRSV)",
+        "nameEn": "Porcine Reproductive and Respiratory Syndrome",
+        "family": "Arteriviridae",
+        "host": "สุกร",
+        "keyPathology": "Alveolar macrophage tropism, cyanosis of ears ('Blue ear'), late-term abortion",
+        "virusId": "prrs"
+      },
+      {
+        "name": "Porcine Circovirus 2 (PCV-2)",
+        "nameEn": "Postweaning Multisystemic Wasting Syndrome",
+        "family": "Circoviridae",
+        "host": "สุกร",
+        "keyPathology": "Circular ssDNA, PMWS wasting, generalized lymphadenopathy, PDNS",
+        "virusId": "pcv2"
+      }
+    ],
+    "slideOutline": [
+      "คุณสมบัติของ Arteriviridae และการเพิ่มจำนวนใน Macrophages",
+      "PRRSV สายพันธุ์ยุโรป (Type 1) vs สายพันธุ์อเมริกาเหนือ (Type 2)",
+      "EAV: การแพร่กระจายผ่านน้ำเชื้อของม้าพ่อพันธุ์ และการควบคุมโรค",
+      "Circoviridae: โครงสร้าง circular ssDNA, PCV-2, PMWS, และโรคนกแก้วจงอยปากขนผิดปกติ (BFDV)"
+    ],
+    "themeColor": "from-pink-600 to-rose-600",
+    "rewardExp": 50
+  },
+  {
+    "id": 15,
+    "chapterNumber": "บทที่ 15",
+    "title": "Other Viruses & Prions",
+    "titleEn": "Other Viruses & Prion Diseases",
+    "facultyReference": "Slide 15: Transmissible Spongiform Encephalopathies & Atypical Agents",
+    "description": "ศึกษาอนุภาคติดเชื้อโปรตีนพับตัวผิดรูป (พรีออน) โรควัวบ้า โรคสแครปี และไวรัสอื่นๆ ที่มีความสำคัญทางสัตวแพทย์",
+    "keyTakeaways": [
+      "Prions (Proteinaceous Infectious Particles): ไม่จัดเป็นไวรัสเนื่องจาก 'ไม่มีกรดนิวคลีอิก' (No DNA / No RNA) ประกอบด้วยโปรตีนล้วน",
+      "กลไกการก่อโรค: โปรตีนปกติของโฮสต์ (PrPC ที่เป็นอัลฟาฮีลิกซ์) เกิดการเปลี่ยนรูปร่างไปเป็นโปรตีนผิดปกติ (PrPSc ที่มีโครงสร้างเบต้าชีตสูง)",
+      "PrPSc มีความทนทานต่อสิ่งแวดล้อม ความร้อน ออโตเคลฟ รังสี และเอนไซม์ย่อยโปรตีน (Protease) ได้อย่างน่าทึ่ง",
+      "Bovine Spongiform Encephalopathy (BSE - โรควัวบ้า): ก่อสมองฝ่อพรุนคล้ายฟองน้ำ (Spongiform vacuolation) ดุร้าย เสียการทรงตัว และสามารถติดต่อสู่คนทำให้เกิดโรค variant Creutzfeldt-Jakob Disease (vCJD)",
+      "Scrapie ในแกะและแพะ: อาการคันรุนแรงจนขนหลุดลุ่ย เสียการทรงตัว และตาย",
+      "Bornaviridae (Borna disease): ก่อโรคทางระบบประสาทและพฤติกรรมในม้า และ Avian Bornavirus ทำให้เกิดโรคกระเพาะพักขยายตัวผิดปกติ (PDD) ในนกปากขอ"
+    ],
+    "targetFamilies": [
+      "Prions (TSEs)",
+      "Bornaviridae",
+      "Astroviridae"
+    ],
+    "featuredViruses": [
+      {
+        "name": "Bovine Spongiform Encephalopathy (BSE)",
+        "nameEn": "Mad Cow Disease (Prion PrPSc)",
+        "family": "Prion",
+        "host": "โค, มนุษย์ (vCJD)",
+        "keyPathology": "Beta-sheet rich PrPSc, neuronal spongiform vacuolation, extreme resistance",
+        "virusId": "bse"
+      },
+      {
+        "name": "Scrapie Prion",
+        "nameEn": "Scrapie in Sheep & Goats",
+        "family": "Prion",
+        "host": "แกะ, แพะ",
+        "keyPathology": "Severe pruritus, wool rubbing, tremors, progressive neurodegeneration",
+        "virusId": "scrapie"
+      }
+    ],
+    "slideOutline": [
+      "ทฤษฎี Prion-only hypothesis และความแตกต่างระหว่าง PrPC กับ PrPSc",
+      "โรคสมองฟองน้ำติดต่อ (TSEs): BSE, Scrapie, และ Chronic Wasting Disease (CWD) ในกวาง",
+      "ความเชื่อมโยงของโรควัวบ้ากับการเกิด vCJD ในมนุษย์ และการห้ามใช้อาหารสัตว์ผสมโปรตีนสัตว์เคี้ยวเอื้อง (MBM)",
+      "ไวรัสกลุ่มพิเศษ: Bornaviridae (PDD ในนก) และ Astroviridae"
+    ],
+    "themeColor": "from-purple-600 to-indigo-600",
+    "rewardExp": 50
+  }
+];

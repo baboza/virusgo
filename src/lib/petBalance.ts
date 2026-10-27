@@ -22,6 +22,7 @@ export interface PetCombatStats {
   defense: number;
   quizTime: number;
   critRate: number;
+  armyAtkBonusPercent: number;
   combatPower: number;
   rankTitle: string;
   rankTier: string;
@@ -51,13 +52,14 @@ export function getEffectivePetStats(
   const spentPoints = Math.min(MAX_PET_STAT_POINTS, Math.max(0, Number(rawStats?.spentPoints || 0)));
   const availablePoints = Math.max(0, totalEarnedPoints - spentPoints);
 
-  // 2. Combat Formulas
+  // 2. Combat Formulas (Aligned with HoMM Empire System)
   const maxHp = 100 + (vit * 20);
-  const atk = 20 + (str * 10);
-  const def = Math.floor(vit * 5);
-  const quizTime = 15 + (agi * 2);
-  const critRate = Math.min(75, dex * 5);
-  const combatPower = Math.floor((maxHp * 1.2) + (atk * 2.5) + (def * 2) + (critRate * 10) + (quizTime * 5));
+  const armyAtkBonusPercent = str * 5; // +5% damage per STR point for the stack
+  const atk = Math.round(20 * (1 + (str * 0.05)));
+  const def = Math.floor(vit * 2);
+  const quizTime = Math.min(18, 15 + Math.min(3, Math.floor(agi / 3))); // 15-18s (base without scroll)
+  const critRate = Math.min(40, dex * 4); // Capped at 40% (matching battle/page.tsx: Math.min(0.40, dex * 0.04))
+  const combatPower = Math.floor((maxHp * 1.5) + (str * 35) + (def * 15) + (critRate * 25) + (quizTime * 10));
 
   // 3. Prestige Rank Titles based on user EXP (Honoring veteran dedication beyond stat cap)
   let rankTitle = 'ผู้พิทักษ์ฝึกหัด (Cadet)';
@@ -103,6 +105,7 @@ export function getEffectivePetStats(
     defense: def,
     quizTime,
     critRate,
+    armyAtkBonusPercent,
     combatPower,
     rankTitle,
     rankTier,

@@ -25,6 +25,7 @@ export interface HeroArmyData {
   equipment?: HeroEquipment;
   stacks?: HeroUnitStack[];
   lastReplicated?: string;
+  lastPassiveRegen?: string;
 }
 
 export interface VirusPetData {
@@ -69,6 +70,7 @@ export interface User {
   level: number;
   badges: string[];
   completedLessons: string[];
+  completedChapters?: number[];
   accuracy: number;
   createdAt: number;
   pet?: VirusPetData;

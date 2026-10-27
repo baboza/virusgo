@@ -752,6 +752,111 @@ export default function StudentEmpirePage() {
     return set;
   }, [tiles, appUser?.uid]);
 
+  // Tactical Adjacency & March Range Enforcement
+  const isTargetAttackable = useMemo(() => {
+    if (!selectedCoord || isSpectatorMode) {
+      return { canAttack: false, reason: 'อยู่ในโหมดส่องดูแผนที่ (Spectator Mode)' };
+    }
+    
+    const [tx, ty] = selectedCoord.split(',').map(Number);
+    if (isNaN(tx) || isNaN(ty)) {
+      return { canAttack: false, reason: 'พิกัดไม่ถูกต้อง' };
+    }
+    
+    if (activeContinent === 'pangaea' && isPangaeaOceanTile(tx, ty)) {
+      return { canAttack: false, reason: '🌊 มหาสมุทรชีวภาพลึก ไม่สามารถเดินทัพได้ กรุณาใช้สะพานบกยุทธศาสตร์' };
+    }
+
+    // Count user's owned tiles on this continent
+    const userOwnedTiles = Object.values(tiles).filter(t => t.ownerUid === appUser?.uid);
+    const userTileCount = userOwnedTiles.length;
+
+    // Rule 1: First Drop Pod Landing (User owns 0 tiles on this continent)
+    if (userTileCount === 0) {
+      return { canAttack: true, reason: '🎯 พื้นที่ลงจอดปฐมภูมิ (Drop Pod Genesis)' };
+    }
+
+    // Rule 2: Adjacency (8 directions Chebyshev distance <= 1 from user or guild tile)
+    const myGuildId = appUser?.guildId;
+    const isAdjacentToFriendly = Object.values(tiles).some(t => {
+      const isFriendly = (t.ownerUid === appUser?.uid) || Boolean(myGuildId && t.guildId === myGuildId);
+      if (!isFriendly) return false;
+      const dx = Math.abs(t.x - tx);
+      const dy = Math.abs(t.y - ty);
+      return dx <= 1 && dy <= 1 && (dx + dy > 0);
+    });
+
+    if (isAdjacentToFriendly) {
+      return { canAttack: true, reason: '🔗 เชื่อมต่อกับอาณาเขตของตนเองหรือกิลด์' };
+    }
+
+    // Rule 3: March Range from Stationed Hero (Chebyshev distance <= 2)
+    if (heroPetCoord) {
+      const [hx, hy] = heroPetCoord.split(',').map(Number);
+      if (!isNaN(hx) && !isNaN(hy)) {
+        const hDist = Math.max(Math.abs(hx - tx), Math.abs(hy - ty));
+        if (hDist <= 2) {
+          return { canAttack: true, reason: `⚔️ อยู่ในรัศมีเดินทัพของฮีโร่ (${hDist} ช่อง)` };
+        }
+      }
+    }
+
+    return {
+      canAttack: false,
+      reason: '🔭 อยู่นอกระยะเดินทัพ! ต้องเชื่อมต่อกับอาณาเขตเดิม (Adjacency) หรืออยู่ในรัศมีเดินทัพของฮีโร่ (March Range ไม่เกิน 2 ช่อง)',
+    };
+  }, [selectedCoord, isSpectatorMode, activeContinent, tiles, appUser?.uid, appUser?.guildId, heroPetCoord]);
+
+  // Handler: Station Hero at Owned Base
+  const [stationingHero, setStationingHero] = useState(false);
+
+  const handleStationHero = async (targetCoord: string) => {
+    if (!appUser?.uid || isSpectatorMode || stationingHero) return;
+    const targetTile = tiles[targetCoord];
+    if (!targetTile || targetTile.ownerUid !== appUser.uid) {
+      alert('คุณสามารถย้ายฮีโร่มาประจำการได้เฉพาะในดินแดนที่คุณครอบครองเท่านั้น');
+      return;
+    }
+    setStationingHero(true);
+    try {
+      // 1. Clear old stationed tile if any
+      const oldCoord = heroPetCoord;
+      if (oldCoord && oldCoord !== targetCoord) {
+        updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, oldCoord)), {
+          heroStationedUid: null,
+        }).catch(console.error);
+      }
+      // 2. Set new tile stationed
+      await updateDoc(doc(db, 'empire_tiles', toTileDocId(activeContinent, targetCoord)), {
+        heroStationedUid: appUser.uid,
+      });
+      // 3. Update user doc
+      const coordField = activeContinent === 'pangaea' ? 'pet.pangaeaTileCoord' : 'pet.currentTileCoord';
+      await updateDoc(doc(db, 'users', appUser.uid), {
+        [coordField]: targetCoord,
+      });
+      // 4. Update localStorage
+      if (typeof window !== 'undefined') {
+        if (activeContinent === 'pangaea') {
+          localStorage.setItem('virusgo_hero_coord_pangaea', targetCoord);
+        } else {
+          localStorage.setItem(`virusgo_hero_coord_${activeContinent}`, targetCoord);
+          if (activeContinent === 'capsidia') {
+            localStorage.setItem('virusgo_hero_coord', targetCoord);
+          }
+        }
+      }
+      sfx.victory();
+      setActionSuccessMsg(`👑 ย้ายฮีโร่มาประจำการที่ [${targetCoord}] สำเร็จ! พร้อมนำทัพขยายอาณาเขตจากฐานนี้`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Error stationing hero:', err);
+      alert('เกิดข้อผิดพลาดในการย้ายฮีโร่ประจำการ');
+    } finally {
+      setStationingHero(false);
+    }
+  };
+
   // Sync localStorage whenever hero coord updates on home continent or Pangaea
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -804,6 +909,12 @@ export default function StudentEmpirePage() {
       if (confirm('🚨 ไวรัสของคุณบาดเจ็บจากการรบและพลังชีวิตหมดลง! ต้องการไปห้องเพาะเลี้ยงเพื่อรักษาและฟื้นฟู HP หรือไม่?')) {
         router.push('/student/virus-pet');
       }
+      return;
+    }
+
+    // Check Reachability / March Range
+    if (!isGmUser && !isTargetAttackable.canAttack) {
+      alert(isTargetAttackable.reason);
       return;
     }
 
@@ -2612,6 +2723,24 @@ export default function StudentEmpirePage() {
                   <>
                     {/* 2. Attack / Infiltrate Button (Enemy, Neutral, Boss, Decayed) */}
                     {!isMyTile && (() => {
+                      if (!isGmUser && !isTargetAttackable.canAttack) {
+                        return (
+                          <div className="space-y-1.5">
+                            <button
+                              type="button"
+                              disabled
+                              className="w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 bg-slate-800/80 text-slate-400 border border-slate-700/60 cursor-not-allowed shadow-none"
+                            >
+                              <Compass className="w-4 h-4 text-amber-400/80" />
+                              <span>🔭 อยู่นอกระยะเดินทัพ (Out of March Range)</span>
+                            </button>
+                            <p className="text-[10px] text-amber-400/80 text-center font-mono leading-tight">
+                              💡 เดินทัพได้เฉพาะช่องที่ติดกับดินแดนเดิม หรือห่างจากฮีโร่ไม่เกิน 2 ช่อง
+                            </p>
+                          </div>
+                        );
+                      }
+
                       const isEnemyHeroStationed = Boolean(
                         currentTile?.ownerUid && 
                         currentTile.heroStationedUid === currentTile.ownerUid &&
@@ -2668,6 +2797,26 @@ export default function StudentEmpirePage() {
                         <Sparkles className="w-4 h-4" />
                         <span>{restoringUpkeep ? 'กำลังฟื้นฟู...' : 'ฟื้นฟูอาณาเขต (Restore Upkeep - พลังกลับคืน 100%)'}</span>
                       </button>
+                    )}
+
+                    {/* 2.2 Station Hero at Owned Base */}
+                    {isMyTile && (
+                      heroPetCoord === selectedCoord ? (
+                        <div className="p-2.5 rounded-2xl bg-purple-950/40 border border-purple-500/40 text-purple-200 text-xs font-mono flex items-center justify-center gap-2">
+                          <Crown className="w-4 h-4 text-amber-300 animate-bounce" />
+                          <span className="font-bold">👑 ฮีโร่ของคุณประจำการอยู่ที่ฐานนี้</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={stationingHero}
+                          onClick={() => handleStationHero(selectedCoord)}
+                          className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:via-indigo-500 hover:to-cyan-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-purple-950/50 hover:scale-[1.02] active:scale-98 cursor-pointer transition-all"
+                        >
+                          <Crown className="w-4 h-4 text-amber-300" />
+                          <span>{stationingHero ? 'กำลังเคลื่อนย้ายฮีโร่...' : '👑 ย้ายฮีโร่มาประจำการที่ฐานนี้ (Station Hero)'}</span>
+                        </button>
+                      )
                     )}
 
                     {/* 3. Harvest Outpost EXP (if owned outpost) */}

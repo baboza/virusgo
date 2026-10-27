@@ -163,7 +163,7 @@ export default function PlayerHub() {
   // Stats
   const hasPlayedBoss = history.some(h => h.gameId === 'boss-battle' || h.gameId === 'virus-battle');
   const uniqueGamesPlayed = new Set(history.map(h => h.gameId)).size;
-  const completedLessonsCount = appUser.completedLessons?.length || 0;
+  const completedLessonsCount = Math.min(15, appUser.completedChapters?.length ?? (appUser.completedLessons?.length || 0));
   const isEmpireUnlocked = currentExp >= 1000;
   const isPetUnlocked = currentExp >= 1000;
 
