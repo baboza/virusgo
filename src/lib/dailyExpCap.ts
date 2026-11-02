@@ -10,6 +10,7 @@ export const DAILY_EXP_CAPS: Record<string, number> = {
   outbreak: 150,        // 1-2 ครั้ง
   'boss-battle': 150,   // พิชิต 3 บอส (50x3)
   'bio-defense': 240,   // พิชิตด่านภูมิคุ้มกัน TD 10 Waves (80-120 EXP/ด่าน)
+  'vca-practice': 250,  // จำลองสอบ ศรว.ส. สัตวแพทยสภา CBT Simulator (10 EXP/ข้อถูก สูงสุด 250 EXP)
 
   // Multiplayer & Team / Co-op Modes
   pvp: 200,             // ~4 ชัยชนะ หรือเข้าร่วม 13 แมตช์

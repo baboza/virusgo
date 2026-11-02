@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { getViruses } from '@/lib/firebase/virusService';
 import { Virus } from '@/types';
 import { Card } from '@/components/ui/Card';
@@ -262,16 +262,37 @@ export default function LearningModule() {
 
   const curriculumProgressPercent = Math.round((completedChapterIds.size / VET_VIROLOGY_15_CHAPTERS.length) * 100);
 
-  // Active Chapter Questions
+  // Active Chapter Questions with dynamic choice randomization
+  const [shuffledChapterQuestions, setShuffledChapterQuestions] = useState<any[]>([]);
+
+  const generateShuffledChapterQuestions = useCallback((chapterId: number) => {
+    const raw = ALL_15_CHAPTER_QUESTIONS.filter(q => q.chapter === chapterId);
+    return raw.map(q => {
+      const choices = [...(q.choices || [])];
+      for (let i = choices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [choices[i], choices[j]] = [choices[j], choices[i]];
+      }
+      return {
+        ...q,
+        choices
+      };
+    });
+  }, []);
+
   const chapterQuestions = useMemo(() => {
+    if (shuffledChapterQuestions.length > 0 && activeChapter && shuffledChapterQuestions[0]?.chapter === activeChapter.id) {
+      return shuffledChapterQuestions;
+    }
     if (!activeChapter) return [];
-    return ALL_15_CHAPTER_QUESTIONS.filter(q => q.chapter === activeChapter.id);
-  }, [activeChapter]);
+    return generateShuffledChapterQuestions(activeChapter.id);
+  }, [shuffledChapterQuestions, activeChapter, generateShuffledChapterQuestions]);
 
   // Open Chapter Modal
   const handleOpenChapter = (chapter: CurriculumChapter, tab: 'synopsis' | 'pathogens' | 'quiz' = 'synopsis') => {
     setActiveChapter(chapter);
     setModalTab(tab);
+    setShuffledChapterQuestions(generateShuffledChapterQuestions(chapter.id));
     setQuizAnswers({});
     setQuizSubmitted(false);
     setQuizScore(0);
@@ -291,7 +312,7 @@ export default function LearningModule() {
 
     // Calculate score
     let score = 0;
-    chapterQuestions.forEach(q => {
+    chapterQuestions.forEach((q: any) => {
       if (quizAnswers[q.id] === q.answer) {
         score += 1;
       }
@@ -331,6 +352,9 @@ export default function LearningModule() {
   };
 
   const handleRetakeQuiz = () => {
+    if (activeChapter) {
+      setShuffledChapterQuestions(generateShuffledChapterQuestions(activeChapter.id));
+    }
     setQuizAnswers({});
     setQuizSubmitted(false);
     setQuizScore(0);
@@ -1543,7 +1567,7 @@ export default function LearningModule() {
 
                     {/* Questions List */}
                     <div className="space-y-6">
-                      {chapterQuestions.map((qItem, qIdx) => {
+                      {chapterQuestions.map((qItem: any, qIdx: number) => {
                         const selectedChoice = quizAnswers[qItem.id];
                         const isCorrect = selectedChoice === qItem.answer;
 
@@ -1569,12 +1593,20 @@ export default function LearningModule() {
                                     {qItem.q}
                                   </h4>
                                   <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded-md">
-                                      {qItem.virusType}
-                                    </span>
-                                    <span className="text-[10px] font-mono text-cyan-400">
-                                      {qItem.virusName}
-                                    </span>
+                                    {quizSubmitted ? (
+                                      <>
+                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded-md">
+                                          หมวดหมู่: {qItem.virusType}
+                                        </span>
+                                        <span className="text-[10px] font-mono text-cyan-400">
+                                          หัวข้อ: {qItem.virusName}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span className="text-[10px] font-mono text-slate-500">
+                                        คำถามข้อที่ {qIdx + 1} จาก {chapterQuestions.length} ข้อ
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -1602,7 +1634,7 @@ export default function LearningModule() {
 
                             {/* Choices Radio Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                              {qItem.choices.map((choice, cIdx) => {
+                              {qItem.choices.map((choice: string, cIdx: number) => {
                                 const isSelected = selectedChoice === choice;
                                 const isTheRightAnswer = choice === qItem.answer;
 

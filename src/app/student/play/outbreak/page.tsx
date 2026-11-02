@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,7 +18,11 @@ import {
   CheckCircle2,
   ChevronRight,
   BookOpen,
-  Filter
+  Filter,
+  Box,
+  Eye,
+  HeartPulse,
+  Info
 } from 'lucide-react';
 import Link from 'next/link';
 import { sfx } from '@/utils/sound';
@@ -30,6 +35,29 @@ import {
   type ScenarioStep,
   type ScenarioOption
 } from './casesData';
+import { resolveAnimalKind } from '@/components/ui/AnimalHologram3D';
+
+// High-fidelity 3D Animal Hologram Viewer
+const AnimalHologram3D = dynamic(() => import('@/components/ui/AnimalHologram3D'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex flex-col items-center justify-center text-cyan-400 font-mono text-xs gap-2">
+      <div className="w-7 h-7 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+      <span className="tracking-widest uppercase">กำลังเชื่อมต่อแบบจำลองสัตว์ 3D...</span>
+    </div>
+  )
+});
+
+// Diagnostic & Physiological Telemetry profiles
+const ANIMAL_DIAGNOSTIC_INFO: Record<string, { scientificName: string; keyTarget: string; primaryThreat: string; vitalTemp: string }> = {
+  swine: { scientificName: 'Sus scrofa domesticus', keyTarget: 'ทางเดินอาหาร & ปอด (Enteric & Lungs)', primaryThreat: 'PEDV / PRRS / ASF / Erysipelas', vitalTemp: '39.0 - 39.5 °C' },
+  poultry: { scientificName: 'Gallus gallus domesticus', keyTarget: 'ถุงลม & หลอดลม (Trachea & Air Sacs)', primaryThreat: 'Avian Influenza / Newcastle Disease', vitalTemp: '41.0 - 42.0 °C' },
+  bovine: { scientificName: 'Bos taurus / Bos indicus', keyTarget: 'เยื่อบุช่องปาก & ร่องกีบ (Oral Mucosa & Coronary Band)', primaryThreat: 'FMD / BVDV / Lumpy Skin', vitalTemp: '38.5 - 39.0 °C' },
+  canine: { scientificName: 'Canis lupus familiaris', keyTarget: 'ลำไส้เล็ก & ทางเดินหายใจ (Intestinal Crypts & Bronchi)', primaryThreat: 'Parvovirus / Distemper / CIRDC', vitalTemp: '38.0 - 39.2 °C' },
+  feline: { scientificName: 'Felis catus', keyTarget: 'เยื่อบุช่องท้อง & เม็ดเลือดขาว (Peritoneum & Leukocytes)', primaryThreat: 'Panleukopenia (FPV) / FIP', vitalTemp: '38.0 - 39.2 °C' },
+  equine: { scientificName: 'Equus caballus', keyTarget: 'หลอดเลือดปอด & ช่องเบ้าตา (Microvascular & Supraorbital)', primaryThreat: 'African Horse Sickness (AHSV)', vitalTemp: '37.5 - 38.5 °C' },
+  zoonosis: { scientificName: 'One Health Trans-species Nexus', keyTarget: 'ระบบประสาท & น้ำลาย (CNS & Salivary Glands)', primaryThreat: 'Rabies Virus / Zoonotic Flu', vitalTemp: 'Cross-Species Reservoir' },
+};
 
 // Re-export for compatibility
 export {
@@ -65,6 +93,7 @@ export default function OutbreakSim() {
   // Modal & Filter states
   const [showCaseModal, setShowCaseModal] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [hologramMode, setHologramMode] = useState<'3d' | 'telemetry'>('3d');
 
   // Initialize random scenario on mount
   useEffect(() => {
@@ -191,6 +220,22 @@ export default function OutbreakSim() {
         <h1 className={`text-2xl sm:text-3xl md:text-4xl font-black text-glow uppercase ${isVictory ? 'text-secondary' : 'text-danger'}`}>
           {isVictory ? 'ควบคุมการระบาดสำเร็จ' : 'มาตรการล้มเหลว - โรคระบาดลุกลาม'}
         </h1>
+
+        {/* 3D Animal Hologram Debriefing View */}
+        <div className="w-56 h-56 mx-auto my-2 relative bg-slate-950/80 rounded-2xl border border-cyan-500/30 shadow-2xl p-2 overflow-hidden">
+          <AnimalHologram3D 
+            speciesGroup={currentCase.speciesGroup}
+            animalType={currentCase.animalType}
+            caseId={currentCase.id}
+            farmHp={farmHp}
+            className="w-full h-full"
+          />
+          <div className="absolute bottom-1.5 inset-x-0 text-center pointer-events-none">
+            <span className="text-[9px] font-mono text-cyan-300 bg-slate-900/90 px-2 py-0.5 rounded-full border border-slate-700">
+              สถานะสเปซิเมน: {isVictory ? '🛡️ ควบคุมโรคได้สำเร็จ' : '⚠️ วิกฤต / โรคแพร่กระจาย'}
+            </span>
+          </div>
+        </div>
 
         {awardedExp !== null && awardedExp > 0 ? (
           <div className="space-y-1">
@@ -504,41 +549,160 @@ export default function OutbreakSim() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, x: -50 }}
           >
-            <Card className="p-6 sm:p-8 glass shadow-2xl border-slate-800 relative overflow-hidden">
-              <div className="scanlines" />
-              <div className="relative z-10">
-                <div className="flex items-center justify-between text-xs font-mono text-cyan-400 mb-4 pb-2 border-b border-slate-800">
-                  <span>🚨 รายงานสถานการณ์ฉุกเฉิน (INCIDENT REPORT #{step + 1} / {scenarioSteps.length})</span>
-                  <span>{currentCase.animalType}</span>
-                </div>
+            {(() => {
+              const animalKind = resolveAnimalKind(currentCase.speciesGroup, currentCase.animalType, currentCase.id);
+              const diag = ANIMAL_DIAGNOSTIC_INFO[animalKind] || ANIMAL_DIAGNOSTIC_INFO.swine;
+              const isAlert = farmHp <= 50;
 
-                <h2 className="text-base sm:text-lg md:text-xl font-medium text-white mb-6 leading-relaxed font-mono">
-                  {">"} {currentScenario?.text}
-                  <motion.span
-                    animate={{ opacity: [0, 1, 0] }}
-                    transition={{ repeat: Infinity, duration: 0.8 }}
-                  >_</motion.span>
-                </h2>
+              return (
+                <Card className="p-5 sm:p-7 glass-neon shadow-2xl border-slate-800 relative overflow-hidden rounded-3xl">
+                  <div className="scanlines" />
+                  
+                  <div className="relative z-10 flex flex-col lg:flex-row gap-6 items-start">
+                    
+                    {/* Left: 3D Animal Hologram Diagnostic Chamber */}
+                    <div className="w-full lg:w-[320px] shrink-0 flex flex-col items-center bg-slate-950/95 rounded-2xl border border-cyan-500/40 relative p-3.5 shadow-2xl overflow-hidden">
+                      {/* Corner Accents */}
+                      <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t-2 border-l-2 border-cyan-400/80" />
+                      <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t-2 border-r-2 border-cyan-400/80" />
+                      <div className="absolute bottom-2 left-2 w-3.5 h-3.5 border-b-2 border-l-2 border-cyan-400/80" />
+                      <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b-2 border-r-2 border-cyan-400/80" />
 
-                <div className="space-y-3 sm:space-y-4">
-                  {currentOptions.map((opt, idx) => (
-                    <Button
-                      key={idx}
-                      variant="ghost"
-                      className="w-full justify-start text-left h-auto py-3.5 sm:py-4 px-4 sm:px-6 border-2 border-slate-800 text-slate-300 hover:border-primary/50 hover:bg-primary/10 hover:text-white transition-all group"
-                      onClick={() => handleChoice(opt)}
-                    >
-                      <span className="text-primary font-mono mr-3 group-hover:scale-110 transition-transform shrink-0 font-bold">
-                        [{idx + 1}]
-                      </span>
-                      <span className="whitespace-normal leading-relaxed text-sm sm:text-base">
-                        {opt.text}
-                      </span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </Card>
+                      {/* Sweeping Laser Scanner Bar */}
+                      <motion.div 
+                        className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-cyan-500 via-emerald-400 to-cyan-500 shadow-[0_0_12px_rgba(6,182,212,0.9)] z-20 pointer-events-none"
+                        animate={{ top: ['10%', '88%', '10%'] }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: "linear" }}
+                      />
+
+                      {/* Chamber Header & Mode Switch */}
+                      <div className="w-full flex items-center justify-between pb-2 border-b border-slate-800/80 z-20 text-[10px] font-mono">
+                        <span className="text-cyan-400 font-bold flex items-center gap-1.5 uppercase truncate max-w-[170px]">
+                          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping inline-block shrink-0" />
+                          <span className="truncate">{currentCase.animalType}</span>
+                        </span>
+
+                        <div className="flex items-center gap-1 bg-slate-900 border border-slate-700/60 p-0.5 rounded-lg shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              sfx.click();
+                              setHologramMode('3d');
+                            }}
+                            className={`px-2 py-0.5 rounded font-bold transition-all flex items-center gap-1 ${
+                              hologramMode === '3d'
+                                ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                            title="ดูโฮโลแกรม 3D สัตว์ป่วยหมุน 360 องศา"
+                          >
+                            <Box className="w-3 h-3" />
+                            <span>3D</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              sfx.click();
+                              setHologramMode('telemetry');
+                            }}
+                            className={`px-2 py-0.5 rounded font-bold transition-all flex items-center gap-1 ${
+                              hologramMode === 'telemetry'
+                                ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                            title="ดูข้อมูลกายวิภาคและเป้าหมายของโรค"
+                          >
+                            <Info className="w-3 h-3" />
+                            <span>ข้อมูล</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Center Stage: 3D Hologram or Telemetry Data */}
+                      <div className="w-full h-60 sm:h-64 my-1.5 relative flex items-center justify-center">
+                        {hologramMode === '3d' ? (
+                          <AnimalHologram3D 
+                            speciesGroup={currentCase.speciesGroup}
+                            animalType={currentCase.animalType}
+                            caseId={currentCase.id}
+                            farmHp={farmHp}
+                            className="w-full h-full"
+                          />
+                        ) : (
+                          <div className="w-full h-full p-3 bg-slate-900/90 rounded-xl border border-slate-800 flex flex-col justify-between text-[11px] font-mono text-left">
+                            <div className="space-y-2">
+                              <div>
+                                <span className="text-[10px] text-slate-500 uppercase block">ชื่อวิทยาศาสตร์ (Taxon):</span>
+                                <span className="text-cyan-300 italic font-bold">{diag.scientificName}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500 uppercase block">อุณหภูมิปกติ (Normal Temp):</span>
+                                <span className="text-emerald-400 font-bold">{diag.vitalTemp}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500 uppercase block">อวัยวะเป้าหมายหลัก (Target System):</span>
+                                <span className="text-amber-300">{diag.keyTarget}</span>
+                              </div>
+                            </div>
+                            <div className="pt-2 border-t border-slate-800 text-[10px] text-slate-400">
+                              <span className="text-rose-400 font-bold">ภัยคุกคามสำคัญ:</span> {diag.primaryThreat}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Chamber Telemetry Footer */}
+                      <div className="w-full pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono z-20">
+                        <span className="text-slate-400 flex items-center gap-1.5">
+                          <HeartPulse className={`w-3.5 h-3.5 ${isAlert ? 'text-rose-500 animate-pulse' : 'text-emerald-400'}`} />
+                          <span className={isAlert ? 'text-rose-400 font-bold' : 'text-slate-300'}>
+                            {isAlert ? 'BIOLOGICAL RISK' : 'VITALS MONITORED'}
+                          </span>
+                        </span>
+                        <span className="text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40 font-bold">
+                          HP: {farmHp}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right: Incident Briefing & Decision Options */}
+                    <div className="flex-1 w-full space-y-5">
+                      <div className="flex items-center justify-between text-xs font-mono text-cyan-400 pb-2 border-b border-slate-800">
+                        <span>🚨 รายงานสถานการณ์ฉุกเฉิน (INCIDENT REPORT #{step + 1} / {scenarioSteps.length})</span>
+                        <span className="text-slate-400">{currentCase.subtitle}</span>
+                      </div>
+
+                      <h2 className="text-base sm:text-lg md:text-xl font-medium text-white mb-6 leading-relaxed font-mono">
+                        {">"} {currentScenario?.text}
+                        <motion.span
+                          animate={{ opacity: [0, 1, 0] }}
+                          transition={{ repeat: Infinity, duration: 0.8 }}
+                        >_</motion.span>
+                      </h2>
+
+                      <div className="space-y-3 sm:space-y-4">
+                        {currentOptions.map((opt, idx) => (
+                          <Button
+                            key={idx}
+                            variant="ghost"
+                            className="w-full justify-start text-left h-auto py-3.5 sm:py-4 px-4 sm:px-6 border-2 border-slate-800 text-slate-300 hover:border-cyan-400/60 hover:bg-cyan-500/10 hover:text-white transition-all group rounded-2xl"
+                            onClick={() => handleChoice(opt)}
+                          >
+                            <span className="text-cyan-400 font-mono mr-3 group-hover:scale-110 transition-transform shrink-0 font-bold">
+                              [{idx + 1}]
+                            </span>
+                            <span className="whitespace-normal leading-relaxed text-sm sm:text-base">
+                              {opt.text}
+                            </span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                  </div>
+                </Card>
+              );
+            })()}
           </motion.div>
         ) : (
           <motion.div

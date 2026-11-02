@@ -28,19 +28,19 @@ interface SVGVirusProps {
 export function familyToVirusType(family?: string): VirusType {
   if (!family) return 'parvo';
   const f = family.toLowerCase();
-  if (f.includes('rhabdo') || f.includes('rabies')) return 'rabies';
-  if (f.includes('parvo'))                          return 'parvo';
-  if (f.includes('corona'))                         return 'corona';
-  if (f.includes('retro'))                          return 'retro';
-  if (f.includes('paramyxo'))                       return 'paramyxo';
-  if (f.includes('arteri'))                         return 'arterivirus';
-  if (f.includes('picorna'))                        return 'picorna';
-  if (f.includes('asfar'))                          return 'asfar';
-  if (f.includes('flavi'))                          return 'flavi';
-  if (f.includes('orthomyxo') || f.includes('flu')) return 'orthomyxo';
-  if (f.includes('birna'))                          return 'birna';
-  if (f.includes('herpes'))                         return 'herpes';
-  if (f.includes('reo'))                            return 'reo';
+  if (f.includes('rhabdo') || f.includes('rabies') || f.includes('lyssa')) return 'rabies';
+  if (f.includes('parvo') || f.includes('cpv') || f.includes('fpv') || f.includes('panleuko')) return 'parvo';
+  if (f.includes('corona') || f.includes('pedv') || f.includes('fip') || f.includes('tgev')) return 'corona';
+  if (f.includes('retro') || f.includes('felv') || f.includes('fiv') || f.includes('hiv')) return 'retro';
+  if (f.includes('paramyxo') || f.includes('distemper') || f.includes('cdv') || f.includes('newcastle') || f.includes('ndv')) return 'paramyxo';
+  if (f.includes('arteri') || f.includes('prrs')) return 'arterivirus';
+  if (f.includes('picorna') || f.includes('fmd') || f.includes('aphto')) return 'picorna';
+  if (f.includes('asfar') || f.includes('asf') || f.includes('african swine fever') || f.includes('pox')) return 'asfar';
+  if (f.includes('flavi') || f.includes('bvdv') || f.includes('csfv') || f.includes('classical swine')) return 'flavi';
+  if (f.includes('orthomyxo') || f.includes('flu') || f.includes('hpai') || f.includes('influenza')) return 'orthomyxo';
+  if (f.includes('birna') || f.includes('ibdv') || f.includes('gumboro')) return 'birna';
+  if (f.includes('herpes') || f.includes('boh') || f.includes('ibr') || f.includes('pseudorabies')) return 'herpes';
+  if (f.includes('reo') || f.includes('rota') || f.includes('ahsv') || f.includes('african horse')) return 'reo';
   return 'default';
 }
 

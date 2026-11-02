@@ -62,10 +62,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "สารพันธุกรรมของอนุภาคไวรัสทั่วไปมีคุณสมบัติอย่างไร?",
     choices: [
-      "มี DNA หรือ RNA เพียงชนิดใดชนิดหนึ่ง",
-      "มีทั้ง DNA และ RNA อยู่ร่วมกันเสมอ",
       "มีเฉพาะ DNA สายคู่อย่างเดียวเท่านั้น",
       "ไม่มีสารพันธุกรรมแต่ประกอบด้วยโปรตีนล้วน",
+      "มี DNA หรือ RNA เพียงชนิดใดชนิดหนึ่ง",
+      "มีทั้ง DNA และ RNA อยู่ร่วมกันเสมอ",
     ],
     answer: "มี DNA หรือ RNA เพียงชนิดใดชนิดหนึ่ง",
     explanation: "ไวรัสประกอบด้วยจีโนมชนิด DNA หรือ RNA เพียงชนิดเดียวเท่านั้น ต่างจากสิ่งมีชีวิตอื่นที่มีทั้ง DNA และ RNA"
@@ -78,9 +78,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "โครงสร้างเปลือกโปรตีนที่ทำหน้าที่หุ้มสารพันธุกรรมของไวรัสเรียกว่าอะไร?",
     choices: [
+      "Peplomer",
       "Capsid",
       "Envelope",
-      "Peplomer",
       "Matrix protein",
     ],
     answer: "Capsid",
@@ -110,10 +110,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "สมมาตรของไวรัสที่มีรูปร่างเป็นท่อเกลียวกระบอกยาวเรียกว่าอะไร?",
     choices: [
-      "Helical symmetry",
       "Icosahedral symmetry",
-      "Complex symmetry",
+      "Helical symmetry",
       "Binal symmetry",
+      "Complex symmetry",
     ],
     answer: "Helical symmetry",
     explanation: "Helical symmetry มีการเรียงตัวของ Capsomer เป็นวงเกลียวรอบสารพันธุกรรม เช่น Rabies virus"
@@ -126,10 +126,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "สมมาตรของ Capsid ที่เป็นรูปทรงเหลี่ยม 20 หน้า ประกอบด้วยสามเหลี่ยมด้านเท่าคือแบบใด?",
     choices: [
-      "Icosahedral symmetry",
-      "Helical symmetry",
-      "Radial symmetry",
       "Amorphous symmetry",
+      "Icosahedral symmetry",
+      "Radial symmetry",
+      "Helical symmetry",
     ],
     answer: "Icosahedral symmetry",
     explanation: "Icosahedral symmetry มี 20 หน้า 12 มุม เป็นทรงสมมาตรที่พบบ่อยที่สุดในไวรัสสัตว์"
@@ -143,8 +143,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "โครงสร้างใดพบได้เฉพาะใน Enveloped virus แต่ไม่พบใน Naked virus?",
     choices: [
       "Lipid bilayer envelope",
-      "Protein capsid",
       "Nucleic acid core",
+      "Protein capsid",
       "Capsomer subunits",
     ],
     answer: "Lipid bilayer envelope",
@@ -158,10 +158,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "สารเคมีกลุ่มใดทำลายคุณสมบัติการติดเชื้อของ Enveloped virus ได้ดีที่สุด?",
     choices: [
-      "Lipid solvents (แอลกอฮอล์, อีเทอร์)",
-      "น้ำเกลือไอโซโทนิก",
       "ยาปฏิชีวนะกลุ่ม Penicillin",
+      "Lipid solvents (แอลกอฮอล์, อีเทอร์)",
       "น้ำตาลกลูโคสเข้มข้น",
+      "น้ำเกลือไอโซโทนิก",
     ],
     answer: "Lipid solvents (แอลกอฮอล์, อีเทอร์)",
     explanation: "เยื่อหุ้มไขมันของ Enveloped virus ไวต่อสารทำละลายไขมันและผงซักฟอกมาก ทำให้สูญเสียความสามารถในการติดเชื้อทันที"
@@ -174,10 +174,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "ออร์แกเนลล์ใดที่ไวรัสไม่มี ทำให้ไม่สามารถสร้างโปรตีนได้เองและต้องพึ่งพาเซลล์โฮสต์?",
     choices: [
-      "Ribosome",
-      "Nucleus",
       "Mitochondria",
       "Golgi apparatus",
+      "Ribosome",
+      "Nucleus",
     ],
     answer: "Ribosome",
     explanation: "ไวรัสไม่มีไรโบโซม จึงไม่สามารถแปลรหัสโปรตีนด้วยตัวเองได้ ต้องอาศัยไรโบโซมของเซลล์เจ้าบ้าน"
@@ -190,10 +190,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "อนุภาคของไวรัสที่ประกอบโครงสร้างเสร็จสมบูรณ์ภายนอกเซลล์เรียกว่าอะไร?",
     choices: [
-      "Virion",
-      "Viroid",
       "Prion",
       "Prophage",
+      "Virion",
+      "Viroid",
     ],
     answer: "Virion",
     explanation: "Virion คือ Complete infectious virus particle ที่สมบูรณ์พร้อมติดเชื้อเข้าสู่เซลล์ใหม่"
@@ -206,10 +206,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "ไวรัสก่อโรคในสัตว์ชนิดแรกที่ถูกค้นพบว่าสามารถผ่านเยื่อกรองแบคทีเรียได้คือไวรัสใด?",
     choices: [
-      "Foot and mouth disease virus",
-      "Rabies virus",
       "Canine Distemper virus",
+      "Foot and mouth disease virus",
       "Rinderpest virus",
+      "Rabies virus",
     ],
     answer: "Foot and mouth disease virus",
     explanation: "Loeffler และ Frosch ค้นพบ Foot and mouth disease virus ในปี 1898 นับเป็นไวรัสสัตว์ชนิดแรกที่ถูกค้นพบ"
@@ -223,10 +223,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "ขั้นตอนแรกสุดในวงจรการเพิ่มจำนวนของไวรัสเมื่อเข้าสู่เซลล์โฮสต์คือข้อใด?",
     choices: [
-      "Attachment (Adsorption)",
-      "Penetration",
       "Uncoating",
+      "Penetration",
       "Biosynthesis",
+      "Attachment (Adsorption)",
     ],
     answer: "Attachment (Adsorption)",
     explanation: "Attachment คือการที่โปรตีนผิวของไวรัสเข้าจับอย่างจำเพาะกับ Receptor บนผิวเซลล์โฮสต์"
@@ -239,10 +239,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "กระบวนการที่ไวรัสสลัดเปลือกโปรตีน Capsid เพื่อปล่อยสารพันธุกรรมเข้าสู่เซลล์เรียกว่าอะไร?",
     choices: [
-      "Uncoating",
+      "Lysis",
       "Assembly",
       "Budding",
-      "Lysis",
+      "Uncoating",
     ],
     answer: "Uncoating",
     explanation: "Uncoating เป็นการแยกสลาย Capsid ออกเพื่อให้จีโนมของไวรัสทำหน้าที่ถ่ายทอดรหัสพันธุกรรมในเซลล์"
@@ -255,10 +255,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "ไวรัสที่มีเยื่อหุ้ม (Enveloped virus) มักออกจากเซลล์โฮสต์ด้วยกลไกใด?",
     choices: [
-      "Budding (การแตกหน่อ)",
       "Cell lysis (เซลล์แตกกระจาย)",
-      "Exocytosis ผ่านทาง Vacuole เท่านั้น",
+      "Budding (การแตกหน่อ)",
       "การแทรกตัวผ่าน Gap junction",
+      "Exocytosis ผ่านทาง Vacuole เท่านั้น",
     ],
     answer: "Budding (การแตกหน่อ)",
     explanation: "Enveloped virus มักออกจากเซลล์ด้วยกระบวนการ Budding โดยห่อหุ้ม Membrane ของเซลล์โฮสต์ออกมาด้วย"
@@ -271,9 +271,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "การรวมตัวของเซลล์ข้างเคียงจนเกิดเป็นเซลล์ยักษ์หลายนิวเคลียส (Syncytia) เกิดจากโปรตีนใด?",
     choices: [
+      "Reverse transcriptase",
       "Fusion protein",
       "Matrix protein",
-      "Reverse transcriptase",
       "Integrase enzyme",
     ],
     answer: "Fusion protein",
@@ -288,9 +288,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "การเปลี่ยนแปลงทางสัณฐานวิทยาและความเสียหายของเซลล์เพาะเลี้ยงจากการติดเชื้อไวรัสเรียกว่าอะไร?",
     choices: [
       "Cytopathic effect (CPE)",
+      "Phagocytosis",
       "Cell transformation",
       "Immune tolerance",
-      "Phagocytosis",
     ],
     answer: "Cytopathic effect (CPE)",
     explanation: "CPE คือความผิดปกติทางรูปร่างของเซลล์ เช่น เซลล์กลม ลอยตัว หรือแตกสลาย ที่เกิดจากการเพิ่มจำนวนของไวรัส"
@@ -303,10 +303,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "Negri bodies ที่พบในเซลล์ประสาทของสัตว์ป่วยโรคพิษสุนัขบ้า จัดเป็น Inclusion body แบบใด?",
     choices: [
-      "Intracytoplasmic inclusion",
       "Intranuclear inclusion",
-      "Peroxisomal body",
       "Extracellular plaque",
+      "Peroxisomal body",
+      "Intracytoplasmic inclusion",
     ],
     answer: "Intracytoplasmic inclusion",
     explanation: "Negri bodies เป็น Intracytoplasmic inclusion body ที่พบสะสมอยู่ในไซโทพลาสซึมของเซลล์ประสาท"
@@ -319,9 +319,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "Cowdry type A inclusion body ที่พบในเซลล์ติดเชื้อ Herpesvirus เกิดขึ้นที่บริเวณใดของเซลล์?",
     choices: [
-      "นิวเคลียส (Intranuclear)",
       "ไซโทพลาสซึม (Intracytoplasmic)",
       "ภายในไมโทคอนเดรีย",
+      "นิวเคลียส (Intranuclear)",
       "บนผิวเยื่อหุ้มเซลล์ชั้นนอก",
     ],
     answer: "นิวเคลียส (Intranuclear)",
@@ -335,10 +335,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "แอนติบอดีชนิดใดมีบทบาทเด่นที่สุดในการดักจับและทำลายไวรัสบริเวณเยื่อเมือกของร่างกาย?",
     choices: [
-      "Secretory IgA",
       "IgE",
       "IgD",
       "IgM",
+      "Secretory IgA",
     ],
     answer: "Secretory IgA",
     explanation: "sIgA ทำหน้าที่หลักในการป้องกันเยื่อเมือกทางเดินหายใจและทางเดินอาหารจากการติดเชื้อไวรัส"
@@ -351,10 +351,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "เซลล์เม็ดเลือดขาวชนิดใดมีบทบาทหลักในการเข้าทำลายเซลล์โฮสต์ที่ติดเชื้อไวรัสแบบจำเพาะเจาะจง?",
     choices: [
-      "CD8+ Cytotoxic T cell (CTL)",
       "B lymphocyte",
-      "Neutrophil",
+      "CD8+ Cytotoxic T cell (CTL)",
       "Eosinophil",
+      "Neutrophil",
     ],
     answer: "CD8+ Cytotoxic T cell (CTL)",
     explanation: "CD8+ CTL จดจำแอนติเจนไวรัสคู่กับ MHC-I และหลั่ง Perforin/Granzyme ทำลายเซลล์ที่ติดเชื้อไวรัส"
@@ -367,10 +367,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "ตัวรับสัญญาณภูมิคุ้มกันแต่กำเนิด (PRR) ที่ทำหน้าที่ตรวจจับกรดนิวคลีอิกของไวรัสคือข้อใด?",
     choices: [
-      "Toll-like receptors (TLRs)",
-      "G-protein coupled receptors",
-      "Insulin receptors",
       "Acetylcholine receptors",
+      "Toll-like receptors (TLRs)",
+      "Insulin receptors",
+      "G-protein coupled receptors",
     ],
     answer: "Toll-like receptors (TLRs)",
     explanation: "TLRs เช่น TLR-3, TLR-7, TLR-9 ทำหน้าที่ตรวจจับ viral RNA และ DNA เพื่อกระตุ้นการสร้าง Interferon"
@@ -384,9 +384,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "parvo",
     q: "สารพันธุกรรมของไวรัสในตระกูล Parvoviridae มีลักษณะอย่างไร?",
     choices: [
+      "Positive-sense ssRNA",
       "Single-stranded DNA (ssDNA)",
       "Double-stranded DNA (dsDNA)",
-      "Positive-sense ssRNA",
       "Segmented dsRNA",
     ],
     answer: "Single-stranded DNA (ssDNA)",
@@ -400,9 +400,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "parvo",
     q: "ไวรัส Parvovirus ต้องการเซลล์โฮสต์ที่มีคุณสมบัติใดเป็นพิเศษในการเพิ่มจำนวน?",
     choices: [
-      "เซลล์ที่มีการแบ่งตัวอย่างรวดเร็ว (S-phase)",
-      "เซลล์ประสาทที่หยุดการแบ่งตัวแล้ว",
       "เซลล์เม็ดเลือดแดงแก่ที่ไม่มีนิวเคลียส",
+      "เซลล์ประสาทที่หยุดการแบ่งตัวแล้ว",
+      "เซลล์ที่มีการแบ่งตัวอย่างรวดเร็ว (S-phase)",
       "เซลล์ไขมันสะสมใต้ผิวหนัง",
     ],
     answer: "เซลล์ที่มีการแบ่งตัวอย่างรวดเร็ว (S-phase)",
@@ -416,10 +416,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "parvo",
     q: "อาการเด่นทางคลินิกของลูกสุนัขที่ติดเชื้อ Canine Parvovirus-2 (CPV-2) คือข้อใด?",
     choices: [
-      "ถ่ายเหลวมีเลือดปนและเม็ดเลือดขาวต่ำ",
-      "มีตุ่มหนองกระจายตามผิวหนัง",
-      "ไอแห้งเรื้อรังและขาหลังกระตุก",
       "ดีซ่านและปัสสาวะมีสีแดงเข้ม",
+      "มีตุ่มหนองกระจายตามผิวหนัง",
+      "ถ่ายเหลวมีเลือดปนและเม็ดเลือดขาวต่ำ",
+      "ไอแห้งเรื้อรังและขาหลังกระตุก",
     ],
     answer: "ถ่ายเหลวมีเลือดปนและเม็ดเลือดขาวต่ำ",
     explanation: "CPV-2 ทำลายเซลล์เยื่อบุ Intestinal crypts และเซลล์ต้นกำเนิดเม็ดเลือดในไขกระดูก ทำให้เกิด Bloody diarrhea ร่วมกับ Panleukopenia"
@@ -432,10 +432,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "parvo",
     q: "แม่แมวติดเชื้อ FPV ช่วงตั้งท้องระยะท้าย ลูกแมวที่คลอดออกมามักพบความผิดปกติแต่กำเนิดข้อใด?",
     choices: [
-      "สมองน้อยฝ่อลีบ (Cerebellar hypoplasia)",
-      "หัวบาตรมีน้ำในกะโหลกศีรษะ",
-      "กระดูกสันหลังคดและข้อแข็งเกร็ง",
       "ผนังกั้นห้องหัวใจรั่วแต่กำเนิด",
+      "กระดูกสันหลังคดและข้อแข็งเกร็ง",
+      "หัวบาตรมีน้ำในกะโหลกศีรษะ",
+      "สมองน้อยฝ่อลีบ (Cerebellar hypoplasia)",
     ],
     answer: "สมองน้อยฝ่อลีบ (Cerebellar hypoplasia)",
     explanation: "เชื้อ FPV ทำลายเซลล์ Purkinje ของสมองน้อยที่กำลังแบ่งตัว ทำให้ลูกแมวมีภาวะเดินเซ สั่น (Ataxia)"
@@ -448,10 +448,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "parvo",
     q: "กลุ่มอาการ SMEDI ในแม่สุกร (ตายคลอด มัมมี่ ผสมไม่ติด) สัมพันธ์กับไวรัสใด?",
     choices: [
-      "Porcine Parvovirus (PPV)",
-      "Porcine Circovirus-2 (PCV-2)",
-      "Swine Influenza Virus",
       "Pseudorabies virus",
+      "Porcine Parvovirus (PPV)",
+      "Swine Influenza Virus",
+      "Porcine Circovirus-2 (PCV-2)",
     ],
     answer: "Porcine Parvovirus (PPV)",
     explanation: "PPV ก่อให้เกิดภาวะผสมไม่ติด ลูกมัมมี่ ตายแรกคลอด และการแท้งในแม่สุกรสาว (SMEDI syndrome)"
@@ -464,10 +464,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "สารพันธุกรรมของไวรัสในตระกูล Adenoviridae คือข้อใด?",
     choices: [
-      "Double-stranded DNA (dsDNA)",
       "Single-stranded DNA (ssDNA)",
-      "Single-stranded RNA (ssRNA)",
       "Circular dsRNA",
+      "Double-stranded DNA (dsDNA)",
+      "Single-stranded RNA (ssRNA)",
     ],
     answer: "Double-stranded DNA (dsDNA)",
     explanation: "Adenovirus มีสารพันธุกรรมเป็น dsDNA สายคู่แบบเส้นตรง และไม่มีเยื่อหุ้ม (Naked virus)"
@@ -480,10 +480,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "โครงสร้างรูปเสาหนามที่ยื่นออกมาจากมุมยอดทั้ง 12 มุมของ Capsid ใน Adenovirus เรียกว่าอะไร?",
     choices: [
-      "Fibers with knob",
-      "Peplomers",
-      "Tegument",
       "Matrix pins",
+      "Tegument",
+      "Peplomers",
+      "Fibers with knob",
     ],
     answer: "Fibers with knob",
     explanation: "Fiber projections ยื่นออกมาจาก Penton base ทำหน้าที่จับกับ Receptor และทำปฏิกิริยา Hemagglutination"
@@ -496,10 +496,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "อาการ 'Blue eye' (กระจกตาบวมขุ่นสีฟ้า) ในสุนัขติดเชื้อ CAV-1 เกิดจากสาเหตุใด?",
     choices: [
-      "Immune complex ตกตะกอนที่กระจกตา",
-      "เชื้อไวรัสทำลายเลนส์ตาโดยตรง",
-      "ความดันตาสูงขึ้นเป็นต้อหินเฉียบพลัน",
       "ภาวะขาดวิตามินเออย่างรุนแรง",
+      "เชื้อไวรัสทำลายเลนส์ตาโดยตรง",
+      "Immune complex ตกตะกอนที่กระจกตา",
+      "ความดันตาสูงขึ้นเป็นต้อหินเฉียบพลัน",
     ],
     answer: "Immune complex ตกตะกอนที่กระจกตา",
     explanation: "Blue eye เกิดจาก Type III hypersensitivity (Antigen-Antibody complexes) ตกตะกอนที่ Corneal endothelium"
@@ -512,10 +512,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "เหตุใดวัคซีนรวมในสุนัขจึงนิยมใช้สายพันธุ์ CAV-2 แทน CAV-1?",
     choices: [
-      "ป้องกันข้ามสายพันธุ์ได้และไม่ทำให้เกิด Blue eye",
-      "CAV-1 ผลิตในเซลล์เพาะเลี้ยงไม่ได้",
       "CAV-2 เป็นเชื้อไวรัสที่มีเยื่อหุ้มหนากว่า",
+      "CAV-1 ผลิตในเซลล์เพาะเลี้ยงไม่ได้",
       "CAV-2 ป้องกันโรคตับอักเสบได้ดีกว่า 10 เท่า",
+      "ป้องกันข้ามสายพันธุ์ได้และไม่ทำให้เกิด Blue eye",
     ],
     answer: "ป้องกันข้ามสายพันธุ์ได้และไม่ทำให้เกิด Blue eye",
     explanation: "CAV-2 กระตุ้นภูมิคุ้มกันข้ามสายพันธุ์ป้องกัน Infectious Canine Hepatitis (CAV-1) ได้โดยปลอดภัยและไม่ก่อให้เกิด Corneal edema"
@@ -528,10 +528,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "Canine Adenovirus type 2 (CAV-2) ก่อให้เกิดรอยโรคหลักในระบบใดของสุนัข?",
     choices: [
-      "ระบบทางเดินหายใจ (Laryngotracheitis / Kennel cough)",
-      "ระบบทางเดินอาหารและตับอักเสบรุนแรง",
-      "ระบบประสาทส่วนกลางและไขสันหลัง",
       "ระบบสืบพันธุ์และทางเดินปัสสาวะ",
+      "ระบบประสาทส่วนกลางและไขสันหลัง",
+      "ระบบทางเดินอาหารและตับอักเสบรุนแรง",
+      "ระบบทางเดินหายใจ (Laryngotracheitis / Kennel cough)",
     ],
     answer: "ระบบทางเดินหายใจ (Laryngotracheitis / Kennel cough)",
     explanation: "CAV-2 มีความจำเพาะต่อเซลล์เยื่อบุทางเดินหายใจ และเป็นสาเหตุหนึ่งของกลุ่มอาการ Kennel cough"
@@ -545,10 +545,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "herpes",
     q: "ชั้นโปรตีนอสัณฐานที่แทรกอยู่ระหว่าง Capsid และ Envelope ของ Herpesvirus เรียกว่าอะไร?",
     choices: [
-      "Tegument",
-      "Matrix shell",
-      "Peplomer core",
       "Capsomer bed",
+      "Tegument",
+      "Peplomer core",
+      "Matrix shell",
     ],
     answer: "Tegument",
     explanation: "Tegument เป็นชั้นโปรตีนเฉพาะตัวของ Herpesvirus บรรจุโปรตีนช่วยในการเริ่มขบวนการเพิ่มจำนวนของไวรัส"
@@ -561,9 +561,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "herpes",
     q: "คุณสมบัติเด่นของไวรัสในตระกูล Herpesviridae หลังการติดเชื้อครั้งแรกคือข้อใด?",
     choices: [
-      "แฝงตัวอยู่ในร่างกายได้ตลอดชีวิต (Latency)",
       "สลายตัวและหายขาดจากร่างกายใน 48 ชั่วโมง",
       "ไม่สามารถกระตุ้นการสร้างแอนติบอดีได้",
+      "แฝงตัวอยู่ในร่างกายได้ตลอดชีวิต (Latency)",
       "เปลี่ยนจีโนมจาก DNA เป็น RNA ถาวร",
     ],
     answer: "แฝงตัวอยู่ในร่างกายได้ตลอดชีวิต (Latency)",
@@ -577,10 +577,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "herpes",
     q: "โฮสต์ตามธรรมชาติและแหล่งกักเก็บโรคของไวรัส Pseudorabies (Aujeszky's disease) คือสัตว์ชนิดใด?",
     choices: [
-      "สุกร (Swine)",
-      "โค (Cattle)",
       "ม้า (Horse)",
       "สุนัข (Dog)",
+      "สุกร (Swine)",
+      "โค (Cattle)",
     ],
     answer: "สุกร (Swine)",
     explanation: "สุกรเป็นโฮสต์ตามธรรมชาติเพียงชนิดเดียวของ Pseudorabies virus และสามารถแพร่เชื้อสู่สัตว์ชนิดอื่นได้"
@@ -593,10 +593,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "herpes",
     q: "สัตว์เคี้ยวเอื้องหรือสุนัขที่ติดเชื้อ Pseudorabies มักแสดงอาการเด่นชัดข้อใด?",
     choices: [
-      "คันอย่างรุนแรงจนกัดแทะเนื้อตัวเอง (Mad itch)",
-      "ท้องมานน้ำและมีดีซ่าน",
       "ขนร่วงทั้งตัวแต่ไม่มีอาการคัน",
       "ตาบอดสีฟ้าแบบเฉียบพลัน",
+      "ท้องมานน้ำและมีดีซ่าน",
+      "คันอย่างรุนแรงจนกัดแทะเนื้อตัวเอง (Mad itch)",
     ],
     answer: "คันอย่างรุนแรงจนกัดแทะเนื้อตัวเอง (Mad itch)",
     explanation: "ในสัตว์ที่ไม่ใช่สุกร ไวรัสนี้ทำให้เกิด Intense pruritus (Mad itch) มีพฤติกรรมเกาและกัดบริเวณที่คันจนตายในเวลาสั้น"
@@ -609,10 +609,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "herpes",
     q: "โรค Infectious Bovine Rhinotracheitis (IBR) ในโคมีสาเหตุจากไวรัสกลุ่มใด?",
     choices: [
+      "Bovine Adenovirus",
+      "Bovine Coronavirus",
       "Bovine Herpesvirus-1 (BHV-1)",
       "Bovine Parvovirus",
-      "Bovine Coronavirus",
-      "Bovine Adenovirus",
     ],
     answer: "Bovine Herpesvirus-1 (BHV-1)",
     explanation: "BHV-1 ก่อโรคทางเดินหายใจอักเสบ (IBR), เยื่อบุตาอักเสบ, โรคระบบสืบพันธุ์ (IPVI) และการแท้งลูกในโค"
@@ -625,10 +625,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "herpes",
     q: "ไวรัส Equine Herpesvirus-1 (EHV-1) ก่อให้เกิดความเสียหายรุนแรงในม้าเรื่องใด?",
     choices: [
-      "การแท้งลูกและการเป็นอัมพาตทางระบบประสาท",
       "ท้องเสียถ่ายเหลวเป็นมูกเลือด",
-      "การเกิดเนื้องอกที่ผิวหนังทั่วตัว",
       "ภาวะโลหิตจางจากเม็ดเลือดแดงแตก",
+      "การเกิดเนื้องอกที่ผิวหนังทั่วตัว",
+      "การแท้งลูกและการเป็นอัมพาตทางระบบประสาท",
     ],
     answer: "การแท้งลูกและการเป็นอัมพาตทางระบบประสาท",
     explanation: "EHV-1 ก่อโรคทางเดินหายใจ แท้งลูกแบบพายุ (Abortion storms) และโรคทางระบบประสาท (EHM)"
@@ -641,10 +641,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "herpes",
     q: "รอยโรคแผลที่กระจกตาลักษณะเป็นกิ่งก้าน (Dendritic ulcer) ในแมวเกิดจากไวรัสใด?",
     choices: [
-      "Feline Herpesvirus-1 (FHV-1)",
-      "Feline Calicivirus (FCV)",
       "Feline Coronavirus (FCoV)",
       "Feline Leukemia Virus (FeLV)",
+      "Feline Calicivirus (FCV)",
+      "Feline Herpesvirus-1 (FHV-1)",
     ],
     answer: "Feline Herpesvirus-1 (FHV-1)",
     explanation: "Dendritic corneal ulcer เป็นรอยโรคเฉพาะตัว (Pathognomonic lesion) ของการติดเชื้อ FHV-1 ในแมว"
@@ -657,10 +657,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "herpes",
     q: "ลูกสุนัขแรกเกิดที่ติดเชื้อ CHV-1 มักป่วยและตายเฉียบพลันเมื่อเผชิญสภาวะใด?",
     choices: [
-      "อุณหภูมิร่างกายต่ำกว่าปกติ (Hypothermia)",
       "อากาศร้อนจัดและความชื้นสูง",
       "การได้รับนมแม่มากเกินไป",
       "การสัมผัสกับแสงแดดโดยตรง",
+      "อุณหภูมิร่างกายต่ำกว่าปกติ (Hypothermia)",
     ],
     answer: "อุณหภูมิร่างกายต่ำกว่าปกติ (Hypothermia)",
     explanation: "CHV-1 เจริญได้ดีที่สุดที่อุณหภูมิ 33-35 °C ลูกสุนัขที่ตัวเย็นจึงเกิดการแพร่กระจายของเชื้อไปทั่วอวัยวะและตายอย่างรวดเร็ว"
@@ -673,10 +673,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "herpes",
     q: "โรค Marek's disease ในไก่เกิดจากไวรัสในกลุ่มใด และทำให้เกิดพยาธิสภาพเด่นข้อใด?",
     choices: [
+      "Retrovirus ทำให้โลหิตจางรุนแรง",
+      "Birnavirus ทำให้ถุงเบอร์ซาฝ่อลีบ",
       "Gammaherpesvirus ทำให้เส้นประสาทบวมโตและขาเป็นอัมพาต",
       "Poxvirus ทำให้เกิดตุ่มแผลที่โคนปีก",
-      "Birnavirus ทำให้ถุงเบอร์ซาฝ่อลีบ",
-      "Retrovirus ทำให้โลหิตจางรุนแรง",
     ],
     answer: "Gammaherpesvirus ทำให้เส้นประสาทบวมโตและขาเป็นอัมพาต",
     explanation: "MDV เป็น Oncogenic Alphaherpesvirus (เดิมจัดเป็น Gamma) ที่ทำให้เกิด T-cell lymphoma บวมโตที่เส้นประสาท Sciatic จนขาเป็นอัมพาต"
@@ -690,9 +690,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "Inclusion body ที่ตรวจพบในเซลล์ติดเชื้อ Herpesvirus มีลักษณะอย่างไร?",
     choices: [
       "Intranuclear inclusion body (Cowdry type A)",
+      "Extracellular Botryoid body",
       "Intracytoplasmic Negri body",
       "Intracytoplasmic Guarnieri body",
-      "Extracellular Botryoid body",
     ],
     answer: "Intranuclear inclusion body (Cowdry type A)",
     explanation: "Herpesvirus เพิ่มจำนวนในนิวเคลียสและสร้าง Cowdry type A eosinophilic intranuclear inclusion bodies"
@@ -706,8 +706,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "pox",
     q: "ไวรัสในตระกูล Poxviridae มีความแปลกพิเศษกว่า DNA virus ทั่วไปตรงข้อใด?",
     choices: [
-      "เพิ่มจำนวนภายในไซโทพลาสซึมของเซลล์",
       "มีสารพันธุกรรมเป็น RNA สายเดี่ยว",
+      "เพิ่มจำนวนภายในไซโทพลาสซึมของเซลล์",
       "ไม่มีโปรตีน Capsid หุ้มจีโนม",
       "ไม่สามารถทนต่อสารฆ่าเชื้อได้เลย",
     ],
@@ -722,8 +722,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "pox",
     q: "Inclusion bodies ในไซโทพลาสซึมของเซลล์ที่ติดเชื้อ Fowlpox virus เรียกว่าอะไร?",
     choices: [
-      "Bollinger bodies",
       "Negri bodies",
+      "Bollinger bodies",
       "Cowdry type B",
       "Aschoff bodies",
     ],
@@ -738,10 +738,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "pox",
     q: "โรค Lumpy skin disease (LSD) ในโคที่ทำให้เกิดตุ่มนูนแข็งทั่วตัวเกิดจากไวรัสตระกูลใด?",
     choices: [
-      "Poxviridae (Genus Capripoxvirus)",
-      "Herpesviridae",
-      "Papillomaviridae",
       "Flaviviridae",
+      "Herpesviridae",
+      "Poxviridae (Genus Capripoxvirus)",
+      "Papillomaviridae",
     ],
     answer: "Poxviridae (Genus Capripoxvirus)",
     explanation: "LSDV จัดอยู่ในจีนัส Capripoxvirus ตระกูล Poxviridae ก่อโรครอยโรคตุ่มนูนที่ผิวหนังโค"
@@ -754,10 +754,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "pox",
     q: "โรค Orf (Contagious pustular dermatitis) ในแกะและแพะมีความสำคัญอย่างไร?",
     choices: [
-      "เป็นโรคติดต่อจากสัตว์สู่คนได้ (Zoonosis)",
       "เป็นโรคที่กวาดล้างหมดไปจากโลกแล้ว",
       "ทำให้เกิดการแท้งลูกในแม่ม้าเท่านั้น",
       "รักษาหายได้ด้วยยาปฏิชีวนะฆ่าเชื้อรา",
+      "เป็นโรคติดต่อจากสัตว์สู่คนได้ (Zoonosis)",
     ],
     answer: "เป็นโรคติดต่อจากสัตว์สู่คนได้ (Zoonosis)",
     explanation: "Orf virus (Parapoxvirus) ทำให้เกิดตุ่มแผลพุพองที่ริมฝีปากแพะแกะ และติดต่อสู่คนเลี้ยงสัตว์ได้"
@@ -770,10 +770,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "พาหะนำโรคตามธรรมชาติของไวรัสอหิวาต์แอฟริกาในสุกร (ASFV) คือสัตว์ข้อใด?",
     choices: [
-      "เห็บอ่อน (Soft tick สกุล Ornithodoros)",
-      "ยุงลาย (Aedes aegypti)",
-      "เห็บแข็งสุนัข (Rhipicephalus)",
       "ริ้นดำดูดเลือด (Simulium)",
+      "เห็บอ่อน (Soft tick สกุล Ornithodoros)",
+      "เห็บแข็งสุนัข (Rhipicephalus)",
+      "ยุงลาย (Aedes aegypti)",
     ],
     answer: "เห็บอ่อน (Soft tick สกุล Ornithodoros)",
     explanation: "ASFV ถ่ายทอดตามธรรมชาติโดยเห็บอ่อน Ornithodoros spp. ซึ่งเป็นทั้งพาหะและ Reservoir"
@@ -786,9 +786,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "รอยโรคทางพยาธิสภาพที่เด่นชัดที่สุดในสุกรที่ตายจากโรค African Swine Fever คือข้อใด?",
     choices: [
+      "ลำไส้ใหญ่เกิดแผลหลุมรูปกระดุม",
       "ม้ามขยายใหญ่สีดำคล้ำและจุดเลือดออกรุนแรง",
       "ตับแข็งฝ่อลีบและมีสีเหลืองซีด",
-      "ลำไส้ใหญ่เกิดแผลหลุมรูปกระดุม",
       "สมองน้อยฝ่อและมีน้ำคั่ง",
     ],
     answer: "ม้ามขยายใหญ่สีดำคล้ำและจุดเลือดออกรุนแรง",
@@ -802,10 +802,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "African Swine Fever Virus (ASFV) จัดเป็นไวรัสชนิดใด?",
     choices: [
-      "Enveloped dsDNA virus",
-      "Naked (+)ssRNA virus",
       "Segmented (-)ssRNA virus",
       "Circular ssDNA virus",
+      "Naked (+)ssRNA virus",
+      "Enveloped dsDNA virus",
     ],
     answer: "Enveloped dsDNA virus",
     explanation: "ASFV เป็นไวรัส dsDNA ขนาดใหญ่ มีเยื่อหุ้ม และเป็นไวรัสเพียงชนิดเดียวในตระกูล Asfarviridae"
@@ -819,9 +819,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "โรคหูด (Warts / Papilloma) ในสัตว์เลี้ยงและปศุสัตว์เกิดจากไวรัสตระกูลใด?",
     choices: [
       "Papillomaviridae",
-      "Parvoviridae",
       "Retroviridae",
       "Coronaviridae",
+      "Parvoviridae",
     ],
     answer: "Papillomaviridae",
     explanation: "Papillomaviridae เป็น Naked circular dsDNA virus ก่อให้เกิดเนื้องอกไม่ร้ายแรงชนิดหูดบนผิวหนังและเยื่อเมือก"
@@ -835,9 +835,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "โคที่กินต้นกูด (Bracken fern) ร่วมกับติดเชื้อ Bovine Papillomavirus-2 มักเกิดมะเร็งที่อวัยวะใด?",
     choices: [
       "กระเพาะปัสสาวะ (Enzootic hematuria)",
-      "ตับและถุงน้ำดี",
-      "ปอดและหลอดลมส่วนปลาย",
       "ม้ามและต่อมน้ำเหลือง",
+      "ปอดและหลอดลมส่วนปลาย",
+      "ตับและถุงน้ำดี",
     ],
     answer: "กระเพาะปัสสาวะ (Enzootic hematuria)",
     explanation: "สาร Ptaquiloside ในต้นกูดทำปฏิกิริยาร่วมกับ BPV-2 เหนี่ยวนำให้เกิดมะเร็งกระเพาะปัสสาวะในโค"
@@ -850,10 +850,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "ไวรัสในตระกูล Iridoviridae เช่น Ranavirus ก่อโรครุนแรงในสัตว์กลุ่มใดเป็นหลัก?",
     choices: [
-      "สัตว์สะเทินน้ำสะเทินบก สัตว์เลื้อยคลาน และปลา",
-      "นกป่าและสัตว์ปีกเศรษฐกิจ",
       "สัตว์เคี้ยวเอื้องขนาดเล็ก",
+      "นกป่าและสัตว์ปีกเศรษฐกิจ",
       "ม้าและสัตว์ตระกูลม้า",
+      "สัตว์สะเทินน้ำสะเทินบก สัตว์เลื้อยคลาน และปลา",
     ],
     answer: "สัตว์สะเทินน้ำสะเทินบก สัตว์เลื้อยคลาน และปลา",
     explanation: "Ranavirus ในตระกูล Iridoviridae เป็นเชื้อก่อโรคระบาดรุนแรงในกบ ซาลาแมนเดอร์ และสัตว์น้ำ"
@@ -868,9 +868,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "เอนไซม์จำเพาะของ Retrovirus ที่ใช้สังเคราะห์ DNA จากแม่แบบ RNA คือข้อใด?",
     choices: [
       "Reverse Transcriptase (RdDp)",
-      "DNA-dependent RNA polymerase",
       "RNA Replicase",
       "DNA Ligase",
+      "DNA-dependent RNA polymerase",
     ],
     answer: "Reverse Transcriptase (RdDp)",
     explanation: "Reverse Transcriptase สร้าง cDNA สายเดี่ยวจาก RNA แม่แบบ จากนั้นสังเคราะห์เป็น dsDNA เข้าสู่นิวเคลียส"
@@ -883,10 +883,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "retro",
     q: "สารพันธุกรรมของไวรัสในตระกูล Retroviridae มีลักษณะจำเพาะอย่างไร?",
     choices: [
-      "(+)ssRNA จำนวน 2 โมเลกุลเหมือนกัน (Diploid)",
-      "dsDNA วงกลมแบบพลาสมิด",
       "(-)ssRNA สายเดี่ยวท่อนเดียว",
+      "dsDNA วงกลมแบบพลาสมิด",
       "dsRNA แบ่งเป็น 10 ชิ้นส่วน",
+      "(+)ssRNA จำนวน 2 โมเลกุลเหมือนกัน (Diploid)",
     ],
     answer: "(+)ssRNA จำนวน 2 โมเลกุลเหมือนกัน (Diploid)",
     explanation: "Retrovirus เป็นไวรัสเพียงกลุ่มเดียวที่มีสารพันธุกรรมเป็น Diploid ((+)ssRNA 2 สายที่เหมือนกัน)"
@@ -899,10 +899,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "retro",
     q: "ยีน 'gag' ในโครงสร้างจีโนมของ Retrovirus ทำหน้าที่รหัสสร้างโปรตีนส่วนใด?",
     choices: [
+      "เอนไซม์ Integrase สำหรับแทรกยีน",
+      "ไกลโคโปรตีนหนามบนผิว Envelope",
       "โปรตีนโครงสร้างแกนกลางและ Capsid",
       "เอนไซม์ Reverse Transcriptase",
-      "ไกลโคโปรตีนหนามบนผิว Envelope",
-      "เอนไซม์ Integrase สำหรับแทรกยีน",
     ],
     answer: "โปรตีนโครงสร้างแกนกลางและ Capsid",
     explanation: "ยีน gag (Group-specific antigen) สังเคราะห์โปรตีนโครงสร้างภายใน ได้แก่ Matrix, Capsid และ Nucleoprotein"
@@ -915,10 +915,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "retro",
     q: "ยีน 'env' ในจีโนมของ Retrovirus ทำหน้าที่กำหนดรหัสสร้างโครงสร้างใด?",
     choices: [
-      "Spike glycoprotein ของ Envelope",
-      "Capsomer ของชั้นโปรตีนหุ้มแกน",
-      "เอนไซม์ Protease ของอนุภาค",
       "โปรตีนแทรกดีเอ็นเอโฮสต์",
+      "เอนไซม์ Protease ของอนุภาค",
+      "Capsomer ของชั้นโปรตีนหุ้มแกน",
+      "Spike glycoprotein ของ Envelope",
     ],
     answer: "Spike glycoprotein ของ Envelope",
     explanation: "ยีน env รหัสสร้าง Envelope glycoproteins (เช่น Surface gp120 และ Transmembrane gp41) ที่ใช้จับ receptor"
@@ -931,9 +931,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "retro",
     q: "มะเร็งต่อมน้ำเหลืองและภาวะโลหิตจางรุนแรงในแมว สัมพันธ์กับไวรัสกลุ่มใดมากที่สุด?",
     choices: [
+      "Feline Coronavirus (FCoV)",
       "Feline Leukemia Virus (FeLV)",
       "Feline Parvovirus (FPV)",
-      "Feline Coronavirus (FCoV)",
       "Feline Calicivirus (FCV)",
     ],
     answer: "Feline Leukemia Virus (FeLV)",
@@ -947,10 +947,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "retro",
     q: "ไวรัสเอดส์แมว (FIV) จัดอยู่ในจีนัสใดของตระกูล Retroviridae?",
     choices: [
-      "Lentivirus",
+      "Spumavirus",
       "Gammaretrovirus",
       "Alpharetrovirus",
-      "Spumavirus",
+      "Lentivirus",
     ],
     answer: "Lentivirus",
     explanation: "FIV จัดอยู่ในจีนัส Lentivirus ซึ่งเป็นกลุ่มไวรัสที่ทำให้เกิดโรคอย่างช้าๆ แบบค่อยเป็นค่อยไป"
@@ -963,10 +963,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "retro",
     q: "เซลล์เป้าหมายหลักที่ถูกทำลายจนลดลงอย่างต่อเนื่องในแมวติดเชื้อ FIV คือข้อใด?",
     choices: [
-      "CD4+ T lymphocyte",
       "Erythrocyte",
-      "Platelet",
       "Basophil",
+      "Platelet",
+      "CD4+ T lymphocyte",
     ],
     answer: "CD4+ T lymphocyte",
     explanation: "FIV เข้าทำลาย CD4+ T helper cells ทำให้ภูมิคุ้มกันระดับเซลล์เสื่อมถอย เกิดการติดเชื้อฉวยโอกาส"
@@ -979,10 +979,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "retro",
     q: "การทดสอบ Coggins test (AGID) ในม้า ใช้ตรวจวินิจฉัยโรคติดเชื้อไวรัสชนิดใด?",
     choices: [
+      "Equine Influenza (EI)",
+      "African Horse Sickness (AHS)",
       "Equine Infectious Anemia (EIA)",
       "Equine Viral Arteritis (EVA)",
-      "African Horse Sickness (AHS)",
-      "Equine Influenza (EI)",
     ],
     answer: "Equine Infectious Anemia (EIA)",
     explanation: "Coggins test คือวิธีตรวจหาแอนติบอดีต่อโปรตีน p26 ของเชื้อ Equine Infectious Anemia Virus (EIAV)"
@@ -995,10 +995,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "retro",
     q: "พาหะสำคัญที่ถ่ายทอดเชื้อ Equine Infectious Anemia Virus ระหว่างม้าคือแมลงชนิดใด?",
     choices: [
-      "เหลือบม้าและแมลงวันคอก (Tabanids / Stomoxys)",
-      "ยุงก้นปล่อง (Anopheles)",
-      "หมัดสุนัข (Ctenocephalides)",
       "ไรนก (Dermanyssus)",
+      "เหลือบม้าและแมลงวันคอก (Tabanids / Stomoxys)",
+      "หมัดสุนัข (Ctenocephalides)",
+      "ยุงก้นปล่อง (Anopheles)",
     ],
     answer: "เหลือบม้าและแมลงวันคอก (Tabanids / Stomoxys)",
     explanation: "EIAV ถ่ายทอดทางกลไก (Mechanical transmission) โดยแมลงดูดเลือดขนาดใหญ่ เช่น เหลือบม้า (Tabanid flies)"
@@ -1011,10 +1011,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "retro",
     q: "โรคข้อและสมองอักเสบในแพะ (CAEV) มักถ่ายทอดสู่ลูกแพะผ่านทางใดเป็นหลัก?",
     choices: [
-      "การกินน้ำนมและน้ำนมเหลืองจากแม่แพะ",
-      "การโดนเห็บอ่อนกัดในคอก",
-      "การสูดดมฝุ่นละอองจากอุจจาระแห้ง",
       "การผสมพันธุ์โดยพ่อพันธุ์เท่านั้น",
+      "การโดนเห็บอ่อนกัดในคอก",
+      "การกินน้ำนมและน้ำนมเหลืองจากแม่แพะ",
+      "การสูดดมฝุ่นละอองจากอุจจาระแห้ง",
     ],
     answer: "การกินน้ำนมและน้ำนมเหลืองจากแม่แพะ",
     explanation: "เชื้อ CAEV ถูกขับออกมาใน Colostrum และนมของแม่แพะ ลูกแพะที่ดูดนมจะรับเชื้อเข้าสู่ทางเดินอาหาร"
@@ -1028,10 +1028,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "paramyxo",
     q: "สารพันธุกรรมของไวรัสในตระกูล Paramyxoviridae คือข้อใด?",
     choices: [
-      "Negative-sense single-stranded RNA ((-)ssRNA)",
-      "Positive-sense single-stranded RNA ((+)ssRNA)",
       "Segmented double-stranded RNA",
       "Circular double-stranded DNA",
+      "Negative-sense single-stranded RNA ((-)ssRNA)",
+      "Positive-sense single-stranded RNA ((+)ssRNA)",
     ],
     answer: "Negative-sense single-stranded RNA ((-)ssRNA)",
     explanation: "Paramyxoviridae เป็นไวรัส RNA สายเดี่ยวแบบเส้นตรง non-segmented ชนิด Negative-sense มีเยื่อหุ้ม"
@@ -1044,8 +1044,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "paramyxo",
     q: "รอยโรคการหนาตัวแข็งด้านผิดปกติของฝ่าเท้าสุนัขติดเชื้อ Canine Distemper เรียกว่าอะไร?",
     choices: [
-      "Hard pad disease (Hyperkeratosis)",
       "Blue eye syndrome",
+      "Hard pad disease (Hyperkeratosis)",
       "Tiger heart lesion",
       "Orf stomatitis",
     ],
@@ -1060,9 +1060,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "paramyxo",
     q: "ลูกสุนัขที่รอดชีวิตจากการติดเชื้อ Canine Distemper ในวัยกำลังสร้างฟัน มักพบรอยโรคใด?",
     choices: [
+      "เหงือกงอกหนาตัวเป็นเนื้องอกหูด",
       "Enamel hypoplasia (เคลือบฟันสึกกร่อนผิดรูป)",
       "ฟันงอกซ้อนผิดปกติในโพรงปาก",
-      "เหงือกงอกหนาตัวเป็นเนื้องอกหูด",
       "ฟันน้ำนมไม่ยอมหลุดร่วงตามอายุ",
     ],
     answer: "Enamel hypoplasia (เคลือบฟันสึกกร่อนผิดรูป)",
@@ -1076,10 +1076,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "paramyxo",
     q: "โรคกาฬโรคในโค (Rinderpest) มีสถานะทางระบาดวิทยาในปัจจุบันอย่างไร?",
     choices: [
-      "กวาดล้างหมดสิ้นไปจากโลกแล้ว (Eradicated)",
       "ยังคงระบาดรุนแรงเฉพาะในทวีปเอเชีย",
-      "กลายพันธุ์เป็นโรคติดต่อสู่มนุษย์",
+      "กวาดล้างหมดสิ้นไปจากโลกแล้ว (Eradicated)",
       "พบการระบาดซ้ำในฟาร์มโคนมทุกปี",
+      "กลายพันธุ์เป็นโรคติดต่อสู่มนุษย์",
     ],
     answer: "กวาดล้างหมดสิ้นไปจากโลกแล้ว (Eradicated)",
     explanation: "Rinderpest ได้รับการประกาศจาก OIE/FAO ว่าถูกกวาดล้างหมดสิ้นไปจากโลกอย่างเป็นทางการในปี 2011"
@@ -1092,10 +1092,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "paramyxo",
     q: "โรค Peste des Petits Ruminants (PPR) ก่อให้เกิดอาการป่วยรุนแรงในสัตว์กลุ่มใด?",
     choices: [
-      "แพะและแกะ",
-      "ม้าและลา",
       "สุนัขและแมว",
       "สุกรและหมูป่า",
+      "แพะและแกะ",
+      "ม้าและลา",
     ],
     answer: "แพะและแกะ",
     explanation: "PPR หรือโรคกาฬโรคในสัตว์เคี้ยวเอื้องขนาดเล็ก เป็นโรคร้ายแรงที่มีอัตราการตายสูงในแพะและแกะ"
@@ -1108,10 +1108,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "paramyxo",
     q: "สายพันธุ์ของ Newcastle Disease Virus (NDV) ที่ก่อให้เกิดโรครุนแรงและตายเฉียบพลันในไก่คือข้อใด?",
     choices: [
-      "Velogenic strain",
       "Mesogenic strain",
-      "Lentogenic strain",
       "Asymptomatic enteric strain",
+      "Lentogenic strain",
+      "Velogenic strain",
     ],
     answer: "Velogenic strain",
     explanation: "Velogenic strain เป็นสายพันธุ์ที่มีความรุนแรงสูงมาก ก่อรอยโรคทางเดินหายใจ ประสาท และอัตราตายสูงถึง 100%"
@@ -1124,10 +1124,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "paramyxo",
     q: "การทดสอบทางห้องปฏิบัติการเพื่อยืนยันเชื้อ NDV โดยอาศัยคุณสมบัติเกาะกลุ่มเม็ดเลือดแดงคือข้อใด?",
     choices: [
+      "Complement fixation test",
       "Hemagglutination Inhibition (HI) test",
       "Western blot analysis",
       "Agar gel immunodiffusion",
-      "Complement fixation test",
     ],
     answer: "Hemagglutination Inhibition (HI) test",
     explanation: "เชื้อ NDV มี Hemagglutinin spike ทำให้เม็ดเลือดแดงไก่เกาะกลุ่ม จึงใช้การทดสอบ HA และ HI ในการตรวจวินิจฉัย"
@@ -1141,9 +1141,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "แหล่งรังโรคตามธรรมชาติของไวรัส Hendra และ Nipah คือสัตว์ชนิดใด?",
     choices: [
       "ค้างคาวกินผลไม้ (Fruit bats / Pteropus)",
+      "ชะมดและอีเห็นป่า",
       "หนูนาและสัตว์ฟันแทะ",
       "นกพิราบและนกเป็ดน้ำ",
-      "ชะมดและอีเห็นป่า",
     ],
     answer: "ค้างคาวกินผลไม้ (Fruit bats / Pteropus)",
     explanation: "Pteropus fruit bats (ค้างคาวแม่ไก่) เป็น Natural reservoir ที่นำเชื้อแพร่สู่ม้า หมู และมนุษย์"
@@ -1156,10 +1156,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "paramyxo",
     q: "อาการทางระบบหายใจเด่นชัดในสุกรที่ติดเชื้อไวรัส Nipah มีชื่อเรียกเฉพาะว่าอะไร?",
     choices: [
-      "Barking pig syndrome",
-      "Blue tongue syndrome",
-      "Hard pad syndrome",
       "Mad cow syndrome",
+      "Barking pig syndrome",
+      "Hard pad syndrome",
+      "Blue tongue syndrome",
     ],
     answer: "Barking pig syndrome",
     explanation: "สุกรติดเชื้อ Nipah มีอาการไอแห้งเสียงดังคล้ายสุนัขเห่า หายใจลำบาก เรียกว่า Barking pig syndrome"
@@ -1172,10 +1172,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "paramyxo",
     q: "ลักษณะเด่นของ Inclusion bodies ที่พบในเซลล์ติดเชื้อ Canine Distemper Virus คือข้อใด?",
     choices: [
+      "พบเฉพาะในช่องว่างระหว่างเซลล์",
       "พบได้ทั้งในไซโทพลาสซึมและนิวเคลียส",
       "พบเฉพาะในนิวเคลียสเท่านั้น",
       "ไม่พบ Inclusion body ใดๆ ทั้งสิ้น",
-      "พบเฉพาะในช่องว่างระหว่างเซลล์",
     ],
     answer: "พบได้ทั้งในไซโทพลาสซึมและนิวเคลียส",
     explanation: "Morbillivirus เช่น CDV สามารถสร้าง Inclusion bodies ได้ทั้งแบบ Intracytoplasmic และ Intranuclear"
@@ -1190,9 +1190,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "สารพันธุกรรมของไวรัส Influenza A ในตระกูล Orthomyxoviridae แบ่งออกเป็นกี่ชิ้นส่วน?",
     choices: [
       "8 ชิ้นส่วน (8 Segments)",
-      "2 ชิ้นส่วน (2 Segments)",
       "10-12 ชิ้นส่วน",
       "สายเดี่ยวท่อนเดียวไม่แบ่งท่อน",
+      "2 ชิ้นส่วน (2 Segments)",
     ],
     answer: "8 ชิ้นส่วน (8 Segments)",
     explanation: "Influenza A virus มีจีโนมเป็น (-)ssRNA แบ่งออกเป็น 8 segments แต่ละท่อนรหัสโปรตีนสำคัญ"
@@ -1205,10 +1205,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "ortho",
     q: "ไวรัสไข้หวัดใหญ่มีความแตกต่างจากไวรัส RNA ส่วนใหญ่ตรงจุดใดในกระบวนการเพิ่มจำนวน?",
     choices: [
-      "จำลองสารพันธุกรรมภายในนิวเคลียส",
-      "ใช้ไรโบโซมของตัวเองในการแปลรหัส",
       "ไม่อาศัยเอนไซม์ RNA polymerase",
+      "จำลองสารพันธุกรรมภายในนิวเคลียส",
       "ทนต่อความร้อนสูงได้มากกว่า 100 °C",
+      "ใช้ไรโบโซมของตัวเองในการแปลรหัส",
     ],
     answer: "จำลองสารพันธุกรรมภายในนิวเคลียส",
     explanation: "Orthomyxovirus เป็นหนึ่งใน RNA virus ไม่กี่กลุ่มที่ต้องเข้าไป Transcription และ Replicate ในนิวเคลียสของโฮสต์"
@@ -1237,10 +1237,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "ortho",
     q: "เอนไซม์ Neuraminidase (NA) บนผิวของอนุภาคไวรัสไข้หวัดใหญ่มีหน้าที่อะไร?",
     choices: [
-      "ตัดพันธะ Sialic acid เพื่อปลดปล่อยไวรัสออกจากเซลล์",
-      "จับกับตัวรับเพื่อเปิดช่องเยื่อหุ้มเซลล์",
-      "สร้างพลังงาน ATP ให้แก่อนุภาค",
       "ห่อหุ้มสารพันธุกรรมเป็นรูปเกลียว",
+      "ตัดพันธะ Sialic acid เพื่อปลดปล่อยไวรัสออกจากเซลล์",
+      "สร้างพลังงาน ATP ให้แก่อนุภาค",
+      "จับกับตัวรับเพื่อเปิดช่องเยื่อหุ้มเซลล์",
     ],
     answer: "ตัดพันธะ Sialic acid เพื่อปลดปล่อยไวรัสออกจากเซลล์",
     explanation: "NA ตัด Sialic acid ทำให้ไวรัสรุ่นลูกหลุดเป็นอิสระจากผิวเซลล์และไม่เกาะกลุ่มกันเอง"
@@ -1253,10 +1253,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "ortho",
     q: "ปรากฏการณ์ Antigenic drift ของไวรัสไข้หวัดใหญ่เกิดจากกลไกทางพันธุกรรมใด?",
     choices: [
-      "การกลายพันธุ์ระดับจุด (Point mutation) สะสมต่อเนื่อง",
       "การสลับเปลี่ยนชิ้นส่วนยีนทั้งหมดระหว่างสายพันธุ์",
       "การแทรกจีโนมเข้าสู่โครโมโซมของโฮสต์",
       "การสูญเสียชั้นเยื่อหุ้มไขมันถาวร",
+      "การกลายพันธุ์ระดับจุด (Point mutation) สะสมต่อเนื่อง",
     ],
     answer: "การกลายพันธุ์ระดับจุด (Point mutation) สะสมต่อเนื่อง",
     explanation: "Antigenic drift เกิดจากความผิดพลาดของ RdRp ก่อให้เกิด Point mutation สะสม จนโครงสร้าง HA/NA เปลี่ยนไปทีละน้อย"
@@ -1271,8 +1271,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     choices: [
       "การแลกเปลี่ยนชิ้นส่วนยีน (Genetic reassortment)",
       "การได้รับสารเคมีเร่งการเติบโตในฟาร์ม",
-      "การเปลี่ยนแปลงอุณหภูมิของโลกเฉียบพลัน",
       "การติดเชื้อแบคทีเรียแทรกซ้อนพร้อมกัน",
+      "การเปลี่ยนแปลงอุณหภูมิของโลกเฉียบพลัน",
     ],
     answer: "การแลกเปลี่ยนชิ้นส่วนยีน (Genetic reassortment)",
     explanation: "Antigenic shift เกิดเมื่อเซลล์เดียวติดเชื้อ 2 สายพันธุ์พร้อมกัน แล้วเกิด Genetic reassortment ได้สายพันธุ์ย่อยใหม่หมดจด"
@@ -1285,10 +1285,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "ortho",
     q: "เหตุใดสุกร (Swine) จึงมักถูกเรียกว่าเป็น 'Mixing vessel' ของเชื้อไวรัสไข้หวัดใหญ่?",
     choices: [
-      "มีทั้งตัวรับแบบสัตว์ปีกและมนุษย์ในทางเดินหายใจ",
-      "มีอุณหภูมิร่างกายสูงกว่าสัตว์เลี้ยงลูกด้วยนมชนิดอื่น",
-      "ไม่มีระบบภูมิคุ้มกันต่อต้านไวรัสไข้หวัดใหญ่",
       "สามารถเพาะเลี้ยงเชื้อไวรัสได้ในกระเพาะอาหาร",
+      "มีทั้งตัวรับแบบสัตว์ปีกและมนุษย์ในทางเดินหายใจ",
+      "ไม่มีระบบภูมิคุ้มกันต่อต้านไวรัสไข้หวัดใหญ่",
+      "มีอุณหภูมิร่างกายสูงกว่าสัตว์เลี้ยงลูกด้วยนมชนิดอื่น",
     ],
     answer: "มีทั้งตัวรับแบบสัตว์ปีกและมนุษย์ในทางเดินหายใจ",
     explanation: "ทางเดินหายใจของสุกรมีทั้ง alpha-2,3 (Avian) และ alpha-2,6 (Human) sialic acid receptors จึงติดเชื้อได้ทั้งสองสายพันธุ์"
@@ -1301,10 +1301,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "ortho",
     q: "สัตว์ปีกที่ติดเชื้อ Highly Pathogenic Avian Influenza (HPAI) มักแสดงอาการเด่นชัดข้อใด?",
     choices: [
-      "หงอนและเหนียงบวมคล้ำเขียวและตายเฉียบพลัน",
-      "ขนร่วงทั่วตัวแต่ยังกินอาหารได้ปกติ",
-      "ขาบวมแข็งและมีตุ่มหนองที่ฝ่าเท้า",
       "มีอาการคันตามโคนหางอย่างรุนแรง",
+      "ขนร่วงทั่วตัวแต่ยังกินอาหารได้ปกติ",
+      "หงอนและเหนียงบวมคล้ำเขียวและตายเฉียบพลัน",
+      "ขาบวมแข็งและมีตุ่มหนองที่ฝ่าเท้า",
     ],
     answer: "หงอนและเหนียงบวมคล้ำเขียวและตายเฉียบพลัน",
     explanation: "HPAI ทำลายเซลล์บุหลอดเลือดทั่วร่างกาย ทำให้เกิด Cyanosis และ Edema บริเวณหงอน เหนียง และตายรวดเร็ว"
@@ -1317,10 +1317,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "ortho",
     q: "ยาต้านไวรัสไข้หวัดใหญ่ Oseltamivir ออกฤทธิ์ยับยั้งการทำงานของโปรตีนใด?",
     choices: [
-      "Neuraminidase (NA)",
-      "Hemagglutinin (HA)",
       "M2 ion channel",
+      "Hemagglutinin (HA)",
       "RNA polymerase",
+      "Neuraminidase (NA)",
     ],
     answer: "Neuraminidase (NA)",
     explanation: "Oseltamivir ทำหน้าที่เป็น Neuraminidase inhibitor ป้องกันไม่ให้ไวรัสหลุดออกจากเซลล์เพื่อไปแพร่เชื้อต่อ"
@@ -1333,9 +1333,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "ortho",
     q: "โรค Equine Influenza ในม้าก่อให้เกิดอาการทางคลินิกเด่นชัดในระบบใด?",
     choices: [
+      "ระบบกล้ามเนื้อทำให้กระดูกข้ออักเสบ",
       "ระบบทางเดินหายใจ (ไอแห้ง ไข้สูง น้ำมูกใส)",
       "ระบบทางเดินอาหารและถ่ายเหลวรุนแรง",
-      "ระบบกล้ามเนื้อทำให้กระดูกข้ออักเสบ",
       "ระบบผิวหนังและขนร่วงเป็นหย่อม",
     ],
     answer: "ระบบทางเดินหายใจ (ไอแห้ง ไข้สูง น้ำมูกใส)",
@@ -1350,10 +1350,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "corona",
     q: "ลักษณะเด่นของอนุภาคไวรัสโคโรนาเมื่อส่องด้วยกล้องจุลทรรศน์อิเล็กตรอนคืออะไร?",
     choices: [
-      "หนามโปรตีนกระจายรอบคล้ายมงกุฎ (Crown-like)",
-      "รูปร่างคล้ายกระสุนปืนทรงกระบอก",
       "อนุภาคทรงเหลี่ยมลูกบาศก์ 20 หน้า",
+      "หนามโปรตีนกระจายรอบคล้ายมงกุฎ (Crown-like)",
       "เส้นสายยืดยาวขดคล้ายด้ามร่ม",
+      "รูปร่างคล้ายกระสุนปืนทรงกระบอก",
     ],
     answer: "หนามโปรตีนกระจายรอบคล้ายมงกุฎ (Crown-like)",
     explanation: "หนาม Spike glycoprotein รูปกระบองขนาดใหญ่ยื่นรอบผิวอนุภาค ดูคล้าย Corona หรือรัศมีมงกุฎสุริยะ"
@@ -1367,9 +1367,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "สารพันธุกรรมของไวรัสในตระกูล Coronaviridae จัดเป็นกลุ่มใด?",
     choices: [
       "Positive-sense single-stranded RNA ((+)ssRNA)",
-      "Negative-sense segmented RNA",
       "Double-stranded circular DNA",
       "Single-stranded DNA",
+      "Negative-sense segmented RNA",
     ],
     answer: "Positive-sense single-stranded RNA ((+)ssRNA)",
     explanation: "Coronaviridae มีสารพันธุกรรมเป็น (+)ssRNA ขนาดใหญ่ที่สุดในบรรดา RNA virus ทั้งหมด (~30 kb)"
@@ -1382,10 +1382,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "corona",
     q: "โรค Transmissible Gastroenteritis (TGE) ในสุกรทำให้เกิดรอยโรคเด่นที่อวัยวะใด?",
     choices: [
-      "วิลไลของลำไส้เล็กฝ่อลีบและผนังบางใส",
+      "ปอดบวมน้ำและมีของเหลวในช่องอก",
       "ต่อมทอนซิลบวมโตมีเนื้อตายสีเทา",
       "กล้ามเนื้อหัวใจมีแถบสีซีดขาว",
-      "ปอดบวมน้ำและมีของเหลวในช่องอก",
+      "วิลไลของลำไส้เล็กฝ่อลีบและผนังบางใส",
     ],
     answer: "วิลไลของลำไส้เล็กฝ่อลีบและผนังบางใส",
     explanation: "TGEV ทำลายเซลล์ Enterocytes บริเวณส่วนปลายของ Villus ในลำไส้เล็ก ทำให้ Villous atrophy และท้องเสียเฉียบพลัน"
@@ -1398,9 +1398,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "corona",
     q: "โรค Porcine Epidemic Diarrhea (PED) ก่อให้เกิดอันตรายสูงสุดในสุกรช่วงอายุใด?",
     choices: [
+      "สุกรขุนน้ำหนัก 80-100 กิโลกรัม",
       "ลูกสุกรดูดนมแรกเกิด (อายุต่ำกว่า 1-2 สัปดาห์)",
       "แม่สุกรช่วงตั้งท้องระยะท้าย",
-      "สุกรขุนน้ำหนัก 80-100 กิโลกรัม",
       "พ่อพันธุ์สุกรโตเต็มวัย",
     ],
     answer: "ลูกสุกรดูดนมแรกเกิด (อายุต่ำกว่า 1-2 สัปดาห์)",
@@ -1414,10 +1414,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "corona",
     q: "ลักษณะของของเหลวในช่องท้องของแมวที่เป็นโรค FIP ชนิดเปียก (Effusive form) คือข้อใด?",
     choices: [
-      "สีเหลืองฟางข้าว เหนียวข้น และมีโปรตีนสูง",
-      "สีแดงใสคล้ายน้ำล้างเนื้อ",
       "สีขาวขุ่นข้นคล้ายหนอง",
+      "สีแดงใสคล้ายน้ำล้างเนื้อ",
       "น้ำใสไม่มีสีและมีโปรตีนต่ำมาก",
+      "สีเหลืองฟางข้าว เหนียวข้น และมีโปรตีนสูง",
     ],
     answer: "สีเหลืองฟางข้าว เหนียวข้น และมีโปรตีนสูง",
     explanation: "น้ำคั่งใน FIP เกิดจาก Pyogranulomatous vasculitis เป็น Exudate สีเหลืองฟางข้าว เหนียวหนืดและโปรตีนสูง"
@@ -1431,9 +1431,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "ไวรัสก่อโรค FIP ในแมว เกิดจากการกลายพันธุ์ของไวรัสชนิดใดภายในตัวสัตว์?",
     choices: [
       "Feline Enteric Coronavirus (FECV)",
-      "Feline Panleukopenia Virus (FPV)",
-      "Feline Herpesvirus-1 (FHV-1)",
       "Feline Leukemia Virus (FeLV)",
+      "Feline Herpesvirus-1 (FHV-1)",
+      "Feline Panleukopenia Virus (FPV)",
     ],
     answer: "Feline Enteric Coronavirus (FECV)",
     explanation: "FECV ที่ไม่รุนแรงในลำไส้เกิดการกลายพันธุ์ของยีน Spike และ 3c จนเปลี่ยน Tropism ไปบุกรุก Macrophages เกิดเป็น FIPV"
@@ -1446,9 +1446,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "corona",
     q: "โรคหลอดลมอักเสบติดต่อในไก่ (IBV) นอกจากกระทบระบบทางเดินหายใจแล้วยังทำให้เกิดปัญหาใด?",
     choices: [
+      "ขนปีกและหางร่วงพร้อมกันทั้งฝูง",
       "ไข่ลด เปลือกไข่บาง นิ่ม และผิดรูปย่น",
       "ลูกไก่ตาบอดสีฟ้าแบบเฉียบพลัน",
-      "ขนปีกและหางร่วงพร้อมกันทั้งฝูง",
       "ขาหลังอัมพาตและบวมโต",
     ],
     answer: "ไข่ลด เปลือกไข่บาง นิ่ม และผิดรูปย่น",
@@ -1462,10 +1462,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "corona",
     q: "ไวรัส Bovine Coronavirus (BCoV) สัมพันธ์กับโรคทางเดินอาหารในโคช่วงฤดูใดมากที่สุด?",
     choices: [
-      "โรคท้องเสียฤดูหนาว (Winter dysentery)",
       "โรคท้องเสียจากความร้อนในฤดูร้อน",
-      "โรคกระเพาะอาหารอักเสบฤดูฝน",
       "โรคตับอักเสบประจำถิ่นช่วงน้ำหลาก",
+      "โรคกระเพาะอาหารอักเสบฤดูฝน",
+      "โรคท้องเสียฤดูหนาว (Winter dysentery)",
     ],
     answer: "โรคท้องเสียฤดูหนาว (Winter dysentery)",
     explanation: "BCoV เป็นสาเหตุหลักของ Winter dysentery ในโคนมโตเต็มวัย ทำให้ถ่ายเหลวสีเข้มปนเลือดและน้ำนมลดฮวบ"
@@ -1478,9 +1478,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "corona",
     q: "เมื่อ FECV กลายพันธุ์เป็น FIPV ไวรัสจะเปลี่ยนเป้าหมายการบุกรุกไปที่เซลล์ชนิดใด?",
     choices: [
-      "Monocytes และ Macrophages",
       "Erythrocytes ในม้าม",
       "Ciliated epithelial cells",
+      "Monocytes และ Macrophages",
       "Pancreatic beta cells",
     ],
     answer: "Monocytes และ Macrophages",
@@ -1494,8 +1494,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "corona",
     q: "เนื่องจาก Coronaviridae เป็นไวรัสที่มีเยื่อหุ้ม (Enveloped) ไวรัสนี้จึงมีความไวต่อสิ่งใดมากที่สุด?",
     choices: [
-      "ผงซักฟอก สารละลายไขมัน และความร้อน",
       "อุณหภูมิที่ติดลบในตู้แช่แข็ง",
+      "ผงซักฟอก สารละลายไขมัน และความร้อน",
       "สภาพแวดล้อมที่ไร้ออกซิเจน",
       "ยาปฏิชีวนะกลุ่มเตตราไซคลิน",
     ],
@@ -1511,10 +1511,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "rhabdo",
     q: "ไวรัสในตระกูล Rhabdoviridae เช่น Rabies virus มีรูปร่างอนุภาคอันเป็นเอกลักษณ์แบบใด?",
     choices: [
-      "ทรงกระสุนปืน (Bullet-shaped)",
       "ทรงลูกบาศก์ 20 หน้า",
       "ทรงกลมมีหนามมงกุฎ",
       "เส้นสายยืดยาวคล้ายหนอน",
+      "ทรงกระสุนปืน (Bullet-shaped)",
     ],
     answer: "ทรงกระสุนปืน (Bullet-shaped)",
     explanation: "Rhabdoviridae มีรูปทรงกระสุนปืน ปลายด้านหนึ่งมน อีกด้านหนึ่งตัดตรง มี Envelope หุ้มชัดเจน"
@@ -1527,10 +1527,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "rhabdo",
     q: "เชื้อไวรัสพิษสุนัขบ้าเคลื่อนตัวจากรอยแผลที่ถูกกัดเข้าสู่ระบบประสาทส่วนกลางผ่านเส้นทางใด?",
     choices: [
-      "เคลื่อนที่ตามเส้นประสาทส่วนปลาย (Axonal transport)",
-      "แพร่กระจายไปตามระบบน้ำเหลือง",
-      "ล่องลอยอิสระในกระแสเลือด",
       "แพร่ผ่านทางชั้นกล้ามเนื้อลายโดยตรง",
+      "แพร่กระจายไปตามระบบน้ำเหลือง",
+      "เคลื่อนที่ตามเส้นประสาทส่วนปลาย (Axonal transport)",
+      "ล่องลอยอิสระในกระแสเลือด",
     ],
     answer: "เคลื่อนที่ตามเส้นประสาทส่วนปลาย (Axonal transport)",
     explanation: "ไวรัสพิษสุนัขบ้าเคลื่อนที่แบบ Retrograde axoplasmic flow เข้าสู่ไขสันหลังและสมองตามเส้นประสาท"
@@ -1543,10 +1543,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "rhabdo",
     q: "ไวรัสพิษสุนัขบ้าถูกขับออกจากร่างกายของสัตว์ป่วยเพื่อแพร่เชื้อต่อผ่านทางของเหลวใดเป็นหลัก?",
     choices: [
-      "น้ำลาย (Saliva)",
-      "ปัสสาวะ",
-      "เหงื่อ",
       "น้ำนม",
+      "เหงื่อ",
+      "ปัสสาวะ",
+      "น้ำลาย (Saliva)",
     ],
     answer: "น้ำลาย (Saliva)",
     explanation: "ไวรัสเพิ่มจำนวนในต่อมน้ำลาย (Salivary glands) และขับออกสู่น้ำลายเพื่อแพร่เชื้อผ่านบาดแผลถูกกัด"
@@ -1559,9 +1559,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "rhabdo",
     q: "รอยโรค Negri bodies ในสมองสัตว์ป่วยโรคพิษสุนัขบ้า มักตรวจพบได้มากที่สุดที่บริเวณใด?",
     choices: [
-      "Hippocampus และ Purkinje cells ในสมองน้อย",
       "เยื่อหุ้มสมองชั้นนอก Dura mater",
       "ต่อมใต้สมอง Pituitary gland",
+      "Hippocampus และ Purkinje cells ในสมองน้อย",
       "โพรงน้ำไขสันหลังส่วนกลาง",
     ],
     answer: "Hippocampus และ Purkinje cells ในสมองน้อย",
@@ -1575,10 +1575,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "rhabdo",
     q: "โรค Vesicular Stomatitis Virus (VSV) มีความสำคัญอย่างยิ่งในการวินิจฉัยแยกโรคกับโรคใด?",
     choices: [
-      "Foot and mouth disease (FMD)",
-      "Rabies",
       "Canine Distemper",
       "Rinderpest",
+      "Foot and mouth disease (FMD)",
+      "Rabies",
     ],
     answer: "Foot and mouth disease (FMD)",
     explanation: "VSV ทำให้เกิดตุ่มน้ำใสพองและแผลหลุมที่ปาก กีบ และเต้านม ซึ่งมีอาการเหมือนโรค FMD ทุกประการ"
@@ -1591,9 +1591,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "rhabdo",
     q: "สัตว์ชนิดใดสามารถติดเชื้อ Vesicular Stomatitis ได้ แต่ 'ไม่' ติดเชื้อปากและเท้าเปื่อย (FMD)?",
     choices: [
-      "ม้า (Equine)",
       "โค (Bovine)",
       "สุกร (Swine)",
+      "ม้า (Equine)",
       "แพะ (Caprine)",
     ],
     answer: "ม้า (Equine)",
@@ -1607,10 +1607,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "rhabdo",
     q: "โรคไข้ 3 วันในโค (Bovine Ephemeral Fever) ติดต่อระหว่างสัตว์โดยอาศัยพาหะใด?",
     choices: [
-      "แมลงดูดเลือด (ยุงและริ้น)",
       "การสัมผัสปัสสาวะโดยตรง",
       "การกินอาหารปนเปื้อนเชื้อ",
       "การไอจามรดกันในอากาศ",
+      "แมลงดูดเลือด (ยุงและริ้น)",
     ],
     answer: "แมลงดูดเลือด (ยุงและริ้น)",
     explanation: "BEFV จัดอยู่ในจีนัส Ephemerovirus ถ่ายทอดโดยยุง (Culicine mosquitoes) และริ้นน้ำเค็ม (Culicoides)"
@@ -1623,10 +1623,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "สารพันธุกรรมของไวรัสในตระกูล Birnaviridae เช่น IBDV มีลักษณะอย่างไร?",
     choices: [
-      "Bisegmented double-stranded RNA (dsRNA 2 ท่อน)",
-      "Single-stranded DNA สายเดี่ยว",
-      "Segmented negative ssRNA 8 ท่อน",
       "Circular double-stranded DNA",
+      "Segmented negative ssRNA 8 ท่อน",
+      "Single-stranded DNA สายเดี่ยว",
+      "Bisegmented double-stranded RNA (dsRNA 2 ท่อน)",
     ],
     answer: "Bisegmented double-stranded RNA (dsRNA 2 ท่อน)",
     explanation: "Birnaviridae มาจาก 'Bi-RNA' มีจีโนมเป็น dsRNA แบ่งออกเป็น 2 segments (Segment A และ Segment B)"
@@ -1639,10 +1639,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "โรค Gumboro (Infectious Bursal Disease) ในไก่ ทำลายอวัยวะใดเป็นหลัก?",
     choices: [
-      "เบอร์ซาของฟาบริเชียส (Bursa of Fabricius)",
-      "ม้ามและตับอ่อน",
       "ต่อมไทมัสใต้ลำคอ",
+      "เบอร์ซาของฟาบริเชียส (Bursa of Fabricius)",
       "ไขกระดูกส่วนโคนขา",
+      "ม้ามและตับอ่อน",
     ],
     answer: "เบอร์ซาของฟาบริเชียส (Bursa of Fabricius)",
     explanation: "IBDV มีความจำเพาะสูงในการทำลาย B-lymphocytes ใน Bursa of Fabricius ทำให้เกิดการบวมและฝ่อตามมา"
@@ -1655,10 +1655,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "ผลกระทบระยะยาวที่อันตรายที่สุดในลูกไก่ที่รอดชีวิตจากการติดเชื้อ IBDV คืออะไร?",
     choices: [
-      "ภาวะภูมิคุ้มกันบกพร่องถาวร (Immunosuppression)",
-      "ขาหลังพิการแข็งเกร็งตลอดชีวิต",
-      "การมองเห็นลดลงจนตาบอดสนิท",
       "ระบบย่อยอาหารหยุดการทำงาน",
+      "ขาหลังพิการแข็งเกร็งตลอดชีวิต",
+      "ภาวะภูมิคุ้มกันบกพร่องถาวร (Immunosuppression)",
+      "การมองเห็นลดลงจนตาบอดสนิท",
     ],
     answer: "ภาวะภูมิคุ้มกันบกพร่องถาวร (Immunosuppression)",
     explanation: "การสูญเสีย B-cells ทำให้ไก่ไม่สามารถสร้างแอนติบอดีต่อวัคซีนชนิดอื่นและติดเชื้อแทรกซ้อนได้ง่าย"
@@ -1672,9 +1672,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "flavi",
     q: "ไวรัสในกลุ่ม Alphavirus เช่น EEEV, WEEV และ VEEV ถ่ายทอดสู่ม้าผ่านพาหะใด?",
     choices: [
-      "ยุงดูดเลือด (Mosquitoes)",
-      "เห็บแข็ง (Hard ticks)",
       "แมลงวันคอก (Stable flies)",
+      "เห็บแข็ง (Hard ticks)",
+      "ยุงดูดเลือด (Mosquitoes)",
       "ไรไก่ (Poultry mites)",
     ],
     answer: "ยุงดูดเลือด (Mosquitoes)",
@@ -1688,9 +1688,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "flavi",
     q: "สัตว์ชนิดใดทำหน้าที่เป็น Amplifying host (ตัวเพิ่มจำนวนเชื้อ) ที่สำคัญของ Japanese Encephalitis Virus?",
     choices: [
-      "สุกร (Swine)",
-      "ม้า (Horse)",
       "สุนัข (Dog)",
+      "ม้า (Horse)",
+      "สุกร (Swine)",
       "แพะ (Goat)",
     ],
     answer: "สุกร (Swine)",
@@ -1704,9 +1704,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "flavi",
     q: "แหล่งรังโรคตามธรรมชาติ (Natural reservoir) ของไวรัส West Nile (WNV) คือข้อใด?",
     choices: [
-      "นกป่า (Wild birds)",
       "ค้างคาวแม่ไก่",
       "สัตว์ฟันแทะในป่า",
+      "นกป่า (Wild birds)",
       "สัตว์เลื้อยคลาน",
     ],
     answer: "นกป่า (Wild birds)",
@@ -1721,9 +1721,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "เชื้อ Bovine Viral Diarrhea Virus (BVDV) จัดอยู่ในจีนัสใดของตระกูล Flaviviridae?",
     choices: [
       "Pestivirus",
-      "Flavivirus",
       "Hepacivirus",
       "Pegivirus",
+      "Flavivirus",
     ],
     answer: "Pestivirus",
     explanation: "จีนัส Pestivirus ประกอบด้วยเชื้อสำคัญในปศุสัตว์ ได้แก่ BVDV-1, BVDV-2, Border disease virus และ CSFV"
@@ -1736,10 +1736,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "flavi",
     q: "ลูกโคที่เป็นพาหะถาวร (PI calves) ของเชื้อ BVDV เกิดจากการติดเชื้อในครรภ์ช่วงใด?",
     choices: [
+      "ช่วงขณะกำลังคลอดลูก",
       "ช่วงตั้งท้อง 40 – 120 วัน",
       "ช่วงตั้งท้อง 180 – 240 วัน",
       "ช่วงสัปดาห์สุดท้ายก่อนคลอด",
-      "ช่วงขณะกำลังคลอดลูก",
     ],
     answer: "ช่วงตั้งท้อง 40 – 120 วัน",
     explanation: "การติดเชื้อก่อนที่ระบบภูมิคุ้มกันของทารกจะพัฒนาสมบูรณ์ ทำให้ร่างกายทารกจดจำเชื้อไวรัสเป็นเซลล์ของตนเอง (Immunotolerance)"
@@ -1752,10 +1752,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "flavi",
     q: "ภาวะ Mucosal disease ที่มีอัตราการตายสูงในโค เกิดขึ้นเมื่อมีสภาวะใด?",
     choices: [
-      "โคที่เป็น PI ติดเชื้อ BVDV สายพันธุ์ Cytopathogenic ซ้ำ",
-      "โคได้รับวัคซีนเชื้อเป็นเข็มแรก",
-      "โคขาดสารอาหารแร่ธาตุทองแดง",
       "โคติดเชื้อพยาธิใบไม้ในตับร่วมด้วย",
+      "โคขาดสารอาหารแร่ธาตุทองแดง",
+      "โคได้รับวัคซีนเชื้อเป็นเข็มแรก",
+      "โคที่เป็น PI ติดเชื้อ BVDV สายพันธุ์ Cytopathogenic ซ้ำ",
     ],
     answer: "โคที่เป็น PI ติดเชื้อ BVDV สายพันธุ์ Cytopathogenic ซ้ำ",
     explanation: "Mucosal disease เกิดเมื่อโค PI ชนิด non-cp เกิดการกลายพันธุ์หรือรับเชื้อชนิด cp-BVDV เข้าไป เกิดแผลเปื่อยทั่วทางเดินอาหารและตาย"
@@ -1768,10 +1768,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "flavi",
     q: "โรคอหิวาต์สุกรดั้งเดิม (Classical Swine Fever - CSF / Hog Cholera) เกิดจากไวรัสกลุ่มใด?",
     choices: [
-      "Pestivirus (Flaviviridae)",
-      "Asfarviridae",
-      "Coronaviridae",
       "Arteriviridae",
+      "Pestivirus (Flaviviridae)",
+      "Coronaviridae",
+      "Asfarviridae",
     ],
     answer: "Pestivirus (Flaviviridae)",
     explanation: "CSFV เป็นไวรัส (+)ssRNA มีเยื่อหุ้ม จัดอยู่ในจีนัส Pestivirus ตระกูล Flaviviridae"
@@ -1784,10 +1784,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "flavi",
     q: "รอยโรคแผลหลุมรูปกระดุม (Button ulcers) ในลำไส้ใหญ่ของสุกรเป็นลักษณะเฉพาะของโรคใด?",
     choices: [
+      "Swine Dysentery",
       "Classical Swine Fever (CSF)",
       "Porcine Epidemic Diarrhea",
       "Transmissible Gastroenteritis",
-      "Swine Dysentery",
     ],
     answer: "Classical Swine Fever (CSF)",
     explanation: "Button ulcers ในลำไส้ใหญ่เกิดจาก Necrosis ของต่อมน้ำเหลืองและเยื่อบุลำไส้ในโรค CSF ระยะเรื้อรัง"
@@ -1800,10 +1800,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "flavi",
     q: "รอยโรคไตคล้ายไข่ไก่งวง (Turkey-egg kidney) จากจุดเลือดออกกระจาย เกิดจากโรคใดในสุกร?",
     choices: [
-      "Classical Swine Fever (CSF)",
-      "Foot and mouth disease",
-      "Swine Vesicular Disease",
       "Rotavirus infection",
+      "Foot and mouth disease",
+      "Classical Swine Fever (CSF)",
+      "Swine Vesicular Disease",
     ],
     answer: "Classical Swine Fever (CSF)",
     explanation: "Petechial hemorrhages ที่กระจายบนผิวไตของสุกรทำให้ดูคล้ายเปลือกไข่ไก่งวง เป็นรอยโรคเด่นของ CSF"
@@ -1817,9 +1817,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "สารพันธุกรรมของไวรัสในตระกูล Flaviviridae มีคุณสมบัติอย่างไร?",
     choices: [
       "Positive-sense single-stranded RNA ((+)ssRNA)",
-      "Negative-sense segmented RNA",
       "Double-stranded circular DNA",
       "Single-stranded DNA",
+      "Negative-sense segmented RNA",
     ],
     answer: "Positive-sense single-stranded RNA ((+)ssRNA)",
     explanation: "Flaviviridae มีจีโนมเป็น (+)ssRNA โมเลกุลเดี่ยว มีเยื่อหุ้มไขมัน และแปลรหัสเป็น Polyprotein เดียวกัน"
@@ -1833,10 +1833,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "สารพันธุกรรมของไวรัสในตระกูล Reoviridae มีลักษณะเด่นอย่างไร?",
     choices: [
-      "Segmented double-stranded RNA (dsRNA 10-12 ท่อน)",
-      "Single-stranded DNA สายคู่",
-      "Non-segmented (+)ssRNA",
       "Circular single-stranded RNA",
+      "Single-stranded DNA สายคู่",
+      "Segmented double-stranded RNA (dsRNA 10-12 ท่อน)",
+      "Non-segmented (+)ssRNA",
     ],
     answer: "Segmented double-stranded RNA (dsRNA 10-12 ท่อน)",
     explanation: "Reoviridae เป็นไวรัสที่มีจีโนมเป็น dsRNA แบ่งออกเป็น 10-12 segments และไม่มีเยื่อหุ้ม"
@@ -1849,10 +1849,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "โครงสร้าง Capsid ของไวรัสในตระกูล Reoviridae มีความพิเศษข้อใด?",
     choices: [
+      "ประกอบด้วยกรดอะมิโนชนิดเดียวล้วน",
       "มีเปลือกโปรตีนซ้อนกัน 2-3 ชั้นโดยไม่มี Envelope",
       "มีชั้นไขมันแทรกอยู่ระหว่างชั้นโปรตีน",
       "เป็นรูปเกลียวท่อยาวไม่มีสมมาตร",
-      "ประกอบด้วยกรดอะมิโนชนิดเดียวล้วน",
     ],
     answer: "มีเปลือกโปรตีนซ้อนกัน 2-3 ชั้นโดยไม่มี Envelope",
     explanation: "Reovirus มีเปลือก Capsid ซ้อนกันหลายชั้น (Concentric capsid shells) ทำให้ทนต่อสภาพแวดล้อมและน้ำย่อยได้ดี"
@@ -1865,10 +1865,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "แมลงพาหะสำคัญที่ถ่ายทอดเชื้อไวรัส Bluetongue (BTV) ในแกะคือข้อใด?",
     choices: [
-      "ริ้นดูดเลือด (Culicoides midges)",
       "ยุงลายบ้าน (Aedes aegypti)",
-      "เห็บแข็งโค (Boophilus)",
+      "ริ้นดูดเลือด (Culicoides midges)",
       "ไรขี้เรื้อน (Sarcoptes)",
+      "เห็บแข็งโค (Boophilus)",
     ],
     answer: "ริ้นดูดเลือด (Culicoides midges)",
     explanation: "BTV ถ่ายทอดโดยริ้นดูดเลือด Culicoides spp. เชื้อเพิ่มจำนวนในริ้นก่อนส่งต่อสู่สัตว์เคี้ยวเอื้อง"
@@ -1881,10 +1881,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "อาการทางคลินิกเด่นชัดของโรค Bluetongue ในแกะคือข้อใด?",
     choices: [
+      "ไอแห้งและฟันสึกกร่อน",
       "ลิ้นบวมเขียวคล้ำและขอบกีบอักเสบ",
       "ตุ่มหนองแข็งทั่วลำตัว",
       "ตาฝ้าสีฟ้าและเป็นต้อหิน",
-      "ไอแห้งและฟันสึกกร่อน",
     ],
     answer: "ลิ้นบวมเขียวคล้ำและขอบกีบอักเสบ",
     explanation: "ไวรัสทำลายผนังหลอดเลือด ทำให้เกิดภาวะขาดออกซิเจน เลือดคั่ง ลิ้นบวมเขียว (Cyanosis) และกีบอักเสบกะเผลก"
@@ -1898,9 +1898,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "โรคกาฬโรคม้า (African Horse Sickness - AHSV) รูปแบบที่มีอัตราตายสูงสุดในม้าคือแบบใด?",
     choices: [
       "รูปแบบปอดบวมน้ำ (Pulmonary form)",
-      "รูปแบบผิวหนัง (Cutaneous form)",
-      "รูปแบบข้อต่ออักเสบ (Arthritic form)",
       "รูปแบบเรื้อรังไม่แสดงอาการ",
+      "รูปแบบข้อต่ออักเสบ (Arthritic form)",
+      "รูปแบบผิวหนัง (Cutaneous form)",
     ],
     answer: "รูปแบบปอดบวมน้ำ (Pulmonary form)",
     explanation: "Pulmonary form (Dunkop) มีอัตราการตายสูงถึง 95% ม้ามักตายจากภาวะปอดบวมน้ำรุนแรงและมีฟองขาวไหลจากจมูก"
@@ -1914,9 +1914,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "สัญญาณเตือนทางคลินิกที่สำคัญของโรค AHSV ในรูปแบบหัวใจ (Cardiac form) คือข้อใด?",
     choices: [
       "รอยบวมน้ำที่แอ่งเหนือเบ้าตา (Supraorbital fossa edema)",
+      "มีตุ่มพองที่กลีบกีบเท้า",
       "ลิ้นเปลี่ยนเป็นสีดำคล้ำ",
       "หางและใบหูเปื่อยหลุดร่วง",
-      "มีตุ่มพองที่กลีบกีบเท้า",
     ],
     answer: "รอยบวมน้ำที่แอ่งเหนือเบ้าตา (Supraorbital fossa edema)",
     explanation: "อาการบวมน้ำที่แอ่งเหนือเบ้าตา (Dikkop form) เป็นลักษณะสำคัญที่ช่วยเตือนถึงโรค African Horse Sickness"
@@ -1931,8 +1931,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     choices: [
       "ทำลายเซลล์ Enterocytes บริเวณยอดของวิลไลลำไส้เล็ก",
       "กระตุ้นการหลั่งกรดในกระเพาะอาหารอย่างรุนแรง",
-      "ทำลายระบบประสาทส่วนกลางที่ควบคุมลำไส้",
       "ทำให้กล้ามเนื้อหูรูดทวารหนักเป็นอัมพาต",
+      "ทำลายระบบประสาทส่วนกลางที่ควบคุมลำไส้",
     ],
     answer: "ทำลายเซลล์ Enterocytes บริเวณยอดของวิลไลลำไส้เล็ก",
     explanation: "Rotavirus ทำลายเซลล์ดูดซึมอาหารที่ยอดวิลไล ทำให้เกิด Malabsorptive diarrhea และขาดน้ำอย่างรวดเร็ว"
@@ -1946,8 +1946,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "สารพันธุกรรมของไวรัสในอันดับ Bunyavirales แบ่งออกเป็นกี่ชิ้นส่วน (Segments)?",
     choices: [
       "3 ชิ้นส่วน (L, M, S)",
-      "2 ชิ้นส่วน (A, B)",
       "8 ชิ้นส่วน",
+      "2 ชิ้นส่วน (A, B)",
       "12 ชิ้นส่วน",
     ],
     answer: "3 ชิ้นส่วน (L, M, S)",
@@ -1961,10 +1961,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "ภาวะการแท้งลูกแบบพายุ (Abortion storms) ในฝูงแกะร่วมกับตับอักเสบรุนแรง สัมพันธ์กับโรคใด?",
     choices: [
-      "Rift Valley Fever (RVF)",
-      "Bluetongue",
       "African Horse Sickness",
       "Bovine Viral Diarrhea",
+      "Bluetongue",
+      "Rift Valley Fever (RVF)",
     ],
     answer: "Rift Valley Fever (RVF)",
     explanation: "RVFV (Phlebovirus) มียุงเป็นพาหะ ทำให้เกิดตับวาย อัตราตายสูงในลูกสัตว์ และการแท้งเกือบ 100% ในแม่แกะ"
@@ -1977,10 +1977,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "ไวรัส Schmallenberg ในสัตว์เคี้ยวเอื้องที่ติดเชื้อระหว่างตั้งท้อง ก่อให้เกิดความพิการใดในลูกสัตว์?",
     choices: [
-      "ข้อต่อขาบิดงอแข็งเกร็ง (Arthrogryposis) และสมองพรุน",
       "ขนร่วงทั้งตัวและไม่มีกีบเท้า",
       "หัวใจโตผิดปกติและตาบอดถาวร",
       "ฟันงอกไม่สมบูรณ์และลิ้นมีแผล",
+      "ข้อต่อขาบิดงอแข็งเกร็ง (Arthrogryposis) และสมองพรุน",
     ],
     answer: "ข้อต่อขาบิดงอแข็งเกร็ง (Arthrogryposis) และสมองพรุน",
     explanation: "Schmallenberg virus (Orthobunyavirus) ก่อให้เกิด Arthrogryposis-hydranencephaly syndrome ในลูกแกะและลูกโค"
@@ -1994,9 +1994,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "picorna",
     q: "สารพันธุกรรมและโครงสร้างของไวรัสในตระกูล Picornaviridae คือข้อใด?",
     choices: [
+      "Double-stranded DNA virus ขนาดใหญ่",
       "Naked (+)ssRNA virus ขนาดเล็ก",
       "Enveloped (-)ssRNA virus ทรงกระบอก",
-      "Double-stranded DNA virus ขนาดใหญ่",
       "Segmented dsRNA virus",
     ],
     answer: "Naked (+)ssRNA virus ขนาดเล็ก",
@@ -2010,10 +2010,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "picorna",
     q: "โรคปากและเท้าเปื่อย (Foot and Mouth Disease - FMD) เกิดขึ้นในสัตว์กลุ่มใด?",
     choices: [
+      "สัตว์ตระกูลลิงและมนุษย์เท่านั้น",
       "สัตว์กีบคู่ (Cloven-hoofed animals)",
       "สัตว์กีบเดี่ยวเท่านั้น",
       "สัตว์ปีกทุกชนิด",
-      "สัตว์ตระกูลลิงและมนุษย์เท่านั้น",
     ],
     answer: "สัตว์กีบคู่ (Cloven-hoofed animals)",
     explanation: "FMDV (Aphthovirus) ติดเชื้อเฉพาะสัตว์กีบคู่ เช่น โค กระบือ สุกร แพะ แกะ และสัตว์ป่ากีบคู่"
@@ -2026,10 +2026,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "picorna",
     q: "สัตว์เศรษฐกิจชนิดใดที่มีความต้านทานตามธรรมชาติต่อเชื้อโรคปากและเท้าเปื่อย (FMD)?",
     choices: [
+      "แพะเนื้อ (Meat goats)",
       "ม้า (Horse)",
       "โคเนื้อ (Beef cattle)",
       "สุกรขุน (Pigs)",
-      "แพะเนื้อ (Meat goats)",
     ],
     answer: "ม้า (Horse)",
     explanation: "ม้าเป็นสัตว์กีบเดี่ยว ไม่ติดเชื้อ FMD ตามธรรมชาติเด็ดขาด"
@@ -2042,10 +2042,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "picorna",
     q: "รอยโรค 'Tiger heart' (กล้ามเนื้อหัวใจลายเสือ) จากเชื้อ FMDV มักพบในสัตว์กลุ่มใด?",
     choices: [
+      "สัตว์ปีกแรกเกิด",
+      "ม้าแข่งโตเต็มวัย",
       "ลูกสัตว์อายุน้อย (ลูกโค ลูกสุกร)",
       "พ่อพันธุ์แม่พันธุ์สัตว์แก่",
-      "ม้าแข่งโตเต็มวัย",
-      "สัตว์ปีกแรกเกิด",
     ],
     answer: "ลูกสัตว์อายุน้อย (ลูกโค ลูกสุกร)",
     explanation: "ในลูกสัตว์เล็ก ไวรัสเข้าทำลายกล้ามเนื้อหัวใจโดยตรง (Acute myocarditis) ทำให้เกิดแถบสีซีดสลับแดงคล้ายลายเสือและตายเฉียบพลัน"
@@ -2058,10 +2058,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "picorna",
     q: "ไวรัส FMDV ถูกขับออกและแพร่กระจายไปตามลมได้เป็นระยะทางไกลผ่านทางใด?",
     choices: [
-      "ละอองฝอยจากการหายใจ (Aerosol droplets)",
       "ขนสัตว์ที่ร่วงหล่น",
       "มูลแห้งที่กลายเป็นฟอสซิล",
       "น้ำตาและขี้หูเท่านั้น",
+      "ละอองฝอยจากการหายใจ (Aerosol droplets)",
     ],
     answer: "ละอองฝอยจากการหายใจ (Aerosol droplets)",
     explanation: "สุกรขับเชื้อ FMD ออกทางลมหายใจในปริมาณมหาศาล และลมสามารถพัดพาละอองเชื้อไปได้ไกลหลายสิบกิโลเมตร"
@@ -2074,9 +2074,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "calici",
     q: "ลักษณะโครงสร้างทางสัณฐานวิทยาที่จำเพาะของ Calicivirus เมื่อดูด้วยกล้อง TEM คือข้อใด?",
     choices: [
-      "รอยบุ๋มทรงถ้วย 32 จุดบนผิว Capsid (Cup-shaped)",
-      "หนามโปรตีนกระจายรอบคล้ายดอกทานตะวัน",
       "เปลือกหุ้มไขมันสองชั้นรูปวงรี",
+      "หนามโปรตีนกระจายรอบคล้ายดอกทานตะวัน",
+      "รอยบุ๋มทรงถ้วย 32 จุดบนผิว Capsid (Cup-shaped)",
       "แท่งโปรตีนทรงกระบอกปลายแหลม",
     ],
     answer: "รอยบุ๋มทรงถ้วย 32 จุดบนผิว Capsid (Cup-shaped)",
@@ -2090,10 +2090,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "calici",
     q: "อาการทางคลินิกเด่นของโรค Feline Calicivirus (FCV) ที่ช่วยแยกจากโรคหวัดแมวชนิดอื่นคือข้อใด?",
     choices: [
-      "แผลหลุมที่ลิ้น เพดานปาก และช่องปาก (Oral ulcers)",
-      "รอยแผลที่กระจกตาเป็นรูปกิ่งก้าน (Dendritic ulcer)",
       "อาการท้องมานน้ำสีเหลืองเหนียวข้น",
       "การแท้งลูกและการคลอดลูกมัมมี่",
+      "แผลหลุมที่ลิ้น เพดานปาก และช่องปาก (Oral ulcers)",
+      "รอยแผลที่กระจกตาเป็นรูปกิ่งก้าน (Dendritic ulcer)",
     ],
     answer: "แผลหลุมที่ลิ้น เพดานปาก และช่องปาก (Oral ulcers)",
     explanation: "FCV ก่อรอยโรคเด่นคือแผลหลุมเปื่อยที่ลิ้นและช่องปาก (Vesicles rupture into oral ulcers) น้ำลายไหลเจ็บปาก"
@@ -2106,10 +2106,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "calici",
     q: "เชื้อ Feline Calicivirus สายพันธุ์รุนแรง (VS-FCV) ทำให้เกิดกลุ่มอาการผิดปกติใดเพิ่มเติม?",
     choices: [
+      "ตาบอดถาวรจากต้อกระจก",
+      "ฟันแท้หลุดร่วงทั้งปาก",
       "บวมน้ำตามใบหน้าและขา ร่วมกับตับวายเลือดออก",
       "กระดูกขาหลังหักและข้อหลุด",
-      "ฟันแท้หลุดร่วงทั้งปาก",
-      "ตาบอดถาวรจากต้อกระจก",
     ],
     answer: "บวมน้ำตามใบหน้าและขา ร่วมกับตับวายเลือดออก",
     explanation: "Virulent Systemic FCV (VS-FCV) ทำลายเซลล์บุหลอดเลือด ทำให้เกิดบวมน้ำรุนแรงที่ใบหน้า อุ้งเท้า ดีซ่าน และอัตราตายสูง"
@@ -2122,10 +2122,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "calici",
     q: "โรค Rabbit Hemorrhagic Disease (RHD) ในกระต่าย ทำให้เกิดพยาธิสภาพรุนแรงที่อวัยวะใด?",
     choices: [
+      "เยื่อหุ้มสมองอักเสบเป็นหนอง",
+      "ปอดอักเสบเรื้อรังจากเชื้อรา",
       "ตับวายเนื้อตายเฉียบพลันและเลือดออกทั่วร่างกาย",
       "ไตวายเรื้อรังและปัสสาวะไม่ออก",
-      "ปอดอักเสบเรื้อรังจากเชื้อรา",
-      "เยื่อหุ้มสมองอักเสบเป็นหนอง",
     ],
     answer: "ตับวายเนื้อตายเฉียบพลันและเลือดออกทั่วร่างกาย",
     explanation: "RHDV (Lagovirus) ทำลายตับอย่างรุนแรง (Necrotizing hepatitis) ก่อให้เกิด DIC เลือดออกตามช่องทวารและตายเฉียบพลัน"
@@ -2138,10 +2138,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "picorna",
     q: "การฆ่าเชื้อไวรัสกลุ่ม Naked virus เช่น FMDV ในฟาร์ม ควรใช้น้ำยาฆ่าเชื้อชนิดใดจึงจะได้ผลดีที่สุด?",
     choices: [
+      "น้ำสบู่อ่อนเจือจาง",
+      "น้ำยาฆ่าเชื้อกลุ่มคลอโรฟอร์ม",
       "สารฟอกขาว (โซเดียมไฮโปคลอไรต์) หรือด่างแก่",
       "แอลกอฮอล์ 70% ธรรมดา",
-      "น้ำยาฆ่าเชื้อกลุ่มคลอโรฟอร์ม",
-      "น้ำสบู่อ่อนเจือจาง",
     ],
     answer: "สารฟอกขาว (โซเดียมไฮโปคลอไรต์) หรือด่างแก่",
     explanation: "FMDV ไม่มีเยื่อหุ้มไขมัน จึงทนต่อแอลกอฮอล์และอีเทอร์ ต้องใช้สารออกซิไดซ์ กรดจัด หรือด่างจัด (โซดาไฟ) ในการฆ่าเชื้อ"
@@ -2155,10 +2155,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "arteri",
     q: "โรคหูฟ้าในสุกร (PRRS) มีชื่อเต็มทางการแพทย์ว่าอะไร?",
     choices: [
-      "Porcine Reproductive and Respiratory Syndrome",
-      "Porcine Renal and Respiratory Sickness",
       "Porcine Retroviral Reproductive Syndrome",
+      "Porcine Reproductive and Respiratory Syndrome",
       "Porcine Rhabdovirus Respiratory Sickness",
+      "Porcine Renal and Respiratory Sickness",
     ],
     answer: "Porcine Reproductive and Respiratory Syndrome",
     explanation: "PRRS คือกลุ่มอาการทางระบบสืบพันธุ์และการหายใจในสุกร เกิดจากเชื้อ Arterivirus"
@@ -2171,10 +2171,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "arteri",
     q: "เซลล์เป้าหมายหลักในร่างกายสุกรที่ไวรัส PRRS บุกรุกเข้าทำลายคือเซลล์ใด?",
     choices: [
-      "Porcine Alveolar Macrophages (PAMs)",
-      "Intestinal goblet cells",
-      "Renal tubular epithelial cells",
       "Pancreatic acinar cells",
+      "Porcine Alveolar Macrophages (PAMs)",
+      "Renal tubular epithelial cells",
+      "Intestinal goblet cells",
     ],
     answer: "Porcine Alveolar Macrophages (PAMs)",
     explanation: "PRRSV ชอบเพิ่มจำนวนใน Macrophages ของถุงลมปอด ทำให้ระบบภูมิคุ้มกันปอดถูกทำลายและติดเชื้อแทรกซ้อนง่าย"
@@ -2188,8 +2188,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "ตัวรับ (Receptor) สำคัญบนผิว Macrophage ที่ไวรัส PRRS ใช้ในการเข้าสู่เซลล์คือข้อใด?",
     choices: [
       "CD163",
-      "CD4",
       "MHC class I",
+      "CD4",
       "Toll-like receptor 4",
     ],
     answer: "CD163",
@@ -2203,10 +2203,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "arteri",
     q: "อาการเด่นของโรค PRRS ในแม่สุกรช่วงตั้งท้องระยะท้ายคือข้อใด?",
     choices: [
-      "การแท้งลูก คลอดก่อนกำหนด และลูกคลอดมัมมี่",
-      "น้ำนมไหลมากผิดปกติ",
       "เต้านมอักเสบเป็นฝีหนอง",
+      "น้ำนมไหลมากผิดปกติ",
       "ตาบอดและขากระตุก",
+      "การแท้งลูก คลอดก่อนกำหนด และลูกคลอดมัมมี่",
     ],
     answer: "การแท้งลูก คลอดก่อนกำหนด และลูกคลอดมัมมี่",
     explanation: "PRRSV ผ่านรกเข้าทำลายลูกสุกรในท้องระยะท้าย ทำให้แท้ง คลอดก่อนกำหนด คลอดตาย และลูกมัมมี่"
@@ -2219,10 +2219,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "arteri",
     q: "โรค Equine Viral Arteritis (EVA) สามารถแฝงตัวและแพร่เชื้อได้ยาวนานผ่านทางใด?",
     choices: [
-      "น้ำเชื้อของพ่อม้าที่เป็นพาหะ (Carrier stallion)",
-      "ละอองรังแคบนผิวหนังม้า",
-      "มูลแห้งของลูกม้า",
       "ขี้ตาและน้ำลายม้าแก่",
+      "มูลแห้งของลูกม้า",
+      "ละอองรังแคบนผิวหนังม้า",
+      "น้ำเชื้อของพ่อม้าที่เป็นพาหะ (Carrier stallion)",
     ],
     answer: "น้ำเชื้อของพ่อม้าที่เป็นพาหะ (Carrier stallion)",
     explanation: "พ่อม้าที่ติดเชื้อ EAV สามารถเป็น Persistent carrier โดยเชื้อแฝงตัวอยู่ในต่อมสืบพันธุ์เสริม (Ampullae) และหลั่งออกสู่น้ำเชื้อ"
@@ -2237,8 +2237,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     choices: [
       "Circular single-stranded DNA ขนาดเล็กมาก",
       "Linear double-stranded RNA",
-      "Segmented negative-sense RNA",
       "Diploid positive-sense RNA",
+      "Segmented negative-sense RNA",
     ],
     answer: "Circular single-stranded DNA ขนาดเล็กมาก",
     explanation: "Circoviridae มีจีโนมเป็น ssDNA สายเดี่ยววงกลมขนาดเล็กที่สุดในบรรดา DNA virus ของสัตว์ (~1.7 - 2.0 kb)"
@@ -2251,10 +2251,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "circo",
     q: "โรคแคระแกร็น ผอมโทรม (PMWS) ในสุกรหลังหย่านม สัมพันธ์กับการติดเชื้อไวรัสใด?",
     choices: [
-      "Porcine Circovirus type 2 (PCV-2)",
-      "Swine Pox Virus",
-      "Porcine Enterovirus",
       "Pseudorabies virus",
+      "Porcine Circovirus type 2 (PCV-2)",
+      "Porcine Enterovirus",
+      "Swine Pox Virus",
     ],
     answer: "Porcine Circovirus type 2 (PCV-2)",
     explanation: "PCV-2 เป็นสาเหตุสำคัญของ Postweaning Multisystemic Wasting Syndrome (PMWS) ทำให้ลูกสุกรผอม โตช้า และต่อมน้ำเหลืองโต"
@@ -2267,9 +2267,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "circo",
     q: "ลักษณะ Botryoid inclusion bodies (กลุ่มก้อนคล้ายพวงองุ่น) ในไซโทพลาสซึมของ Macrophage เป็นเอกลักษณ์ของไวรัสใด?",
     choices: [
+      "Classical Swine Fever Virus",
       "Porcine Circovirus type 2 (PCV-2)",
       "African Swine Fever Virus",
-      "Classical Swine Fever Virus",
       "Foot and Mouth Disease Virus",
     ],
     answer: "Porcine Circovirus type 2 (PCV-2)",
@@ -2283,10 +2283,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "circo",
     q: "กลุ่มอาการผื่นผิวหนังอักเสบและไตอักเสบ (PDNS) ในสุกร เกิดจากกลไกทางพยาธิวิทยาใด?",
     choices: [
-      "Immune complex vasculitis และ Glomerulonephritis",
-      "การขาดสารอาหารแคลเซียมอย่างรุนแรง",
       "การติดเชื้อปรสิตภายนอกกัดแทะผิวหนัง",
+      "การขาดสารอาหารแคลเซียมอย่างรุนแรง",
       "สารพิษจากเชื้อราทำลายตับโดยตรง",
+      "Immune complex vasculitis และ Glomerulonephritis",
     ],
     answer: "Immune complex vasculitis และ Glomerulonephritis",
     explanation: "PDNS เป็นปฏิกิริยาภูมิแพ้ Type III hypersensitivity ที่เกี่ยวข้องกับ PCV-2 ทำให้เกิดหลอดเลือดผิวหนังและไตอักเสบ"
@@ -2299,8 +2299,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "circo",
     q: "ไวรัส Chicken Anemia Virus (CAV) ทำลายเซลล์ในระบบใดจนเกิดภาวะโลหิตจางรุนแรงในลูกไก่?",
     choices: [
-      "เซลล์ต้นกำเนิดเม็ดเลือดในไขกระดูกและต่อมไทมัส",
       "เซลล์กล้ามเนื้อหัวใจห้องล่าง",
+      "เซลล์ต้นกำเนิดเม็ดเลือดในไขกระดูกและต่อมไทมัส",
       "เซลล์เยื่อบุทางเดินอาหารส่วนปลาย",
       "เซลล์ประสาทรับความรู้สึกของดวงตา",
     ],
@@ -2316,10 +2316,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "default",
     q: "โรคกระเพาะพักขยายตัวผิดปกติในนกปากขอ (PDD) มีสาเหตุจากเชื้อไวรัสใด?",
     choices: [
-      "Avian Bornavirus (ABV)",
-      "Avian Polyomavirus",
-      "Psittacine Herpesvirus",
       "Avian Poxvirus",
+      "Avian Polyomavirus",
+      "Avian Bornavirus (ABV)",
+      "Psittacine Herpesvirus",
     ],
     answer: "Avian Bornavirus (ABV)",
     explanation: "Avian Bornavirus ก่อให้เกิด Proventricular Dilatation Disease (PDD) ทำให้นกผอมแห้ง อาหารไม่ย่อย และกระเพาะพักขยายพอง"
@@ -2333,9 +2333,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "รอยโรคทางจุลพยาธิวิทยาที่เด่นชัดที่สุดของโรค PDD ในนกคือข้อใด?",
     choices: [
       "การอักเสบของปมประสาททางเดินอาหาร (Lymphoplasmacytic ganglioneuritis)",
+      "การเกิดเนื้องอกกระดูกข้อต่อปีก",
       "การเกิดตุ่มหนองที่หลอดอาหารส่วนบน",
       "การฝ่อลีบของตับและถุงน้ำดี",
-      "การเกิดเนื้องอกกระดูกข้อต่อปีก",
     ],
     answer: "การอักเสบของปมประสาททางเดินอาหาร (Lymphoplasmacytic ganglioneuritis)",
     explanation: "ABV เข้าทำลายระบบประสาท Myenteric plexus ของกระเพาะและลำไส้ ส่งผลให้การบีบตัวของทางเดินอาหารล้มเหลว"
@@ -2349,9 +2349,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "ไวรัสในตระกูล Filoviridae เช่น Ebola และ Marburg มีลักษณะทางสัณฐานวิทยาอย่างไร?",
     choices: [
       "เส้นสายยาวขดคล้ายด้ามร่มหรือเลข 6 (Filamentous)",
-      "ทรงกระสุนปืนปลายตัดตรง",
       "ทรงเหลี่ยมลูกบาศก์ 20 หน้า",
       "ทรงกลมมีหนามโปรตีนกระจายรอบ",
+      "ทรงกระสุนปืนปลายตัดตรง",
     ],
     answer: "เส้นสายยาวขดคล้ายด้ามร่มหรือเลข 6 (Filamentous)",
     explanation: "Filo มาจากภาษาละติน Filum แปลว่า เส้นด้าย อนุภาคเป็นสายยาว มีการขดงอคล้ายด้ามร่มหรือตะขอ"
@@ -2364,10 +2364,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "prion",
     q: "พรีออน (Prion) มีองค์ประกอบทางชีววิทยาที่แตกต่างจากไวรัสโดยสิ้นเชิงในข้อใด?",
     choices: [
-      "ไม่มีกรดนิวคลีอิก ประกอบด้วยโปรตีนล้วน",
       "มีสารพันธุกรรมทั้ง DNA และ RNA ปนกัน",
       "มีผนังเซลล์เป็น Peptidoglycan หนา",
       "มีไรโบโซมสังเคราะห์พลังงานได้เอง",
+      "ไม่มีกรดนิวคลีอิก ประกอบด้วยโปรตีนล้วน",
     ],
     answer: "ไม่มีกรดนิวคลีอิก ประกอบด้วยโปรตีนล้วน",
     explanation: "Prion (Proteinaceous infectious particle) ไม่มีสารพันธุกรรม DNA หรือ RNA เลย แต่เป็นโปรตีนที่พับตัวผิดรูป"
@@ -2380,10 +2380,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "prion",
     q: "การเปลี่ยนแปลงโครงสร้างของโปรตีนพรีออนจากรูปปกติ (PrPC) ไปเป็นรูปก่อโรค (PrPSc) คือข้อใด?",
     choices: [
-      "เปลี่ยนจาก Alpha-helix ไปเป็น Beta-sheet",
-      "เปลี่ยนจาก Beta-sheet ไปเป็น Alpha-helix",
       "โปรตีนถูกย่อยสลายเป็นกรดอะมิโนอิสระ",
+      "เปลี่ยนจาก Alpha-helix ไปเป็น Beta-sheet",
       "การสูญเสียชั้นไขมันหุ้มโมเลกุล",
+      "เปลี่ยนจาก Beta-sheet ไปเป็น Alpha-helix",
     ],
     answer: "เปลี่ยนจาก Alpha-helix ไปเป็น Beta-sheet",
     explanation: "PrPSc มีสัดส่วนของ Beta-pleated sheet สูงมาก ทำให้ไม่ละลายน้ำและทนทานต่อการย่อยของเอนไซม์ Protease"
@@ -2396,10 +2396,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "prion",
     q: "โรควัวบ้า (BSE) แพร่ระบาดในฟาร์มโคนมในอดีตผ่านทางช่องทางใดเป็นหลัก?",
     choices: [
-      "การให้อาหารผสมเนื้อและกระดูกป่นจากซากสัตว์ (Meat and Bone Meal)",
-      "การถูกยุงและเหลือบม้ากัดในทุ่งหญ้า",
-      "การกินหญ้าสดที่รดด้วยน้ำเสีย",
       "การผสมเทียมด้วยน้ำเชื้อแช่แข็ง",
+      "การถูกยุงและเหลือบม้ากัดในทุ่งหญ้า",
+      "การให้อาหารผสมเนื้อและกระดูกป่นจากซากสัตว์ (Meat and Bone Meal)",
+      "การกินหญ้าสดที่รดด้วยน้ำเสีย",
     ],
     answer: "การให้อาหารผสมเนื้อและกระดูกป่นจากซากสัตว์ (Meat and Bone Meal)",
     explanation: "BSE แพร่กระจายจากการนำซากสัตว์เคี้ยวเอื้องที่ติดเชื้อมาแปรรูปเป็น Meat and Bone Meal (MBM) เลี้ยงโค"
@@ -2412,10 +2412,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "prion",
     q: "โรคสมองฝ่อสายพันธุ์ใหม่ในมนุษย์ (vCJD) มีความสัมพันธ์กับการบริโภคผลิตภัณฑ์จากสัตว์ชนิดใด?",
     choices: [
-      "โคที่เป็นโรควัวบ้า (BSE)",
-      "สุกรที่ติดเชื้อไวรัสหูฟ้า",
       "ไก่ที่ติดเชื้อไข้หวัดนก",
       "แกะที่เป็นโรคพยาธิในปอด",
+      "โคที่เป็นโรควัวบ้า (BSE)",
+      "สุกรที่ติดเชื้อไวรัสหูฟ้า",
     ],
     answer: "โคที่เป็นโรควัวบ้า (BSE)",
     explanation: "Variant Creutzfeldt-Jakob Disease (vCJD) ในคนเกิดจากการบริโภคเนื้อวัวหรือเนื้อเยื่อประสาทที่ปนเปื้อนพรีออนจาก BSE"
@@ -2430,8 +2430,8 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     choices: [
       "คันรุนแรงจนเอาตัวถูกับรั้ว ขนร่วง และเดินเซ",
       "ท้องเสียถ่ายเหลวเป็นเลือดพุ่ง",
-      "ตาบอดขุ่นสีฟ้าและมีน้ำตาไหล",
       "มีตุ่มพองน้ำใสที่เต้านมและกีบเท้า",
+      "ตาบอดขุ่นสีฟ้าและมีน้ำตาไหล",
     ],
     answer: "คันรุนแรงจนเอาตัวถูกับรั้ว ขนร่วง และเดินเซ",
     explanation: "คำว่า 'Scrapie' มาจากพฤติกรรมของแกะที่ชอบเอาตัวไปครูดไถ (Scrape) กับรั้วหรือต้นไม้เนื่องจากมีอาการคันรุนแรงจากระบบประสาทเสียหาย"
@@ -2444,10 +2444,10 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     virusType: "prion",
     q: "โรคสมองพรุนเรื้อรัง (Chronic Wasting Disease - CWD) พบการระบาดในสัตว์กลุ่มใด?",
     choices: [
-      "กวางและเอลค์ (Cervids)",
-      "สุนัขและสัตว์ตระกูลสุนัข",
       "แมวและสัตว์ตระกูลเสือ",
       "ช้างและสัตว์กินพืชขนาดใหญ่",
+      "สุนัขและสัตว์ตระกูลสุนัข",
+      "กวางและเอลค์ (Cervids)",
     ],
     answer: "กวางและเอลค์ (Cervids)",
     explanation: "CWD เป็น Prion disease ที่ระบาดในกลุ่มสัตว์ตระกูลกวาง (Deer, Elk, Moose) ทำให้ผอมแห้ง น้ำลายไหล และสมองเสื่อม"
@@ -2461,9 +2461,9 @@ export const ALL_15_CHAPTER_QUESTIONS: MasterQuestion[] = [
     q: "วิธีการทำลายฤทธิ์ของโปรตีนพรีออนในอุปกรณ์ทางการแพทย์ที่ถูกต้องตามมาตรฐานคือข้อใด?",
     choices: [
       "นึ่งฆ่าเชื้อด้วยไอน้ำแรงดันสูงร่วมกับสารละลายโซเดียมไฮดรอกไซด์ (NaOH)",
-      "การแช่ในเอทานอล 70% เป็นเวลา 15 นาที",
-      "การต้มในน้ำเดือด 100 °C เป็นเวลา 30 นาที",
       "การอบด้วยรังสีอัลตราไวโอเลต (UV) ทั่วไป",
+      "การต้มในน้ำเดือด 100 °C เป็นเวลา 30 นาที",
+      "การแช่ในเอทานอล 70% เป็นเวลา 15 นาที",
     ],
     answer: "นึ่งฆ่าเชื้อด้วยไอน้ำแรงดันสูงร่วมกับสารละลายโซเดียมไฮดรอกไซด์ (NaOH)",
     explanation: "พรีออนทนทานต่อความร้อนและการนึ่งทั่วไปอย่างยิ่ง ต้องใช้ Autoclave ที่ 134 °C ร่วมกับ 1N NaOH จึงจะทำลายโครงสร้างโปรตีนได้สมบูรณ์"
@@ -2547,9 +2547,9 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     laboratoryResults: "ผลตรวจ RT-PCR พบสารพันธุกรรมของ Arterivirus ในซีรั่ม ตัวอย่างปอดพบ Interstitial pneumonia และเนื้อเยื่อ Macrophages ถูกทำลายอย่างรุนแรง",
     choices: [
       "Porcine Reproductive and Respiratory Syndrome Virus (PRRSV)",
+      "Foot and Mouth Disease Virus (FMDV)",
       "African Swine Fever Virus (ASFV)",
       "Classical Swine Fever Virus (CSFV)",
-      "Foot and Mouth Disease Virus (FMDV)"
     ],
     answer: "Porcine Reproductive and Respiratory Syndrome Virus (PRRSV)",
     explanation: "อาการหูม่วง (Blue ear), ปัญหาการสืบพันธุ์ในแม่สุกร (แท้งระยะท้าย) ร่วมกับ Interstitial pneumonia จากการทำลาย PAMs ในปอด เป็นลักษณะสำคัญของโรค PRRS"
@@ -2565,10 +2565,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ซึม ขาดน้ำรุนแรง", "อาเจียนต่อเนื่อง", "อุจจาระเหลวเป็นเลือดสดกลิ่นคาวจัด", "อุณหภูมิร่างกายต่ำ (37.2°C)"],
     laboratoryResults: "CBC พบภาวะ Severe Leukopenia (WBC = 1,200 cells/μL) ชุดตรวจเร็ว SNAP Test จากอุจจาระให้ผลบวกต่อ Viral Antigen",
     choices: [
-      "Canine Parvovirus (CPV-2)",
       "Canine Coronavirus (CCoV)",
+      "Infectious Canine Hepatitis (CAV-1)",
       "Canine Distemper Virus (CDV)",
-      "Infectious Canine Hepatitis (CAV-1)"
+      "Canine Parvovirus (CPV-2)",
     ],
     answer: "Canine Parvovirus (CPV-2)",
     explanation: "อาการท้องเสียเป็นเลือดสดกลิ่นคาวรุนแรงในลูกสุนัขที่ไม่ได้รับวัคซีน ร่วมกับภาวะเม็ดเลือดขาวต่ำอย่างวิกฤต (Severe Leukopenia) และผลบวก SNAP Test ชี้ชัดว่าเป็น Canine Parvovirus"
@@ -2585,9 +2585,9 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     laboratoryResults: "ผ่าซากพบม้ามขยายใหญ่บวมคล้ำมากคล้ายแยมสีดำ (Blackberry jam spleen) ต่อมน้ำเหลืองมีเลือดออกบวมคล้ายก้อนเลือด PCR ยืนยันเชื้อ Asfivirus",
     choices: [
       "African Swine Fever Virus (ASFV)",
+      "Porcine Circovirus type 2 (PCV2)",
       "Classical Swine Fever Virus (CSFV)",
       "Erysipelothrix rhusiopathiae",
-      "Porcine Circovirus type 2 (PCV2)"
     ],
     answer: "African Swine Fever Virus (ASFV)",
     explanation: "ประวัติการใช้อาหารเศษอาหาร (Swill feeding), อัตราการตายเฉียบพลันเกือบ 100% ร่วมกับรอยโรคม้ามบวมดำขนาดยักษ์ (Blackberry jam spleen) และต่อมน้ำเหลืองตกเลือด เป็นลักษณะของ African Swine Fever"
@@ -2604,9 +2604,9 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     laboratoryResults: "ตรวจ RT-PCR จากหลอดลมและทวารหนักพบเชื้อ Influenza A subtype H5N1 มี Multi-basic cleavage site บ่งชี้เป็นสายพันธุ์ HPAI",
     choices: [
       "Highly Pathogenic Avian Influenza (HPAI H5N1)",
+      "Infectious Laryngotracheitis (ILTV)",
       "Velogenic Newcastle Disease (NDV)",
       "Infectious Bronchitis (IBV)",
-      "Infectious Laryngotracheitis (ILTV)"
     ],
     answer: "Highly Pathogenic Avian Influenza (HPAI H5N1)",
     explanation: "การตายเฉียบพลันสูงเกือบ 100% ร่วมกับหงอนเหนียงบวมม่วงคล้ำและจุดเลือดออกที่เกล็ดแข้งขา (Shank hemorrhage) ร่วมกับผล PCR ยืนยันเชื้อไข้หวัดนกชนิดรุนแรงสูง (HPAI)"
@@ -2625,7 +2625,7 @@ export const ALL_15_LAB_CASES: LabCase[] = [
       "Feline Infectious Peritonitis (FIP - Effusive form)",
       "Feline Panleukopenia Virus (FPV)",
       "ภาวะหัวใจวายและตับแข็ง",
-      "พยาธิในถุงน้ำดี"
+      "พยาธิในถุงน้ำดี",
     ],
     answer: "Feline Infectious Peritonitis (FIP - Effusive form)",
     explanation: "น้ำในช่องท้องสีเหลืองอำพัน ข้นหนืด โปรตีนสูงมาก และ Albumin:Globulin ratio ต่ำกว่า 0.4 ร่วมกับ Rivalta test เป็นบวกในแมวอายุน้อย เป็นลักษณะเฉพาะของ FIP แบบเปียก"
@@ -2641,10 +2641,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["พฤติกรรมก้าวร้าวสลับซึม", "ขากรรไกรล่างตกอ้าปากค้าง (Dropped jaw)", "น้ำลายไหลยืดตลอดเวลา กลืนลำบาก", "อัมพาตขาหลังและเสียชีวิต"],
     laboratoryResults: "รอยพิมพ์สมองส่วน Hippocampus ย้อม Direct Fluorescent Antibody (DFA) พบแอนติเจนเรืองแสงสีเขียวของ Rhabdovirus ชัดเจน",
     choices: [
-      "Rabies Virus (Lyssavirus)",
       "Canine Distemper Virus (CDV)",
+      "Canine Adenovirus-1",
+      "Rabies Virus (Lyssavirus)",
       "บาดทะยัก (Tetanus)",
-      "Canine Adenovirus-1"
     ],
     answer: "Rabies Virus (Lyssavirus)",
     explanation: "อาการทางประสาทพฤติกรรมเปลี่ยน ขากรรไกรตก (Dropped jaw) ร่วมกับผลบวก DFA ในสมองส่วน Hippocampus เป็นการยืนยันโรคพิษสุนัขบ้า (Rabies) อย่างสมบูรณ์"
@@ -2662,8 +2662,8 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     choices: [
       "Foot and Mouth Disease Virus (FMDV)",
       "Vesicular Stomatitis Virus (VSV)",
+      "Malignant Catarrhal Fever (MCF)",
       "Bovine Viral Diarrhea Virus (BVDV)",
-      "Malignant Catarrhal Fever (MCF)"
     ],
     answer: "Foot and Mouth Disease Virus (FMDV)",
     explanation: "ตุ่มน้ำใสที่ปากและกีบในโคนม ร่วมกับน้ำลายไหลยืดเป็นฟอง และม้าข้างเคียงไม่ติดโรค ชี้ชัดว่าเป็นโรคปากและเท้าเปื่อย (FMD) ซึ่งเกิดจากเชื้อ Aphtovirus"
@@ -2679,10 +2679,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ขี้ตาและน้ำมูกหนองเขียว (Mucopurulent discharge)", "ฝ่าเท้าหนาแข็งแตก (Hard pad disease)", "กล้ามเนื้อกระตุกเป็นจังหวะ (Myoclonus)", "อาการชักเคี้ยวฟัน"],
     laboratoryResults: "ตรวจรอยพิมพ์เยื่อตาขาวพบ Eosinophilic inclusion bodies ทั้งในนิวเคลียสและไซโทพลาสซึม RT-PCR พบ Morbillivirus",
     choices: [
-      "Canine Distemper Virus (CDV)",
       "Rabies Virus",
+      "Bordetella bronchiseptica",
+      "Canine Distemper Virus (CDV)",
       "Canine Parvovirus",
-      "Bordetella bronchiseptica"
     ],
     answer: "Canine Distemper Virus (CDV)",
     explanation: "อาการ Hard pad (Hyperkeratosis) ร่วมกับขี้ตาเขียว และกล้ามเนื้อกระตุกเป็นจังหวะ (Myoclonus) เป็นอาการคลาสสิกของโรคไข้หัดสุนัข (Canine Distemper Virus)"
@@ -2698,10 +2698,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ไข้ขึ้นลงเป็นระยะ (Recurrent fever)", "เยื่อเมือกซีดขาว (Severe anemia)", "ดีซ่านและจุดเลือดออกที่ลิ้น", "บวมน้ำที่หน้าท้องและขา (Ventral edema)"],
     laboratoryResults: "ตรวจซีรั่มด้วยวิธี Coggins test (Agar Gel Immunodiffusion) เกิดเส้นตกตะกอนร่วมกับแอนติเจน p26 ของ Lentivirus ชัดเจน",
     choices: [
-      "Equine Infectious Anemia Virus (EIAV)",
       "African Horse Sickness Virus (AHSV)",
+      "Babesia caballi (พยาธิในเม็ดเลือด)",
       "Equine Influenza Virus (EIV)",
-      "Babesia caballi (พยาธิในเม็ดเลือด)"
+      "Equine Infectious Anemia Virus (EIAV)",
     ],
     answer: "Equine Infectious Anemia Virus (EIAV)",
     explanation: "ไข้เป็นๆ หายๆ โลหิตจาง บวมน้ำใต้ท้อง ร่วมกับผล Coggins test เป็นบวก ยืนยันโรคโลหิตจางติดต่อในม้า (Equine Infectious Anemia / Swamp fever)"
@@ -2718,9 +2718,9 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     laboratoryResults: "ตัดชิ้นเนื้อตุ่มผิวหนังส่งตรวจ PCR พบยีนของ Capripoxvirus ย้อมชิ้นเนื้อพบ Intracytoplasmic inclusion bodies",
     choices: [
       "Lumpy Skin Disease Virus (LSDV)",
-      "Bovine Papillomatosis (หูด)",
+      "ขี้เรื้อน Demodex",
       "Foot and Mouth Disease Virus",
-      "ขี้เรื้อน Demodex"
+      "Bovine Papillomatosis (หูด)",
     ],
     answer: "Lumpy Skin Disease Virus (LSDV)",
     explanation: "ตุ่มนูนแข็งทั่วตัวในโค ต่อมน้ำเหลืองโต และรอยโรค Sit-fast ร่วมกับการตรวจพบ Capripoxvirus ยืนยันโรคลัมปีสกิน (Lumpy Skin Disease)"
@@ -2736,10 +2736,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ซีดขาว (Non-regenerative anemia)", "ช่องปากอักเสบเรื้อรัง (Gingivostomatitis)", "ต่อมน้ำเหลืองบวมโต", "ผอมหนังหุ้มกระดูก ติดเชื้อแทรกซ้อนง่าย"],
     laboratoryResults: "ชุดตรวจเร็ว SNAP Combo Test จากเลือด พบผลบวกต่อทั้ง FeLV Antigen (p27) และ FIV Antibody",
     choices: [
-      "Co-infection: FeLV (Retrovirus) และ FIV (Lentivirus)",
       "Feline Infectious Peritonitis (FIP)",
+      "Co-infection: FeLV (Retrovirus) และ FIV (Lentivirus)",
+      "Feline Calicivirus (FCV)",
       "Feline Panleukopenia Virus (FPV)",
-      "Feline Calicivirus (FCV)"
     ],
     answer: "Co-infection: FeLV (Retrovirus) และ FIV (Lentivirus)",
     explanation: "การติดเชื้อร่วมระหว่าง FeLV และ FIV (Retroviridae) มักพบในแมวนอกบ้านที่ชอบกัดกัน ก่อให้เกิดภาวะภูมิคุ้มกันบกพร่อง โลหิตจาง และช่องปากอักเสบเรื้อรัง"
@@ -2756,9 +2756,9 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     laboratoryResults: "ผ่าซากพบเส้นประสาท Sciatic nerve บวมขยายใหญ่กว่าปกติ 3 เท่า สูญเสียลายขวาง ตรวจทางจุลพยาธิวิทยาพบ T-lymphoma แทรกตัว",
     choices: [
       "Marek's Disease Virus (MDV)",
+      "โรคขาดวิตามิน B2 (Riboflavin deficiency)",
       "Avian Leukosis Virus (ALV)",
       "Infectious Bursal Disease (IBDV)",
-      "โรคขาดวิตามิน B2 (Riboflavin deficiency)"
     ],
     answer: "Marek's Disease Virus (MDV)",
     explanation: "ท่าขาเหยียดหน้าหลังร่วมกับเส้นประสาท Sciatic nerve ขยายใหญ่จากการแทรกตัวของเนื้องอก T-lymphoma เป็นลักษณะจำเพาะของโรคมาเร็กซ์ (Marek's Disease Virus)"
@@ -2776,8 +2776,8 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     choices: [
       "BVDV Mucosal Disease (ในโคที่เป็น PI)",
       "Foot and Mouth Disease (FMD)",
+      "Salmonellosis",
       "Rinderpest",
-      "Salmonellosis"
     ],
     answer: "BVDV Mucosal Disease (ในโคที่เป็น PI)",
     explanation: "อาการรอยโรคแผลเปื่อยลึกตลอดทางเดินอาหารและ Peyer's patches เน่าเปื่อยในโคแคระแกร็นที่เป็น PI ชี้ชัดว่าเป็นโรค Mucosal Disease จาก BVDV"
@@ -2793,10 +2793,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ไข้สูง 41°C", "หายใจลำบากอ้าปากหายใจ (Severe dyspnea)", "ฟองน้ำท่วมปอดทะลักออกรูจมูก (Frothy discharge)", "ตายเฉียบพลันรวดเร็ว"],
     laboratoryResults: "ผ่าซากพบน้ำท่วมปอดรุนแรงมาก (Severe pulmonary edema) ปอดไม่ยุบตัว น้ำคั่งในช่องอก ตรวจ RT-PCR ยืนยันเชื้อ Orbivirus",
     choices: [
-      "African Horse Sickness Virus (AHSV - Dunkop form)",
-      "Equine Influenza Virus (EIV)",
       "Equine Viral Arteritis (EAV)",
-      "Anthrax (โรคกาลี)"
+      "Anthrax (โรคกาลี)",
+      "Equine Influenza Virus (EIV)",
+      "African Horse Sickness Virus (AHSV - Dunkop form)",
     ],
     answer: "African Horse Sickness Virus (AHSV - Dunkop form)",
     explanation: "ม้าตายเฉียบพลันจาก Severe pulmonary edema พร้อมฟองน้ำฟอดทะลักออกจากรูจมูกในพื้นที่ที่มีริ้น Culicoides เป็นลักษณะคลาสสิกของโรคกาฬโรคม้า (African Horse Sickness แบบ Dunkop)"
@@ -2812,10 +2812,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["อาเจียนนม", "ท้องเสียเป็นน้ำพุ่งเฉียบพลัน (Watery diarrhea)", "ขาดน้ำรุนแรง ผิวหนังเหี่ยวย่น", "ลูกสุกรดูดนมตายเกือบ 100%"],
     laboratoryResults: "ผ่าซากพบลำไส้เล็กบางใสมีแก๊สและน้ำเหลืองเต็มลำไส้ ส่องกล้องพบ Villus atrophy กุดสั้นอย่างหนัก RT-PCR พบ Alphacoronavirus",
     choices: [
+      "E. coli (ETEC)",
       "Porcine Epidemic Diarrhea Virus (PEDV)",
-      "Rotavirus",
       "Clostridium perfringens type C",
-      "E. coli (ETEC)"
+      "Rotavirus",
     ],
     answer: "Porcine Epidemic Diarrhea Virus (PEDV)",
     explanation: "การระบาดของอาการอาเจียนและท้องเสียน้ำพุ่งในลูกสุกรแรกเกิดที่มีอัตราตายเกือบ 100% ร่วมกับผนังลำไส้บางใสและ Villus atrophy ยืนยันโรคท้องเสียระบาดในสุกร (PEDV)"
@@ -2831,10 +2831,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ไข้สูง ตับโต (Hepatomegaly)", "ดีซ่าน (Jaundice)", "กระจกตาบวมขุ่นสีฟ้า (Blue eye)", "จุดเลือดออกตามเยื่อเมือก"],
     laboratoryResults: "ค่าเอนไซม์ตับ ALT และ Total bilirubin พุ่งสูงมาก ตรวจ PCR พบ Canine Adenovirus type 1",
     choices: [
-      "Canine Adenovirus type 1 (CAV-1 / ICH)",
-      "Canine Parvovirus (CPV-2)",
       "Leptospirosis",
-      "Canine Distemper Virus (CDV)"
+      "Canine Parvovirus (CPV-2)",
+      "Canine Distemper Virus (CDV)",
+      "Canine Adenovirus type 1 (CAV-1 / ICH)",
     ],
     answer: "Canine Adenovirus type 1 (CAV-1 / ICH)",
     explanation: "โรคตับอักเสบติดต่อในสุนัข (ICH จาก CAV-1) แสดงอาการตับโต ดีซ่าน ร่วมกับปรากฏการณ์ Blue eye (Corneal edema จาก Immune complex) หลังการติดเชื้อ"
@@ -2851,9 +2851,9 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     laboratoryResults: "ป้าย Swab จากแผลในปากส่งตรวจ RT-PCR พบสารพันธุกรรมของ Vesivirus (Caliciviridae)",
     choices: [
       "Feline Calicivirus (FCV)",
-      "Feline Herpesvirus-1 (FHV-1)",
+      "โรคไตวายเรื้อรังจากยูเรียคั่ง",
       "Feline Panleukopenia Virus",
-      "โรคไตวายเรื้อรังจากยูเรียคั่ง"
+      "Feline Herpesvirus-1 (FHV-1)",
     ],
     answer: "Feline Calicivirus (FCV)",
     explanation: "แผลหลุมลึกในช่องปาก (Oral ulceration) โดยเฉพาะที่ลิ้น ร่วมกับน้ำลายไหลยืดในแมว เป็นลักษณะเด่นของ Feline Calicivirus (FCV)"
@@ -2869,10 +2869,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ไข่ลดเฉียบพลัน (Egg drop)", "เดินเซ ขาเป็นอัมพาต (Ataxia & paresis)", "ซึม ไม่กินอาหาร", "รังไข่อักเสบเน่า"],
     laboratoryResults: "ผ่าซากพบรังไข่ตกเลือด ฟอลลิเคิลไข่แดงแตกสลายในช่องท้อง ตรวจ RT-PCR พบเชื้อ Flavivirus สายพันธุ์ Tembusu",
     choices: [
-      "Duck Tembusu Virus (DTMUV)",
       "Duck Viral Enteritis (Duck Plague)",
+      "Duck Tembusu Virus (DTMUV)",
+      "Newcastle Disease",
       "Avian Influenza",
-      "Newcastle Disease"
     ],
     answer: "Duck Tembusu Virus (DTMUV)",
     explanation: "อาการไข่ลดฮวบเฉียบพลัน ร่วมกับอาการทางประสาทขาอ่อนแรงและรังไข่ตกเลือดในเป็ดไข่ เป็นลักษณะเด่นของ Duck Tembusu Virus (Flaviviridae)"
@@ -2890,8 +2890,8 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     choices: [
       "West Nile Virus (WNV)",
       "Rabies Virus",
+      "Tetanus",
       "Equine Protozoal Myeloencephalitis (EPM)",
-      "Tetanus"
     ],
     answer: "West Nile Virus (WNV)",
     explanation: "อาการสมองอักเสบ เดินเซ ขาหลังปัด และกล้ามเนื้อใบหน้ากระตุกในม้าช่วงฤดูยุงชุม ร่วมกับผล IgM Capture ELISA เป็นบวก บ่งชี้การติดเชื้อ West Nile Virus"
@@ -2908,9 +2908,9 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     laboratoryResults: "ตรวจจุลพยาธิวิทยาของต่อมน้ำเหลืองพบ Lymphoid depletion และพบ Botryoid inclusion bodies รูปพวงองุ่นในไซโทพลาสซึม qPCR พบ PCV2 ปริมาณสูง",
     choices: [
       "Porcine Circovirus type 2 (PCV2 / PMWS)",
-      "PRRS Virus",
+      "Swine Dysentery",
       "Mycoplasma hyopneumoniae",
-      "Swine Dysentery"
+      "PRRS Virus",
     ],
     answer: "Porcine Circovirus type 2 (PCV2 / PMWS)",
     explanation: "กลุ่มอาการผอมแห้งหลังหย่านม (PMWS) ร่วมกับต่อมน้ำเหลืองโตทั่วตัว รอยโรค Lymphoid depletion และ Botryoid inclusions ยืนยันการติดเชื้อ PCV2"
@@ -2928,8 +2928,8 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     choices: [
       "Infectious Bronchitis Virus (IBV)",
       "Newcastle Disease Virus",
+      "Infectious Laryngotracheitis",
       "Egg Drop Syndrome '76 (EDS)",
-      "Infectious Laryngotracheitis"
     ],
     answer: "Infectious Bronchitis Virus (IBV)",
     explanation: "ไข่เปลือกย่นเป็นริ้ว (Wrinkled egg) ไข่ขาวเหลว ร่วมกับอาการทางเดินหายใจและไตมีกรดยูริกคั่งในไก่ไข่ เป็นลักษณะเด่นของ Infectious Bronchitis Virus (IBV)"
@@ -2945,10 +2945,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ซึม ขนพอง นอนสุม", "อุจจาระร่วงสีขาวขุ่น (White watery diarrhea)", "กล้ามเนื้ออกและขามีจุดเลือดออกเป็นริ้ว", "ถุงเบอร์ซาบวมเป่ง"],
     laboratoryResults: "ผ่าซากพบ Bursa of Fabricius บวมขยายใหญ่มีเมือกสีเหลืองขี้ผึ้งและจุดเลือดออกเต็มถุง ตรวจพบจีโนม dsRNA 2 ท่อนของ Birnavirus",
     choices: [
-      "Infectious Bursal Disease Virus (IBDV / Gumboro)",
       "Coccidiosis (บิด)",
+      "Avian Encephalomyelitis",
+      "Infectious Bursal Disease Virus (IBDV / Gumboro)",
       "Salmonella Pullorum",
-      "Avian Encephalomyelitis"
     ],
     answer: "Infectious Bursal Disease Virus (IBDV / Gumboro)",
     explanation: "Bursa of Fabricius บวมโตมีเลือดออกในลูกไก่อายุ 3-6 สัปดาห์ ร่วมกับจุดเลือดออกที่กล้ามเนื้อต้นขา เป็นรอยโรคเฉพาะของโรคกัมโบโร (IBDV)"
@@ -2964,10 +2964,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["คันรุนแรงจนถูตัวขนร่วง (Pruritus/Scraping)", "เดินเซ สั่นกระตุก (Ataxia & tremors)", "พฤติกรรมตื่นตกใจง่าย", "สมองเสื่อมผอมแห้ง"],
     laboratoryResults: "ตรวจเนื้อเยื่อก้านสมอง (Obex) ด้วยวิธี IHC และ Western blot พบโปรตีนพรีออน PrPSc ทนต่อ Protease K",
     choices: [
-      "Scrapie (Prion disease)",
       "ขี้เรื้อน Psoroptes ovis",
+      "Scrapie (Prion disease)",
       "Rabies Virus",
-      "Listeriosis"
+      "Listeriosis",
     ],
     answer: "Scrapie (Prion disease)",
     explanation: "พฤติกรรมคันจนถูขนร่วง (Scraping) ร่วมกับอาการทางประสาทเดินเซ และการตรวจพบโปรตีน PrPSc ในเนื้อเยื่อสมอง Obex ยืนยันโรค Scrapie ในแกะ"
@@ -2985,8 +2985,8 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     choices: [
       "Infectious Bovine Rhinotracheitis (IBR / BoHV-1)",
       "Bovine Respiratory Syncytial Virus (BRSV)",
+      "Pasturellosis",
       "Foot and Mouth Disease",
-      "Pasturellosis"
     ],
     answer: "Infectious Bovine Rhinotracheitis (IBR / BoHV-1)",
     explanation: "ลักษณะเยื่อบุจมูกอักเสบแดงจัดเป็นเนื้อตาย (Red nose) ร่วมกับตาแดง ไอ และผลตรวจพบ BoHV-1 ชี้ชัดว่าเป็นโรค IBR"
@@ -3003,9 +3003,9 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     laboratoryResults: "ผ่าซากพบ Severe systemic necrotizing vasculitis ตรวจ PCR พบ Ovine Herpesvirus 2 (OvHV-2)",
     choices: [
       "Malignant Catarrhal Fever (MCF)",
-      "Bovine Viral Diarrhea (BVDV)",
+      "Rinderpest",
       "Infectious Bovine Rhinotracheitis (IBR)",
-      "Rinderpest"
+      "Bovine Viral Diarrhea (BVDV)",
     ],
     answer: "Malignant Catarrhal Fever (MCF)",
     explanation: "ประวัติเลี้ยงร่วมกับแกะ, กระจกตาขุ่นขาวลามจากขอบเข้ากลาง (Centripetal keratitis) และต่อมน้ำเหลืองโตจัดจากการเกิด Necrotizing vasculitis เป็นลักษณะเฉพาะของ MCF"
@@ -3023,8 +3023,8 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     choices: [
       "Canine Coronavirus (CCoV)",
       "Canine Parvovirus (CPV-2)",
+      "Giardia lamblia",
       "Canine Distemper Virus (CDV)",
-      "Giardia lamblia"
     ],
     answer: "Canine Coronavirus (CCoV)",
     explanation: "อาการท้องเสียถ่ายเป็นน้ำสีส้มเหลืองโดยไม่มีเลือดสด เม็ดเลือดขาวไม่ต่ำ และ SNAP Parvo เป็นลบ แต่ PCR พบเชื้อ บ่งชี้การติดเชื้อ Canine Coronavirus (CCoV)"
@@ -3040,10 +3040,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ตุ่มสะเก็ดสีน้ำตาลบนหงอนเหนียง (Cutaneous/Dry form)", "แผ่นเยื่อหนองสีเหลืองในช่องปากและกล่องเสียง (Wet form)", "หายใจลำบาก สำลัก", "ตาเจ็บมีสะเก็ดปิดตา"],
     laboratoryResults: "ขูดสะเก็ดแผลย้อมพบ Bollinger bodies (Large intracytoplasmic inclusions) ในเซลล์เยื่อบุผิว",
     choices: [
+      "Marek's Disease",
       "Fowlpox Virus",
       "Infectious Laryngotracheitis",
-      "Marek's Disease",
-      "Avian Influenza"
+      "Avian Influenza",
     ],
     answer: "Fowlpox Virus",
     explanation: "ตุ่มสะเก็ดบนหงอนเหนียง (Dry pox) ร่วมกับแผ่นเยื่อหนองในช่องปาก (Wet pox) และการตรวจพบ Bollinger bodies ยืนยันโรคฝีดาษไก่ (Fowlpox Virus)"
@@ -3059,10 +3059,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ปากอักเสบเน่าเรื้อรัง (Severe Stomatitis/Gingivitis)", "ต่อมน้ำเหลืองโต", "น้ำหนักลด ขนหยาบกร้าน", "ประวัติถูกกัดบ่อยครั้ง"],
     laboratoryResults: "ตรวจเลือดด้วยชุดตรวจ ELISA พบ Antibody ต่อ Lentivirus p24/gp40 ชัดเจน การตรวจนับเม็ดเลือดพบอัตราส่วน CD4+:CD8+ ลดลงต่ำกว่า 0.5",
     choices: [
-      "Feline Immunodeficiency Virus (FIV)",
-      "Feline Infectious Peritonitis (FIP)",
+      "Feline Herpesvirus-1",
       "โรคไตวายเรื้อรัง",
-      "Feline Herpesvirus-1"
+      "Feline Infectious Peritonitis (FIP)",
+      "Feline Immunodeficiency Virus (FIV)",
     ],
     answer: "Feline Immunodeficiency Virus (FIV)",
     explanation: "ประวัติแมวตัวผู้ชอบกัดกัน มีแผลช่องปากอักเสบเรื้อรัง (Stomatitis) ผลตรวจแอนติบอดีบวก และสัดส่วน CD4:CD8 ตกต่ำ เป็นลักษณะของโรคเอดส์แมว (FIV)"
@@ -3078,10 +3078,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ชักเกร็ง คอบิด ขาถีบจักรยาน (Tremors & convulsions)", "ไข้สูง น้ำลายไหล", "ลูกสุกรดูดนมตายเกือบ 100%", "แม่สุกรแท้งและมีไข้"],
     laboratoryResults: "ผ่าซากพบรอยโรคเนื้อตายขนาดเล็ก (Focal necrosis) ที่ตับและม้าม ตรวจ PCR พบ Suid Alphaherpesvirus 1",
     choices: [
+      "Streptococcus suis",
       "Pseudorabies Virus (Aujeszky's Disease)",
-      "Classical Swine Fever Virus",
       "Japanese Encephalitis Virus",
-      "Streptococcus suis"
+      "Classical Swine Fever Virus",
     ],
     answer: "Pseudorabies Virus (Aujeszky's Disease)",
     explanation: "อาการทางประสาทชักเกร็งตายเฉียบพลันในลูกสุกรแรกเกิด ร่วมกับรอยโรค Focal necrosis ที่ตับและม้าม และการตรวจพบ Alphaherpesvirus ยืนยันโรคพิษสุนัขบ้าเทียม (Pseudorabies)"
@@ -3097,10 +3097,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ข้อเข่าหน้าบวมโตผิดรูป (Big knee / Carpal arthritis)", "เดินกะเผลกเรื้อรัง (Lameness)", "เต้านมแข็งกระด้าง (Hard udder)", "น้ำหนักลดลงต่อเนื่อง"],
     laboratoryResults: "เจาะน้ำไขข้อพบเซลล์ Mononuclear สูงมาก ตรวจซีรั่มด้วย AGID test ให้ผลบวกต่อ Caprine Arthritis Encephalitis Virus",
     choices: [
+      "Caseous Lymphadenitis (CLA)",
+      "Brucella melitensis",
       "Caprine Arthritis Encephalitis Virus (CAEV)",
       "Mycoplasma agalactiae",
-      "Brucella melitensis",
-      "Caseous Lymphadenitis (CLA)"
     ],
     answer: "Caprine Arthritis Encephalitis Virus (CAEV)",
     explanation: "ข้อเข่าหน้าบวมโตผิดรูป (Big knee) ร่วมกับเต้านมแข็ง (Hard udder) และผลบวกต่อการตรวจซีรั่มในแพะโต เป็นลักษณะของ Caprine Arthritis Encephalitis (CAEV)"
@@ -3116,10 +3116,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["คอพับ ปีกตก (Dropped neck and wings)", "ถ่ายเหลวสีเขียวปนเลือด กลิ่นเหม็น", "ตายเฉียบพลันจำนวนมาก", "เยื่อตาอักเสบมีเมือกเกรอะกรัง"],
     laboratoryResults: "ผ่าซากพบรอยโรคแผ่นเนื้อตาย Fibrinous/Diphtheritic membrane เป็นแนวยาวในหลอดอาหาร (Esophagus) และจุดเลือดออกรูปวงแหวน (Annular bands) ในลำไส้ ตรวจ PCR พบ Anatid Alphaherpesvirus 1",
     choices: [
-      "Duck Viral Enteritis (Duck Plague / Anatid Alphaherpesvirus 1)",
-      "Avian Cholera (Pasteurella multocida)",
+      "Infectious Bursal Disease",
       "Duck Viral Hepatitis (DHAV)",
-      "Infectious Bursal Disease"
+      "Avian Cholera (Pasteurella multocida)",
+      "Duck Viral Enteritis (Duck Plague / Anatid Alphaherpesvirus 1)",
     ],
     answer: "Duck Viral Enteritis (Duck Plague / Anatid Alphaherpesvirus 1)",
     explanation: "อาการคอพับปีกตก ถ่ายเหลวสีเขียวปนเลือด รอยโรค Diphtheritic membrane ในหลอดอาหาร และ Annular hemorrhagic bands ในลำไส้ ร่วมกับผลตรวจ Herpesvirus ยืนยันโรคกาฬโรคเป็ด (Duck Plague)"
@@ -3138,7 +3138,7 @@ export const ALL_15_LAB_CASES: LabCase[] = [
       "Japanese Encephalitis Virus (JEV)",
       "Porcine Parvovirus (PPV)",
       "Brucella suis",
-      "Leptospira interrogans"
+      "Leptospira interrogans",
     ],
     answer: "Japanese Encephalitis Virus (JEV)",
     explanation: "ปัญหาผสมพันธุ์ในฤดูยุงชุม พ่อสุกรมีลูกอัณฑะบวมโตข้างเดียว (Orchitis) และแม่สุกรคลอดลูกมัมมี่สมองฝ่อ (Hydrocephalus) ตรวจพบ Flavivirus เป็นลักษณะเด่นของโรคไข้สมองอักเสบเจอี (JEV)"
@@ -3155,9 +3155,9 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     laboratoryResults: "ตรวจวิเคราะห์น้ำไขสันหลัง (CSF) พบเซลล์ Mononuclear สูง ตรวจน้ำไขสันหลังด้วย IgM Capture ELISA ให้ผลบวกจำเพาะต่อ Lineage 1 Flavivirus",
     choices: [
       "West Nile Virus (WNV)",
-      "Equine Infectious Anemia Virus (EIAV)",
       "Tetanus (บาดทะยัก)",
-      "Equine Herpesvirus-1 (EHM)"
+      "Equine Infectious Anemia Virus (EIAV)",
+      "Equine Herpesvirus-1 (EHM)",
     ],
     answer: "West Nile Virus (WNV)",
     explanation: "ม้าแสดงอาการทางระบบประสาท Ataxia ร่วมกับ Muscle fasciculations บริเวณใบหน้าและริมฝีปาก ในช่วงที่มียุงเป็นพาหะ และตรวจพบ IgM Capture ELISA บวกใน CSF ยืนยันโรคไข้สมองอักเสบเวสต์ไนล์ (WNV)"
@@ -3173,10 +3173,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ไข้สูงเฉียบพลันสองระลอก (Biphasic fever)", "เดินขาแข็งเกร็ง เจ็บข้อต่อ (Stiff gait / Shifting lameness)", "น้ำลายไหลยืด ซึม หายใจหอบ", "ฟื้นตัวเร็วภายใน 3-4 วัน"],
     laboratoryResults: "ตรวจตัวอย่างเลือดครบส่วน (Whole blood) เก็บในระยะไข้สูงด้วย RT-PCR พบสารพันธุกรรมของ Ephemerovirus (Rhabdoviridae)",
     choices: [
+      "Bovine Spongiform Encephalopathy (BSE)",
       "Bovine Ephemeral Fever Virus (BEFV - ไข้สามวัน)",
       "Blackleg (Clostridium chauvoei)",
       "Foot and Mouth Disease Virus",
-      "Bovine Spongiform Encephalopathy (BSE)"
     ],
     answer: "Bovine Ephemeral Fever Virus (BEFV - ไข้สามวัน)",
     explanation: "ไข้สูงเฉียบพลัน เดินขาแข็งเกร็ง (Stiffness) เจ็บข้อกล้ามเนื้อ และฟื้นตัวได้เองภายใน 3 วันในฤดูแมลงดูดเลือดชุกชุม ร่วมกับผลบวกต่อ Ephemerovirus คือโรคไข้สามวัน (Three-day sickness / BEFV)"
@@ -3192,10 +3192,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ไอแห้งรุนแรงเสียงดัง (Harsh honking cough)", "ไอสำลักคล้ายมีก้างติดคอหลังออกกำลังกาย", "กดหลอดลมกระตุ้นให้ไอ (Tracheal pinch positive)", "ร่าเริงและกินอาหารได้ปกติ"],
     laboratoryResults: "ป้ายตรวจสิ่งคัดหลั่งโพรงจมูกและคอหอย ตรวจ PCR พบ DNA ของ Canine Adenovirus type 2 (CAV-2) ร่วมกับเชื้อ Bordetella bronchiseptica",
     choices: [
+      "พยาธิหนอนหัวใจระยะรุนแรง",
       "Kennel Cough Complex (Canine Adenovirus type 2)",
       "Canine Distemper Virus (CDV)",
       "หัวใจโตกดหลอดลม",
-      "พยาธิหนอนหัวใจระยะรุนแรง"
     ],
     answer: "Kennel Cough Complex (Canine Adenovirus type 2)",
     explanation: "ประวัติเข้าพักโรงแรมสุนัข มีอาการไอเสียงดัง Honking cough เมื่อกดหลอดลม และผลตรวจพบ Adenovirus type 2 (CAV-2) เป็นลักษณะคลาสสิกของ Canine Infectious Respiratory Disease Complex (CIRDC / Kennel Cough)"
@@ -3211,10 +3211,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ตายเฉียบพลัน (Peracute death)", "เลือดกำเดาไหลปนฟองโฟมจากจมูก (Epistaxis)", "ไข้ ซึม หายใจหอบก่อนตาย", "กระต่ายโตตายเกือบ 100% แต่ลูกกระต่ายอายุน้อยกว่า 4 สัปดาห์รอด"],
     laboratoryResults: "ผ่าซากพบตับบวมซีดเปราะเกิดเนื้อตายเป็นวงกว้าง (Necrotizing hepatitis) ปอดคั่งเลือดและบวมน้ำรุนแรง ตรวจ RT-PCR ยืนยันเชื้อ Lagovirus (Caliciviridae)",
     choices: [
-      "Rabbit Hemorrhagic Disease Virus (RHDV / Calicivirus)",
       "Myxomatosis (Poxvirus)",
       "Pasteurellosis (Snuffles)",
-      "ภาวะกระเพาะอาหารอุดตันจากก้อนขน"
+      "ภาวะกระเพาะอาหารอุดตันจากก้อนขน",
+      "Rabbit Hemorrhagic Disease Virus (RHDV / Calicivirus)",
     ],
     answer: "Rabbit Hemorrhagic Disease Virus (RHDV / Calicivirus)",
     explanation: "กระต่ายโตตายเฉียบพลัน เลือดสดทะลักรูจมูก ตับเกิด Necrotizing hepatitis รุนแรง และเป็นเชื้อในวงศ์ Caliciviridae ยืนยันโรคตับอักเสบเลือดออกในกระต่าย (Rabbit Hemorrhagic Disease - RHDV)"
@@ -3230,10 +3230,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["หายใจอ้าปากและยืดคอ (Open-mouth breathing)", "หายใจหอบลึก (Tachypnea & dyspnea)", "ไอแห้ง ไข้สูง", "ลูกโคเครียดจากการขนส่งและรวมฝูง"],
     laboratoryResults: "ส่องกล้องจุลทรรศน์ชิ้นเนื้อปอดพบเซลล์ยักษ์หลายนิวเคลียส (Syncytia formation) และมี Intracytoplasmic inclusion bodies ย้อมตรวจ Fluorescent Antibody พบ Pneumovirus (Paramyxoviridae)",
     choices: [
+      "Contagious Bovine Pleuropneumonia (CBPP)",
       "Bovine Respiratory Syncytial Virus (BRSV)",
       "Infectious Bovine Rhinotracheitis (IBR)",
-      "Contagious Bovine Pleuropneumonia (CBPP)",
-      "Bovine Tuberculosis"
+      "Bovine Tuberculosis",
     ],
     answer: "Bovine Respiratory Syncytial Virus (BRSV)",
     explanation: "อาการหายใจหอบอ้าปากรุนแรงในลูกโคหลังหย่านม ร่วมกับการตรวจพบ Syncytia formation (Syncytial giant cells) ในเนื้อเยื่อปอด ชี้ชัดว่าเป็น Bovine Respiratory Syncytial Virus (BRSV)"
@@ -3249,10 +3249,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["ผอมแห้ง แคระแกร็น โตช้า (Severe wasting/stunting)", "ต่อมน้ำเหลืองทั่วตัวโตผิดปกติ (Lymphadenopathy)", "ผิวหนังซีด หายใจหอบ", "ท้องเสียเรื้อรัง"],
     laboratoryResults: "ตรวจชิ้นเนื้อต่อมน้ำเหลืองพบการสูญเสียเซลล์ลิมโฟไซต์ (Lymphoid depletion) และพบ Botryoid-like intracytoplasmic inclusion bodies ตรวจ Real-time PCR พบ Circovirus DNA ปริมาณสูง",
     choices: [
-      "Porcine Circovirus type 2 (PCV-2 / PMWS)",
       "Classical Swine Fever Virus",
+      "Porcine Circovirus type 2 (PCV-2 / PMWS)",
       "Porcine Parvovirus",
-      "โรคพยาธิในทางเดินอาหารรุนแรง"
+      "โรคพยาธิในทางเดินอาหารรุนแรง",
     ],
     answer: "Porcine Circovirus type 2 (PCV-2 / PMWS)",
     explanation: "อาการผอมแคระแกร็น (Wasting syndrome) ต่อมน้ำเหลืองโตทั่วตัว (Lymphadenopathy) ร่วมกับรอยโรค Lymphoid depletion และ Botryoid inclusions ยืนยันโรค PCVAD / PMWS จากเชื้อ PCV-2"
@@ -3268,10 +3268,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["หัวและคอสั่นระริก (Rapid tremor of head & neck)", "เดินเซ ขาอ่อนแรง ล้มนอนตะแคง (Ataxia & paresis)", "แก้วตาขุ่นขาวในตัวที่รอด (Blue eye / Cataract)", "อัตราตายสูงในลูกไก่อายุน้อยกว่า 3 สัปดาห์"],
     laboratoryResults: "ตรวจทางจุลพยาธิวิทยาของสมองและไขสันหลังพบ Neuronal chromatolysis และต่อมน้ำเหลืองแทรกตัวรอบหลอดเลือด (Perivascular cuffing) ตรวจพบ Picornavirus",
     choices: [
-      "Avian Encephalomyelitis Virus (AEV / Picornaviridae)",
       "Newcastle Disease Virus (Neurotropic form)",
       "Marek's Disease Virus",
-      "ภาวะขาดวิตามินอี (Crazy chick disease)"
+      "Avian Encephalomyelitis Virus (AEV / Picornaviridae)",
+      "ภาวะขาดวิตามินอี (Crazy chick disease)",
     ],
     answer: "Avian Encephalomyelitis Virus (AEV / Picornaviridae)",
     explanation: "ลูกไก่อายุน้อยมีอาการหัวคอสั่นระริก (Epidemic tremor) เดินเซ และเกิด Lens opacity ในตัวที่รอด ร่วมกับรอยโรค Neuronal chromatolysis ในระบบประสาท เป็นอาการเฉพาะของ Avian Encephalomyelitis (AEV)"
@@ -3287,10 +3287,10 @@ export const ALL_15_LAB_CASES: LabCase[] = [
     symptoms: ["เยื่อบุตาบวมแดงมีน้ำตาเกรอะ (Pink eye / Conjunctivitis)", "บวมน้ำที่ถุงอัณฑะ ใต้ท้อง และขาหลัง (Scrotal & ventral edema)", "แม่ม้าแท้งลูกเฉียบพลัน", "ไข้ ซึม ผื่นลมพิษ"],
     laboratoryResults: "ตรวจพบการอักเสบของผนังหลอดเลือดแดงขนาดเล็ก (Panarteritis) ตรวจน้ำอสุจิของม้าพ่อพันธุ์ด้วย RT-PCR พบ Arterivirus ในระดับสูง",
     choices: [
-      "Equine Viral Arteritis (EVA / Arteriviridae)",
-      "Equine Infectious Anemia (EIA / Coggins test)",
+      "Strangles (Streptococcus equi)",
       "African Horse Sickness (AHSV)",
-      "Strangles (Streptococcus equi)"
+      "Equine Infectious Anemia (EIA / Coggins test)",
+      "Equine Viral Arteritis (EVA / Arteriviridae)",
     ],
     answer: "Equine Viral Arteritis (EVA / Arteriviridae)",
     explanation: "อาการ Pinkeye เยื่อตาบวมแดง บวมน้ำที่ถุงอัณฑะและขา แม่ม้าแท้งลูก และตรวจพบการอักเสบของหลอดเลือดแดง Panarteritis พร้อมเชื้อในน้ำอสุจิ ยืนยันโรค Equine Viral Arteritis (EVA)"

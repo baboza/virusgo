@@ -1,10 +1,24 @@
 "use client";
 
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { motion } from 'framer-motion';
-import { Shield, Sword, Heart, ArrowLeft, Swords } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Shield, 
+  Sword, 
+  Heart, 
+  ArrowLeft, 
+  Swords, 
+  Box, 
+  Eye, 
+  Sparkles, 
+  Flame, 
+  Zap, 
+  AlertOctagon,
+  RotateCcw
+} from 'lucide-react';
 import Link from 'next/link';
 import { SVGVirus } from '@/components/ui/SVGVirus';
 import { sfx } from '@/utils/sound';
@@ -13,6 +27,27 @@ import { doc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useLiveTracking } from '@/hooks/useLiveTracking';
 import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyExpCap';
+
+// Dynamic 3D Models for Boss Colosseum
+const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex flex-col items-center justify-center text-red-400 font-mono text-xs gap-2">
+      <div className="w-7 h-7 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+      <span className="text-[10px] tracking-widest uppercase">SUMMONING 3D BOSS...</span>
+    </div>
+  )
+});
+
+const PlayerSentinel3D = dynamic(() => import('@/components/ui/PlayerSentinel3D'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex flex-col items-center justify-center text-emerald-400 font-mono text-xs gap-2">
+      <div className="w-7 h-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      <span className="text-[10px] tracking-widest uppercase">CHARGING SENTINEL...</span>
+    </div>
+  )
+});
 
 // Thai Localized Data for Boss Battle
 // Thai Localized Data for Boss Battle covering key curriculum chapters
@@ -202,6 +237,7 @@ export default function BossBattle() {
   const [dailyInfo, setDailyInfo] = useState<DailyExpInfo | null>(null);
   const [totalAwardedExp, setTotalAwardedExp] = useState(0);
   const [lastBossAwardedExp, setLastBossAwardedExp] = useState<number | null>(null);
+  const [arenaViewMode, setArenaViewMode] = useState<'3d' | '2d'>('3d');
 
 
   useLiveTracking('boss-battle', `ด่าน: ${currentBossIndex + 1}/${BOSSES.length} | เลือดบอส: ${bossHp}/${currentBoss.maxHp} | เลือดผู้เล่น: ${playerHp}/${PLAYER_MAX_HP}`);
@@ -325,6 +361,32 @@ export default function BossBattle() {
         <h1 className={`text-4xl font-black uppercase ${isVictory ? 'text-glow-accent text-secondary' : isTransitioning ? 'text-glow text-orange-500 animate-pulse' : 'text-danger'}`}>
           {isVictory ? 'MISSION COMPLETED!' : isTransitioning ? 'WARNING: NEW THREAT DETECTED' : 'ภารกิจล้มเหลว...'}
         </h1>
+
+        {/* 3D Showcase in Victory or Transitioning */}
+        {isVictory ? (
+          <div className="w-48 h-48 mx-auto my-2 relative bg-slate-950/80 rounded-2xl border border-emerald-500/30 shadow-2xl p-2 overflow-hidden">
+            <PlayerSentinel3D isAttacking={false} isDamaged={false} className="w-full h-full" />
+            <div className="absolute bottom-1.5 inset-x-0 text-center pointer-events-none">
+              <span className="text-[9px] font-mono text-emerald-300 bg-slate-900/90 px-2 py-0.5 rounded-full border border-emerald-700">
+                IMMUNE DEFENSE VICTORIOUS
+              </span>
+            </div>
+          </div>
+        ) : isTransitioning ? (
+          <div className="w-48 h-48 mx-auto my-2 relative bg-slate-950/80 rounded-2xl border border-red-500/40 shadow-2xl p-2 overflow-hidden">
+            <VirusViewer3D 
+              type={(BOSSES[currentBossIndex + 1]?.virusType as any) || 'corona'} 
+              color="#ef4444" 
+              interactive={false} 
+              className="w-full h-full"
+            />
+            <div className="absolute bottom-1.5 inset-x-0 text-center pointer-events-none">
+              <span className="text-[9px] font-mono text-red-300 bg-red-950/90 px-2 py-0.5 rounded-full border border-red-700 animate-pulse font-bold">
+                TARGET: {BOSSES[currentBossIndex + 1]?.name}
+              </span>
+            </div>
+          </div>
+        ) : null}
         <p className="text-xl text-slate-400 font-mono">
           {isVictory 
             ? (totalAwardedExp > 0 
@@ -397,6 +459,40 @@ export default function BossBattle() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* 3D vs 2D Mode Switch */}
+          <div className="flex items-center gap-1 bg-slate-900 border border-slate-700/60 p-0.5 rounded-lg">
+            <button
+              type="button"
+              onClick={() => {
+                sfx.click();
+                setArenaViewMode('3d');
+              }}
+              className={`px-2 py-0.5 rounded font-bold transition-all text-xs flex items-center gap-1 ${
+                arenaViewMode === '3d'
+                  ? 'bg-red-500 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Box className="w-3 h-3" />
+              <span>3D Arena</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sfx.click();
+                setArenaViewMode('2d');
+              }}
+              className={`px-2 py-0.5 rounded font-bold transition-all text-xs flex items-center gap-1 ${
+                arenaViewMode === '2d'
+                  ? 'bg-red-500 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Eye className="w-3 h-3" />
+              <span>2D Retro</span>
+            </button>
+          </div>
+
           {dailyInfo && (
             <div className={`text-xs px-2.5 py-1 rounded-full border ${dailyInfo.isCapped ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
               โควตาวันนี้: {dailyInfo.earnedToday}/{dailyInfo.cap} EXP {dailyInfo.isCapped && '(ฝึกฝน)'}
@@ -407,63 +503,144 @@ export default function BossBattle() {
       </div>
 
       {/* Battle Arena */}
-      <Card className="p-4 md:p-8 glass-danger relative overflow-hidden h-[350px] flex items-center justify-between bg-black/60 border-danger/40">
+      <Card className="p-4 md:p-6 glass-danger relative overflow-hidden min-h-[400px] md:min-h-[440px] flex items-center justify-between bg-black/75 border-danger/40 rounded-3xl shadow-2xl">
         <div className="scanlines" />
         
-        {/* Player Sprite */}
+        {/* Real-time battle scanline beam */}
+        <motion.div 
+          className="absolute left-4 right-4 h-0.5 bg-gradient-to-r from-emerald-500 via-yellow-400 to-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)] z-20 pointer-events-none"
+          animate={{ top: ['8%', '92%', '8%'] }}
+          transition={{ duration: 3.8, repeat: Infinity, ease: "linear" }}
+        />
+
+        {/* Player Sprite / 3D Sentinel */}
         <div className="flex flex-col items-center relative z-10 w-1/3">
           <HealthBar hp={playerHp} maxHp={PLAYER_MAX_HP} color="bg-secondary shadow-[0_0_10px_rgba(16,185,129,0.8)]" label="Player" />
-          <motion.div 
-            className="w-20 h-20 md:w-28 md:h-28 bg-gradient-to-br from-secondary to-green-900 border-2 border-secondary rounded-xl mt-6 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.5)]"
-            animate={{ 
-              x: battleState === 'attacking' ? [0, 80, 0] : 0,
-              opacity: battleState === 'damaged' ? [1, 0, 1, 0, 1] : 1,
-              scale: battleState === 'attacking' ? [1, 1.2, 1] : 1,
-              filter: battleState === 'damaged' ? ['brightness(1)', 'brightness(3) drop-shadow(0 0 20px red)', 'brightness(1)'] : 'brightness(1)'
-            }}
-            transition={{ duration: 0.5 }}
-          >
-            <Shield className="w-10 h-10 md:w-12 md:h-12 text-white" />
-          </motion.div>
+          
+          {arenaViewMode === '3d' ? (
+            <motion.div 
+              className="w-32 h-32 sm:w-40 sm:h-40 md:w-52 md:h-52 mt-2 relative flex items-center justify-center"
+              animate={{ 
+                x: battleState === 'attacking' ? [0, 50, 0] : 0,
+                scale: battleState === 'attacking' ? [1, 1.15, 1] : 1,
+                filter: battleState === 'damaged' ? ['brightness(1)', 'brightness(2.5) drop-shadow(0 0 25px red)', 'brightness(1)'] : 'brightness(1)'
+              }}
+              transition={{ duration: 0.5 }}
+            >
+              <PlayerSentinel3D 
+                isAttacking={battleState === 'attacking'} 
+                isDamaged={battleState === 'damaged'} 
+                className="w-full h-full"
+              />
+            </motion.div>
+          ) : (
+            <motion.div 
+              className="w-20 h-20 md:w-28 md:h-28 bg-gradient-to-br from-secondary to-green-900 border-2 border-secondary rounded-xl mt-6 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.5)]"
+              animate={{ 
+                x: battleState === 'attacking' ? [0, 80, 0] : 0,
+                opacity: battleState === 'damaged' ? [1, 0, 1, 0, 1] : 1,
+                scale: battleState === 'attacking' ? [1, 1.2, 1] : 1,
+                filter: battleState === 'damaged' ? ['brightness(1)', 'brightness(3) drop-shadow(0 0 20px red)', 'brightness(1)'] : 'brightness(1)'
+              }}
+              transition={{ duration: 0.5 }}
+            >
+              <Shield className="w-10 h-10 md:w-12 md:h-12 text-white" />
+            </motion.div>
+          )}
+
+          <div className="text-[10px] md:text-xs font-mono font-bold tracking-wider text-emerald-400 mt-2 text-center uppercase bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/30">
+            IMMUNE SENTINEL
+          </div>
+
           {damageText?.type === 'player' && (
             <motion.div 
               initial={{ opacity: 1, y: -20, scale: 1.5 }}
               animate={{ opacity: 0, y: -60 }}
-              className="absolute font-black text-3xl text-danger mt-12 drop-shadow-md text-glow"
+              className="absolute font-black text-3xl md:text-4xl text-danger mt-12 drop-shadow-md text-glow z-30"
             >
               -{damageText.value}
             </motion.div>
           )}
         </div>
 
-        <div className="text-3xl md:text-5xl font-black text-danger italic px-4 opacity-30 animate-pulse text-glow z-10">VS</div>
+        {/* Center VS Clash Energy */}
+        <div className="flex flex-col items-center justify-center px-2 z-10">
+          <div className="text-3xl md:text-5xl font-black text-danger italic opacity-40 animate-pulse text-glow">VS</div>
+          {battleState === 'attacking' && (
+            <motion.div 
+              initial={{ scaleX: 0, opacity: 0 }}
+              animate={{ scaleX: 1, opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-1 bg-gradient-to-r from-emerald-400 via-cyan-400 to-red-500 w-20 md:w-36 shadow-[0_0_15px_rgba(6,182,212,1)] my-1"
+            />
+          )}
+        </div>
 
-        {/* Boss Sprite */}
+        {/* Boss Sprite / 3D Virion */}
         <div className="flex flex-col items-center relative z-10 w-1/3">
-          <HealthBar hp={bossHp} maxHp={currentBoss.maxHp} color="bg-danger shadow-[0_0_10px_rgba(239,68,68,0.8)]" label="Boss" isRight />
-          <motion.div 
-            className="mt-2 flex items-center justify-center"
-            animate={{ 
-              y: battleState === 'idle' ? [0, -10, 0] : 0,
-              opacity: battleState === 'attacking' ? [1, 0, 1, 0, 1] : 1,
-              scale: battleState === 'attacking' ? [1, 0.9, 1] : 1,
-              filter: battleState === 'attacking' ? ['brightness(1)', 'brightness(3) drop-shadow(0 0 20px white)', 'brightness(1)'] : 'brightness(1)'
-            }}
-            transition={{ duration: battleState === 'idle' ? 3 : 0.5, repeat: battleState === 'idle' ? Infinity : 0, ease: "easeInOut" }}
-          >
-            {/* Call the new SVGVirus component here */}
-            <SVGVirus type={currentBoss.virusType as any} className="w-28 h-28 md:w-36 md:h-36 text-danger" glowColor={currentBoss.glow} />
-          </motion.div>
+          <HealthBar 
+            hp={bossHp} 
+            maxHp={currentBoss.maxHp} 
+            color={bossHp <= currentBoss.maxHp * 0.3 ? "bg-red-600 shadow-[0_0_15px_rgba(239,68,68,1)] animate-pulse" : "bg-danger shadow-[0_0_10px_rgba(239,68,68,0.8)]"} 
+            label="Boss" 
+            isRight 
+          />
+
+          {arenaViewMode === '3d' ? (
+            <motion.div 
+              className="w-36 h-36 sm:w-44 sm:h-44 md:w-56 md:h-56 mt-1 relative flex items-center justify-center"
+              animate={{ 
+                y: battleState === 'idle' ? [0, -8, 0] : 0,
+                scale: battleState === 'attacking' ? [1, 0.9, 1.05, 1] : bossHp <= currentBoss.maxHp * 0.3 ? [1, 1.06, 1] : 1,
+                filter: battleState === 'attacking' ? ['brightness(1)', 'brightness(3) drop-shadow(0 0 25px white)', 'brightness(1)'] : 'brightness(1)'
+              }}
+              transition={{ 
+                duration: battleState === 'idle' ? 3 : 0.5, 
+                repeat: battleState === 'idle' ? Infinity : bossHp <= currentBoss.maxHp * 0.3 ? Infinity : 0, 
+                ease: "easeInOut" 
+              }}
+            >
+              <VirusViewer3D 
+                type={currentBoss.virusType as any} 
+                color={bossHp <= currentBoss.maxHp * 0.3 ? '#ef4444' : (currentBoss.glow || '#ef4444')} 
+                isSick={battleState === 'attacking'} 
+                interactive={true} 
+                className="w-full h-full"
+              />
+            </motion.div>
+          ) : (
+            <motion.div 
+              className="mt-2 flex items-center justify-center"
+              animate={{ 
+                y: battleState === 'idle' ? [0, -10, 0] : 0,
+                opacity: battleState === 'attacking' ? [1, 0, 1, 0, 1] : 1,
+                scale: battleState === 'attacking' ? [1, 0.9, 1] : 1,
+                filter: battleState === 'attacking' ? ['brightness(1)', 'brightness(3) drop-shadow(0 0 20px white)', 'brightness(1)'] : 'brightness(1)'
+              }}
+              transition={{ duration: battleState === 'idle' ? 3 : 0.5, repeat: battleState === 'idle' ? Infinity : 0, ease: "easeInOut" }}
+            >
+              <SVGVirus type={currentBoss.virusType as any} className="w-28 h-28 md:w-36 md:h-36 text-danger" glowColor={currentBoss.glow} />
+            </motion.div>
+          )}
           
-          <div className="text-danger font-mono text-xs md:text-sm tracking-widest uppercase mt-2 opacity-90 text-center font-bold">
-            {currentBoss.name}
+          <div className="flex flex-col items-center mt-1">
+            <span className="text-danger font-mono text-[11px] md:text-sm tracking-widest uppercase font-bold text-center">
+              {currentBoss.name}
+            </span>
+            <span className={`text-[9px] font-mono font-bold tracking-wider px-2 py-0.5 rounded-full border mt-0.5 ${
+              bossHp <= currentBoss.maxHp * 0.3 
+                ? 'bg-rose-950/80 border-rose-500 text-rose-300 animate-pulse' 
+                : 'bg-slate-900 border-slate-700 text-slate-400'
+            }`}>
+              {bossHp <= currentBoss.maxHp * 0.3 ? '⚠️ ENRAGED PHASE' : 'PHASE 1 (3D VIRION)'}
+            </span>
           </div>
 
           {damageText?.type === 'boss' && (
             <motion.div 
               initial={{ opacity: 1, y: -20, scale: 1.5 }}
               animate={{ opacity: 0, y: -60 }}
-              className="absolute font-black text-3xl text-white mt-12 drop-shadow-md text-glow"
+              className="absolute font-black text-3xl md:text-4xl text-amber-300 mt-12 drop-shadow-md text-glow z-30"
             >
               -{damageText.value}
             </motion.div>

@@ -20,7 +20,8 @@ import {
   Shield,
   ShieldCheck,
   Award,
-  Users
+  Users,
+  Lock
 } from 'lucide-react';
 import Link from 'next/link';
 import { sfx } from '@/utils/sound';
@@ -53,11 +54,14 @@ interface GameMode {
 }
 
 export default function StageSelect() {
-  const { appUser, loading: loadingExp } = useAuth();
+  const { appUser, user, loading: loadingExp } = useAuth();
   const today = getTodayDateString();
   const rawDaily = (appUser as any)?.dailyGameExp;
   const dailyExpRecord: Record<string, number> =
     rawDaily && rawDaily.date === today ? rawDaily : {};
+
+  const currentUserEmail = (appUser?.email || (user as any)?.email || '').trim().toLowerCase();
+  const isVcaAuthorized = ['never.away@gmail.com', 'wilasinee.c@msu.ac.th'].includes(currentUserEmail);
 
   // ── Category 1: Clinical & Diagnostic Training (Solo) ──────────────────────
   const clinicalModes: GameMode[] = [
@@ -408,6 +412,74 @@ export default function StageSelect() {
           <div className="text-xs sm:text-sm text-slate-300 leading-relaxed min-w-0">
             <span className="font-bold text-white">ระบบจำกัดโควตา EXP รายวัน (Daily Cap) & ฝึกฝนได้ไม่จำกัด:</span>{' '}
             ทุกโหมดมีเพดาน EXP ต่อวันเพื่อความสมดุล หากเก็บครบโควตาแล้ว นิสิตยังสามารถเข้าเล่นเพื่อทบทวนบทเรียนได้ตลอดเวลาแบบไม่จำกัดใน <span className="font-semibold text-cyan-300">โหมดฝึกฝนอิสระ</span> (โควตารีเซ็ตอัตโนมัติทุกเที่ยงคืน)
+          </div>
+        </div>
+      </div>
+
+      {/* ── Featured: VCA National Board CBT Simulator ────────────────────── */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-950/70 via-slate-900/90 to-cyan-950/70 border border-cyan-500/40 p-6 sm:p-7 shadow-2xl backdrop-blur-xl group">
+        <div className="absolute -top-24 -right-24 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none group-hover:scale-125 transition-transform duration-700" />
+        
+        <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-3.5 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-[10px] font-mono font-bold px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5 uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>ศูนย์จำลองการสอบสัตวแพทยสภา • CBT Exam</span>
+              </span>
+
+              {isVcaAuthorized ? (
+                <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  สิทธิ์เข้าใช้งาน: พร้อมสอบ (Authorized)
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-amber-400" />
+                  ช่วงทดลองเฉพาะผู้ได้รับอนุญาต (Private Access)
+                </span>
+              )}
+            </div>
+
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide group-hover:text-cyan-300 transition-colors">
+                VCA National Board Simulator
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 font-thai leading-relaxed mt-1">
+                แบบทดสอบจำลองมาตรฐานการสอบใบประกอบวิชาชีพสัตวแพทย์ 25 ข้อ (Clinical Vignette MCQs) ระบบจับเวลา 25 นาที เครื่องมือตัดตัวเลือก 50:50 ส่องตัวอย่าง 3D Capsid & Host และรายงานประเมินสมรรถนะ 6 หมวดวิชา
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+                ⏱ 25 ข้อ • 25 นาที
+              </span>
+              <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+                🧬 6 หมวดครอบคลุมทุกชนิดสัตว์
+              </span>
+              <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+                🔬 กล้องส่องตัวอย่าง 3D
+              </span>
+              <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-cyan-300">
+                ⭐ สูงสุด +250 EXP
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end gap-3 shrink-0">
+            <Link
+              href="/student/play/vca-practice"
+              onClick={() => sfx.click()}
+              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-black text-sm tracking-wide transition-all shadow-lg hover:shadow-[0_0_25px_rgba(6,182,212,0.35)] flex items-center justify-center gap-2.5 active:scale-95 text-center"
+            >
+              <Award className="w-4 h-4" />
+              <span>{isVcaAuthorized ? 'เข้าสู่สนามสอบ VCA' : 'เข้าสู่สนามสอบ VCA 🔒'}</span>
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+
+            <span className="text-[10px] font-mono text-slate-400 text-center lg:text-right">
+              {isVcaAuthorized ? 'ปลดล็อกเฉพาะผู้ทดสอบระบบ' : 'ล็อกชั่วคราว: เฉพาะผู้ทดสอบระบบ'}
+            </span>
           </div>
         </div>
       </div>

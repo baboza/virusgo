@@ -1,10 +1,25 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Microscope, ArrowLeft, CheckCircle2, XCircle, FileText, Activity, AlertTriangle, Fingerprint } from 'lucide-react';
+import { 
+  Microscope, 
+  ArrowLeft, 
+  CheckCircle2, 
+  XCircle, 
+  FileText, 
+  Activity, 
+  AlertTriangle, 
+  Fingerprint,
+  Box,
+  Eye,
+  Layers,
+  Sparkles,
+  Dna
+} from 'lucide-react';
 import Link from 'next/link';
 import { sfx } from '@/utils/sound';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,8 +27,29 @@ import { doc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useLiveTracking } from '@/hooks/useLiveTracking';
 import { awardDailyCappedExp, getDailyExpInfo, DailyExpInfo } from '@/lib/dailyExpCap';
-
+import { familyToVirusType, SVGVirus } from '@/components/ui/SVGVirus';
 import { ALL_15_LAB_CASES } from '@/data/veterinaryVirologyContent';
+
+// Dynamic 3D Specimen & Host Viewers
+const VirusViewer3D = dynamic(() => import('@/components/ui/VirusViewer3D'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex flex-col items-center justify-center text-purple-400 font-mono text-xs gap-2">
+      <div className="w-7 h-7 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      <span className="text-[10px] tracking-widest uppercase">LOADING 3D VIRION...</span>
+    </div>
+  )
+});
+
+const AnimalHologram3D = dynamic(() => import('@/components/ui/AnimalHologram3D'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex flex-col items-center justify-center text-cyan-400 font-mono text-xs gap-2">
+      <div className="w-7 h-7 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+      <span className="text-[10px] tracking-widest uppercase">LOADING 3D PATIENT...</span>
+    </div>
+  )
+});
 
 const shuffle = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
@@ -37,6 +73,7 @@ export default function LabDetective() {
   const [earnedExp, setEarnedExp] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [dailyInfo, setDailyInfo] = useState<DailyExpInfo | null>(null);
+  const [labViewMode, setLabViewMode] = useState<'virus3d' | 'animal3d' | 'tem'>('virus3d');
 
   useLiveTracking('lab-detective', `เคสที่: ${currentCaseIndex + 1} | EXP: ${earnedExp}`);
 
@@ -177,6 +214,126 @@ export default function LabDetective() {
                   สปีชีส์: {currentCase.species}
                 </div>
               </div>
+
+              {/* 3D Virtual Virology Specimen & Patient Chamber */}
+              {(() => {
+                const virusType = familyToVirusType(currentCase.answer || currentCase.title);
+                return (
+                  <div className="w-full bg-slate-950/95 rounded-2xl border border-purple-500/40 relative shadow-2xl p-4 overflow-hidden">
+                    {/* Corner Reticles */}
+                    <div className="absolute top-2.5 left-2.5 w-3.5 h-3.5 border-t-2 border-l-2 border-purple-400/80" />
+                    <div className="absolute top-2.5 right-2.5 w-3.5 h-3.5 border-t-2 border-r-2 border-purple-400/80" />
+                    <div className="absolute bottom-2.5 left-2.5 w-3.5 h-3.5 border-b-2 border-l-2 border-purple-400/80" />
+                    <div className="absolute bottom-2.5 right-2.5 w-3.5 h-3.5 border-b-2 border-r-2 border-purple-400/80" />
+
+                    {/* Sweeping Laser Scan Line */}
+                    <motion.div 
+                      className="absolute left-3 right-3 h-0.5 bg-gradient-to-r from-purple-500 via-cyan-400 to-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.9)] z-20 pointer-events-none"
+                      animate={{ top: ['8%', '92%', '8%'] }}
+                      transition={{ duration: 3.5, repeat: Infinity, ease: "linear" }}
+                    />
+
+                    {/* Mode Switcher Bar */}
+                    <div className="w-full flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-800/80 z-20 text-[10px] font-mono">
+                      <div className="flex items-center gap-1.5 text-purple-300 font-bold uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping inline-block" />
+                        <span>LAB SPECIMEN #{currentCaseIndex + 1}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1 bg-slate-900 border border-slate-700/60 p-0.5 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            sfx.click();
+                            setLabViewMode('virus3d');
+                          }}
+                          className={`px-2.5 py-0.5 rounded font-bold transition-all flex items-center gap-1 ${
+                            labViewMode === 'virus3d'
+                              ? 'bg-purple-600 text-white shadow-sm'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                          title="ดูแบบจำลอง 3D ไวรัสเป้าหมาย"
+                        >
+                          <Box className="w-3 h-3" />
+                          <span>ไวรัส 3D</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            sfx.click();
+                            setLabViewMode('animal3d');
+                          }}
+                          className={`px-2.5 py-0.5 rounded font-bold transition-all flex items-center gap-1 ${
+                            labViewMode === 'animal3d'
+                              ? 'bg-purple-600 text-white shadow-sm'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                          title="ดูโฮโลแกรม 3D สัตว์ป่วยและระบบเป้าหมาย"
+                        >
+                          <Activity className="w-3 h-3" />
+                          <span>สัตว์ป่วย 3D</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            sfx.click();
+                            setLabViewMode('tem');
+                          }}
+                          className={`px-2.5 py-0.5 rounded font-bold transition-all flex items-center gap-1 ${
+                            labViewMode === 'tem'
+                              ? 'bg-purple-600 text-white shadow-sm'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                          title="ดูภาพสแกนกล้องจุลทรรศน์อิเล็กตรอน (TEM)"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>2D TEM</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Viewport Stage */}
+                    <div className="w-full h-56 sm:h-64 my-2 relative flex items-center justify-center">
+                      {labViewMode === 'virus3d' ? (
+                        <VirusViewer3D 
+                          type={virusType} 
+                          color="#a855f7" 
+                          interactive={true} 
+                          className="w-full h-full"
+                        />
+                      ) : labViewMode === 'animal3d' ? (
+                        <AnimalHologram3D 
+                          speciesGroup={currentCase.species}
+                          animalType={currentCase.species}
+                          caseId={currentCase.id}
+                          farmHp={isCorrect === false ? 35 : 80}
+                          className="w-full h-full"
+                        />
+                      ) : (
+                        <div className="w-36 h-36 flex flex-col items-center justify-center filter drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]">
+                          <SVGVirus type={virusType} className="w-full h-full text-purple-400" />
+                          <span className="text-[9px] font-mono text-purple-300 mt-1">TEM NEGATIVE CONTRAST</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Specimen Telemetry Footer */}
+                    <div className="w-full pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono z-20">
+                      <span className="text-slate-400 flex items-center gap-1">
+                        <span>สถานะ:</span>
+                        <strong className={isCorrect === true ? 'text-emerald-400' : isCorrect === false ? 'text-rose-400' : 'text-purple-300'}>
+                          {isCorrect === true ? 'ยืนยันเชื้อแล้ว (CONFIRMED)' : isCorrect === false ? 'วินิจฉัยผิดพลาด (MISIDENTIFIED)' : 'กำลังตรวจสอบ (UNDER INVESTIGATION)'}
+                        </strong>
+                      </span>
+                      <span className="text-purple-300 bg-purple-950/60 px-2.5 py-0.5 rounded border border-purple-800/40 font-bold">
+                        {currentCase.species}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-purple-400 font-bold uppercase tracking-widest text-sm border-b border-purple-500/20 pb-2">
